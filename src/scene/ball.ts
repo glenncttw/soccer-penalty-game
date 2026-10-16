@@ -1,20 +1,49 @@
 import * as THREE from 'three';
+import type { Vec3 } from '../physics/ballForces';
+import { palette } from '../theme';
 
-/** A fading ribbon behind the ball that makes its curl visible. */
+/** How a shot's trail looks: harder strikes leave a wider, longer trail. */
+export interface TrailStyle {
+  /** Full width at the ball, in metres. */
+  width: number;
+  /** Seconds a point of the trail stays visible. */
+  life: number;
+  /** Colour at the edges and in the middle of the ribbon. */
+  edge: number;
+  core: number;
+}
+
+export function trailStyle(power: number, perfect: boolean): TrailStyle {
+  if (perfect) return { width: 0.17, life: 0.8, edge: palette.gold, core: 0xfffbea };
+  return { width: 0.07 + power * 0.05, life: 0.35 + power * 0.3, edge: 0xff4f9a, core: 0xffd3e6 };
+}
+
+const MAX_SAMPLES = 180; // enough for the longest trail at high frame rates
+
+/**
+ * A fading ribbon behind the ball that makes its curl visible. It always faces
+ * the camera, and each point fades by age, so it looks the same at any frame rate.
+ */
 export class BallTrail {
   readonly mesh: THREE.Mesh;
-  private readonly points: THREE.Vector3[] = [];
-  private readonly positions: Float32Array;
-  private readonly alphas: Float32Array;
+  private readonly samples: { p: THREE.Vector3; t: number }[] = [];
+  private readonly positions = new Float32Array(MAX_SAMPLES * 2 * 3);
+  private readonly alphas = new Float32Array(MAX_SAMPLES * 2);
+  private readonly uniforms = { edgeColor: { value: new THREE.Color() }, coreColor: { value: new THREE.Color() } };
+  private style = trailStyle(0.5, false);
+  private readonly tangent = new THREE.Vector3();
+  private readonly toCamera = new THREE.Vector3();
+  private readonly side = new THREE.Vector3();
 
-  constructor(private readonly length = 60, private readonly width = 0.08) {
-    this.positions = new Float32Array(length * 2 * 3);
-    this.alphas = new Float32Array(length * 2);
+  constructor() {
+    const across = new Float32Array(MAX_SAMPLES * 2);
+    for (let i = 0; i < MAX_SAMPLES; i++) across.set([-1, 1], i * 2);
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-    geo.setAttribute('alpha', new THREE.BufferAttribute(this.alphas, 1));
+    geo.setAttribute('position', new THREE.BufferAttribute(this.positions, 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute('alpha', new THREE.BufferAttribute(this.alphas, 1).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute('across', new THREE.BufferAttribute(across, 1));
     const index: number[] = [];
-    for (let i = 0; i < length - 1; i++) {
+    for (let i = 0; i < MAX_SAMPLES - 1; i++) {
       const a = i * 2;
       index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
     }
@@ -23,41 +52,74 @@ export class BallTrail {
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
-      uniforms: { color: { value: new THREE.Color(0xff6fb0) } },
-      vertexShader: `attribute float alpha; varying float vAlpha;
-        void main() { vAlpha = alpha; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-      fragmentShader: `uniform vec3 color; varying float vAlpha;
-        void main() { gl_FragColor = vec4(color, vAlpha); }`,
+      uniforms: this.uniforms,
+      vertexShader: /* glsl */ `
+        attribute float alpha;
+        attribute float across;
+        varying float vAlpha;
+        varying float vAcross;
+        void main() {
+          vAlpha = alpha;
+          vAcross = across;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform vec3 edgeColor;
+        uniform vec3 coreColor;
+        varying float vAlpha;
+        varying float vAcross;
+        void main() {
+          float a = abs(vAcross);
+          vec3 color = mix(coreColor, edgeColor, smoothstep(0.1, 0.8, a));
+          gl_FragColor = vec4(color, vAlpha * (1.0 - smoothstep(0.7, 1.0, a)));
+          #include <colorspace_fragment>
+        }`,
     });
     this.mesh = new THREE.Mesh(geo, material);
     this.mesh.frustumCulled = false;
+    this.setStyle(this.style);
   }
 
-  push(p: THREE.Vector3) {
-    this.points.unshift(p.clone());
-    if (this.points.length > this.length) this.points.pop();
-    this.rebuild();
+  setStyle(style: TrailStyle) {
+    this.style = style;
+    this.uniforms.edgeColor.value.setHex(style.edge);
+    this.uniforms.coreColor.value.setHex(style.core);
+  }
+
+  /** Adds the ball's position at game time `time` (seconds). */
+  push(p: Vec3, time: number) {
+    const reuse = this.samples.length >= MAX_SAMPLES ? this.samples.pop()! : { p: new THREE.Vector3(), t: 0 };
+    reuse.p.set(p.x, p.y, p.z);
+    reuse.t = time;
+    this.samples.unshift(reuse);
   }
 
   clear() {
-    this.points.length = 0;
-    this.rebuild();
+    this.samples.length = 0;
+    this.mesh.geometry.setDrawRange(0, 0);
   }
 
-  private rebuild() {
-    this.alphas.fill(0);
-    const n = this.points.length;
-    for (let i = 0; i < this.length; i++) {
-      const p = this.points[Math.min(i, n - 1)] ?? new THREE.Vector3();
-      const w = this.width * (1 - i / this.length);
-      this.positions.set([p.x, p.y + w, p.z, p.x, p.y - w, p.z], i * 6);
-      if (i < n) {
-        const a = 0.85 * (1 - i / n);
-        this.alphas[i * 2] = a;
-        this.alphas[i * 2 + 1] = a;
-      }
+  /** Rebuilds the ribbon for game time `time`, facing `cameraPosition`. */
+  update(time: number, cameraPosition: THREE.Vector3) {
+    const { life, width } = this.style;
+    while (this.samples.length && time - this.samples[this.samples.length - 1].t > life) this.samples.pop();
+    const n = this.samples.length;
+    for (let i = 0; i < n; i++) {
+      const s = this.samples[i];
+      const fade = Math.max(0, 1 - (time - s.t) / life);
+      this.tangent.subVectors(this.samples[Math.max(0, i - 1)].p, this.samples[Math.min(n - 1, i + 1)].p);
+      this.toCamera.subVectors(cameraPosition, s.p);
+      this.side.crossVectors(this.tangent, this.toCamera);
+      if (this.side.lengthSq() < 1e-10) this.side.set(0, 1, 0);
+      this.side.normalize().multiplyScalar(0.5 * width * Math.pow(fade, 0.6));
+      this.positions.set(
+        [s.p.x - this.side.x, s.p.y - this.side.y, s.p.z - this.side.z, s.p.x + this.side.x, s.p.y + this.side.y, s.p.z + this.side.z],
+        i * 6,
+      );
+      this.alphas[i * 2] = this.alphas[i * 2 + 1] = 0.9 * fade;
     }
     const geo = this.mesh.geometry;
+    geo.setDrawRange(0, Math.max(0, n - 1) * 6); // only the segments between live points
     geo.getAttribute('position').needsUpdate = true;
     geo.getAttribute('alpha').needsUpdate = true;
   }

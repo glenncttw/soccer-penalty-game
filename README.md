@@ -4,14 +4,18 @@ A fun, playful 3D penalty shootout for the browser, built with Three.js, TypeScr
 
 Swipe to shoot, bend it with curl, and dive to save in a 5-kick shootout against the AI.
 
-See [docs/PLAN.md](docs/PLAN.md) for the gameplay scope, tech stack and milestones.
+See [docs/PLAN.md](docs/PLAN.md) for the gameplay scope, tech stack and milestones, and
+[docs/blob-cup-study.md](docs/blob-cup-study.md) for what we learned from Blob Cup's shooting feel.
 
 ## How to play
 
 1. **Aim**: move the mouse over the goal (on a phone, press where you want the ball to go).
-2. **Power up**: press and hold. The meter on the right goes up and down. Let go in the **gold zone** for a perfect strike.
+2. **Power up**: press and hold. The meter on the right (below the goal on a phone held upright) goes up and down. Let go in the **gold zone** for a perfect strike.
 3. **Curl**: while holding, drag left or right to bend the ball that way. A dotted line shows the start of the curve.
 4. **Shoot**: let go.
+
+On your first visit, tips at the top walk you through your first shots. The round button at the top right turns
+the sound on and off, and the game remembers your choice. The sounds are made in code for now, as placeholders.
 
 ## The stadium
 
@@ -25,7 +29,7 @@ relies on these node names:
 | Node | Used for |
 |---|---|
 | `GOAL_Frame` | goal line position (its origin), posts and crossbar (measured from the geometry) |
-| `GOAL_Net` (child of `GOAL_Frame`) | net shape for collisions |
+| `GOAL_Net` (child of `GOAL_Frame`) | net shape for collisions, and the net that bulges when the ball hits it |
 | `Football_Ball` | the ball's look, start position and radius (origin must be the ball's centre) |
 | `PITCH_Grass` | ground height |
 | the first glTF camera | gameplay camera position, direction and field of view |
