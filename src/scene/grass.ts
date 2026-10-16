@@ -175,6 +175,9 @@ export function paintMaskFromMarkings(renderer: THREE.WebGLRenderer, markings: T
  *   the blades instead of their sunlit sides,
  * - the white lines and penalty spot, painted onto the grass.
  * Sunlight and shadows work as before.
+ *
+ * Returns the material and `update(settings)`, which applies new settings
+ * straight away.
  */
 export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLRenderer, s: GrassSettings = GRASS_SETTINGS) {
   const grass = stadium.getObjectByName(STADIUM_NODES.grass);
@@ -188,28 +191,46 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
   const stripeData = new Float32Array(MAX_STRIPES * 2);
   stripeData.set(stripes.darkStripes.flat());
   const uniforms = {
-    uGrassLight: { value: new THREE.Color(s.colorLight) },
-    uGrassDark: { value: new THREE.Color(s.colorDark) },
+    uGrassLight: { value: new THREE.Color() },
+    uGrassDark: { value: new THREE.Color() },
     uStripes: { value: stripeData },
     uStripeCount: { value: stripes.darkStripes.length },
-    uStripeSoftness: { value: s.stripeSoftness },
-    uStripeRagged: { value: s.stripeRagged },
-    uCrossStripeWidth: { value: s.crossStripeWidth },
-    uCrossStripeOpacity: { value: s.crossStripeOpacity },
+    uStripeSoftness: { value: 0 },
+    uStripeRagged: { value: 0 },
+    uCrossStripeWidth: { value: 0 },
+    uCrossStripeOpacity: { value: 0 },
     uAlbedo: { value: textures.albedo },
     uNormal: { value: textures.normal },
-    uTile: { value: new THREE.Vector2(s.textureTileSize, s.textureTileSize * s.textureStretch) },
-    uTextureStrength: { value: s.textureStrength },
-    uNormalStrength: { value: s.normalStrength },
-    uPatchStrength: { value: s.patchStrength },
-    uPatchSize: { value: s.patchSize },
-    uAngleShading: { value: s.angleShading },
+    uTile: { value: new THREE.Vector2() },
+    uTextureStrength: { value: 0 },
+    uNormalStrength: { value: 0 },
+    uPatchStrength: { value: 0 },
+    uPatchSize: { value: 0 },
+    uAngleShading: { value: 0 },
     uPaint: { value: paint.texture },
     uPaintCorner: { value: paint.corner },
     uPaintSize: { value: paint.size },
-    uLineColor: { value: new THREE.Color(s.lineColor) },
-    uLineRagged: { value: s.lineRagged },
+    uLineColor: { value: new THREE.Color() },
+    uLineRagged: { value: 0 },
   };
+  // Settings only change uniforms, so they can change while the game runs (see the settings editor).
+  function update(settings: GrassSettings) {
+    uniforms.uGrassLight.value.set(settings.colorLight);
+    uniforms.uGrassDark.value.set(settings.colorDark);
+    uniforms.uStripeSoftness.value = settings.stripeSoftness;
+    uniforms.uStripeRagged.value = settings.stripeRagged;
+    uniforms.uCrossStripeWidth.value = settings.crossStripeWidth;
+    uniforms.uCrossStripeOpacity.value = settings.crossStripeOpacity;
+    uniforms.uTile.value.set(settings.textureTileSize, settings.textureTileSize * settings.textureStretch);
+    uniforms.uTextureStrength.value = settings.textureStrength;
+    uniforms.uNormalStrength.value = settings.normalStrength;
+    uniforms.uPatchStrength.value = settings.patchStrength;
+    uniforms.uPatchSize.value = settings.patchSize;
+    uniforms.uAngleShading.value = settings.angleShading;
+    uniforms.uLineColor.value.set(settings.lineColor);
+    uniforms.uLineRagged.value = settings.lineRagged;
+  }
+  update(s);
 
   // Start from the model's light grass so roughness and the sun's sheen stay as in Blender.
   const material = stripes.light.clone() as THREE.MeshStandardMaterial;
@@ -242,7 +263,7 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     old.dispose();
   }
   for (const mesh of stripes.meshes) mesh.material = material;
-  return material;
+  return { material, update };
 }
 
 const GRASS_PARS = /* glsl */ `
