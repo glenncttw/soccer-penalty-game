@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { KEEPER_SKILLS, readShot, type KeeperLevel } from '../ai/keeper';
+import { KEEPER_SKILL, readShot } from '../ai/keeper';
 import { KeeperMotion } from '../ai/keeperMotion';
 import { OutcomeTracker } from '../gameplay/outcome';
 import { shapeShot } from '../gameplay/shot';
@@ -29,17 +29,9 @@ const world: WorldConfig = {
 };
 
 const home = { x: 0, y: 0, z: 0.35 };
-const keeper = new KeeperMotion(home, KEEPER_SKILLS.normal);
+const keeper = new KeeperMotion(home, KEEPER_SKILL);
 const physics = await createPhysicsWorld(world, { keeper: keeper.pose });
 const outcome = new OutcomeTracker(world.goal, world.ballRadius);
-
-/** A repeatable stand-in for Math.random. */
-function seeded(seed: number) {
-  return () => {
-    seed = (seed * 1664525 + 1013904223) % 4294967296;
-    return seed / 4294967296;
-  };
-}
 
 /**
  * Plays one shot against the keeper through the real pipeline: the keeper lines
@@ -47,9 +39,7 @@ function seeded(seed: number) {
  * with Rapier, and the outcome tracker decides. `random` drives the aim wobble
  * and the keeper's choices; the default always reads the shot, without error.
  */
-function play(level: KeeperLevel, aimX: number, aimY: number, power: number, curl = 0, random = () => 0.5) {
-  const skill = KEEPER_SKILLS[level];
-  keeper.skill = skill;
+function play(aimX: number, aimY: number, power: number, curl = 0, random = () => 0.5) {
   keeper.reset();
   physics.resetBall();
   outcome.reset();
@@ -64,7 +54,7 @@ function play(level: KeeperLevel, aimX: number, aimY: number, power: number, cur
   const velocity = solveKick(world.ballStart, shot.target, shot.speed, shot.spin);
   physics.kick(velocity, shot.spin);
   const kick = { start: world.ballStart, velocity, spin: shot.spin };
-  keeper.react(readShot(kick, keeper.lineZ, world.goal, skill, random));
+  keeper.react(readShot(kick, keeper.lineZ, world.goal, keeper.skill, random));
 
   const contacts: Contact[] = [];
   let maxZAfterKeeper = -Infinity;
@@ -87,44 +77,25 @@ function play(level: KeeperLevel, aimX: number, aimY: number, power: number, cur
 
 describe('shots against the keeper', () => {
   it('saves a shot hit at it, and the ball comes back out', () => {
-    const r = play('normal', 0, 0.9, 0.7);
+    const r = play(0, 0.9, 0.7);
     expect(r.result).toBe('saved');
     expect(r.contacts.some((c) => c.surface === 'keeper')).toBe(true);
     expect(r.maxZAfterKeeper).toBeGreaterThan(home.z + 0.4);
   });
 
   it('saves soft shots, even toward a corner', () => {
-    expect(play('normal', 2.1, 0.9, 0.4).result).toBe('saved');
-    expect(play('normal', -2.1, 0.35, 0.4).result).toBe('saved');
+    expect(play(2.1, 0.9, 0.4).result).toBe('saved');
+    expect(play(-2.1, 0.35, 0.4).result).toBe('saved');
   });
 
-  it.each(['easy', 'normal'] as const)('lets a perfect strike into the corner beat the %s keeper', (level) => {
-    expect(play(level, 2.45, 0.35, 0.87).result).toBe('goal');
-    expect(play(level, -2.45, 1.6, 0.87).result).toBe('goal');
+  it('lets a perfect strike into the corner beat it', () => {
+    expect(play(2.45, 0.35, 0.87).result).toBe('goal');
+    expect(play(-2.45, 1.6, 0.87).result).toBe('goal');
   });
 
   it('is fooled by curl on a shot it saves when hit straight', () => {
-    expect(play('normal', 1.6, 1.6, 0.7, 0).result).toBe('saved');
-    expect(play('normal', 1.6, 1.6, 0.7, 1).result).toBe('goal');
-    expect(play('hard', 2.45, 1.6, 0.7, 0).result).toBe('saved');
-    expect(play('hard', 2.45, 1.6, 0.7, 1).result).toBe('goal');
-  });
-
-  it('saves more the better it is', () => {
-    const saves = (level: KeeperLevel) => {
-      const random = seeded(11);
-      let n = 0;
-      for (const x of [-2.45, -1.6, 1.6, 2.45]) {
-        for (const y of [0.35, 0.9, 1.6]) {
-          for (const power of [0.6, 0.75, 0.87]) if (play(level, x, y, power, 0, random).result === 'saved') n++;
-        }
-      }
-      return n;
-    };
-    const easy = saves('easy');
-    const normal = saves('normal');
-    const hard = saves('hard');
-    expect(easy).toBeLessThan(normal);
-    expect(normal).toBeLessThan(hard);
+    // Dragging left swings the ball out toward the middle, then it bends right, away from the keeper.
+    expect(play(1.6, 1.6, 0.7, 0).result).toBe('saved');
+    expect(play(1.6, 1.6, 0.7, -1).result).toBe('goal');
   });
 });

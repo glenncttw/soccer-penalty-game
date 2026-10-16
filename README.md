@@ -9,17 +9,16 @@ See [docs/PLAN.md](docs/PLAN.md) for the gameplay scope, tech stack and mileston
 
 ## How to play
 
-1. **Aim**: move the mouse over the goal (on a phone, press where you want the ball to go).
+1. **Aim**: move the mouse over the goal (on a phone, press where you want the ball to go). The target stays inside the goal frame.
 2. **Power up**: press and hold. The meter on the right (below the goal on a phone held upright) goes up and down. Let go in the **gold zone** for a perfect strike.
-3. **Curl**: while holding, drag left or right to bend the ball that way. A dotted line shows the start of the curve.
+3. **Curl**: while holding, drag left or right. The ball swings out to that side, then bends back onto your target. A dotted line shows the start of the curve.
 4. **Shoot**: let go.
 
 A goalkeeper tries to stop you. It watches which way the ball is heading, so a curled shot fools it, and soft
-shots are easy saves. The **Keeper** button at the top right switches it between easy, normal and hard. Its look
-is a placeholder made from simple shapes until there's a Blender model.
+shots are easy saves. Its look is a placeholder made from simple shapes until there's a Blender model.
 
-On your first visit, tips at the top walk you through your first shots. The round button at the top right turns
-the sound on and off, and the game remembers your choice. The sounds are made in code for now, as placeholders.
+On your first visit, tips at the top walk you through your first shots. With a mouse, the view turns a little
+toward where you point.
 
 ## The stadium
 
@@ -33,7 +32,7 @@ relies on these node names:
 | Node | Used for |
 |---|---|
 | `GOAL_Frame` | goal line position (its origin), posts and crossbar (measured from the geometry) |
-| `GOAL_Net` (child of `GOAL_Frame`) | net shape for collisions, and the net that bulges when the ball hits it |
+| `GOAL_Net` (child of `GOAL_Frame`) | net shape for collisions |
 | `Football_Ball` | the ball's look, start position and radius (origin must be the ball's centre) |
 | `PITCH_Grass` | ground height |
 | the first glTF camera | gameplay camera position, direction and field of view |
@@ -41,6 +40,26 @@ relies on these node names:
 
 Coordinates: Y up, metres, shots travel toward -Z. The game shifts the model along Z so its goal line sits at z = 0.
 If a node is missing or a measurement looks wrong, the game stops with an error naming it.
+
+## The sky
+
+The sky and its clouds are drawn by one shader (`src/scene/sky.ts`), not a picture: a blue gradient with
+puffy, cartoon clouds that drift slowly to the right, nearer ones a little faster than far ones. Each cloud is
+made of 4 to 7 round puffs on a flat bottom, lit from the same side as the stadium's sun. The clouds are built
+from a seed, so they look the same every time you load the game.
+
+To change the look, edit `SKY_SETTINGS` in `src/scene/skySettings.ts`. Each setting has a short note. The
+handiest ones:
+
+| Setting | What it does |
+|---|---|
+| `clouds` | `false` turns the clouds off and keeps the blue gradient |
+| `cloudCount`, `cloudCoverage` | how many clouds there are, and how much of the sky they fill (0 = clear sky) |
+| `cloudScale`, `cloudWidthVariation`, `cloudHeightVariation` | how big they are, and how much they differ |
+| `cloudSpeed` | drift speed in degrees per second (negative drifts left) |
+| `cloudSeed` | any whole number gives a different set of clouds |
+| `cloudColorTop`, `cloudColorBottom`, `skyColorTop`, `skyColorBottom` | the colours |
+| `cloudSoftness`, `cloudShading`, `lightDirection`, `cloudLayerDepth` | edge softness, shading between puffs, where the light comes from, and how much smaller and hazier far clouds are |
 
 ## Getting started
 

@@ -1,13 +1,11 @@
 import * as THREE from 'three';
-import { KEEPER_SKILLS, readShot } from './ai/keeper';
-import { loadKeeperLevel, nextKeeperLevel, saveKeeperLevel } from './ai/keeperLevel';
+import { KEEPER_SKILL, readShot } from './ai/keeper';
 import { KeeperMotion } from './ai/keeperMotion';
-import { Sound } from './audio/sound';
 import { connectFeedback } from './feedback';
+import { clampAimToGoal } from './gameplay/aim';
 import { GameEvents } from './gameplay/events';
 import { OutcomeTracker } from './gameplay/outcome';
 import { createPowerMeter, PERFECT_MAX, PERFECT_MIN, type StrikeQuality } from './gameplay/power';
-import { Score } from './gameplay/score';
 import { shapeShot } from './gameplay/shot';
 import { SlowMotion } from './gameplay/slowMotion';
 import { ShootInput } from './input/shootInput';
@@ -19,7 +17,8 @@ import { Effects } from './scene/effects';
 import { createGameCamera } from './scene/gameCamera';
 import { KeeperModel } from './scene/keeper';
 import { setUpLighting } from './scene/lighting';
-import { NetRipple } from './scene/netRipple';
+import { Sky } from './scene/sky';
+import { SKY_SETTINGS } from './scene/skySettings';
 import { loadStadium } from './scene/stadiumAsset';
 import { COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
@@ -40,6 +39,9 @@ const stadium = await loadStadium();
 const world = stadium.config;
 scene.add(stadium.environment);
 setUpLighting(scene, stadium.sun);
+// The sky and its drifting clouds; tweak them in src/scene/skySettings.ts.
+const sky = new Sky(SKY_SETTINGS);
+scene.add(sky.mesh);
 
 // The gameplay camera designed in Blender: ball low in the foreground, goal centred.
 const view = createGameCamera(world);
@@ -49,11 +51,9 @@ const ballMesh = stadium.ball;
 const trail = new BallTrail();
 const markers = new AimMarkers();
 const effects = new Effects();
-const net = new NetRipple(stadium.net, { groundY: world.groundY, lineZ: world.goal.lineZ });
 
 // The keeper stands just off its line, toward the ball.
-let keeperLevel = loadKeeperLevel();
-const keeper = new KeeperMotion({ x: 0, y: world.groundY, z: world.goal.lineZ + 0.35 }, KEEPER_SKILLS[keeperLevel]);
+const keeper = new KeeperMotion({ x: 0, y: world.groundY, z: world.goal.lineZ + 0.35 }, KEEPER_SKILL);
 const keeperModel = new KeeperModel();
 scene.add(ballMesh, trail.mesh, markers.group, effects.group, keeperModel.group);
 
@@ -64,26 +64,9 @@ const finePointer = window.matchMedia('(pointer: fine)').matches; // a mouse, no
 const power = createPowerMeter(window.matchMedia('(pointer: coarse)').matches);
 const outcome = new OutcomeTracker(world.goal, world.ballRadius);
 const events = new GameEvents();
-const sound = new Sound();
 const slowMotion = new SlowMotion();
-const score = new Score();
 const coach = new Coach();
-connectFeedback(events, { world, camera: view, sound, effects, net, hud, slowMotion });
-
-// Browsers only allow sound after a click or tap (on phones, once the finger lifts).
-for (const type of ['pointerdown', 'pointerup']) window.addEventListener(type, () => sound.unlock(), true);
-hud.showSound(!sound.muted);
-hud.onToggleSound = () => {
-  sound.setMuted(!sound.muted);
-  hud.showSound(!sound.muted);
-};
-hud.showKeeper(keeperLevel);
-hud.onToggleKeeper = () => {
-  keeperLevel = nextKeeperLevel(keeperLevel);
-  keeper.skill = KEEPER_SKILLS[keeperLevel];
-  saveKeeperLevel(keeperLevel);
-  hud.showKeeper(keeperLevel);
-};
+connectFeedback(events, { world, camera: view, effects, hud, slowMotion });
 
 const BALL_START = world.ballStart;
 type Phase = 'aiming' | 'charging' | 'flight' | 'result';
@@ -92,15 +75,13 @@ let phaseTime = 0;
 const aim = new THREE.Vector3(0, 1.2, world.goal.lineZ);
 let lastQuality: StrikeQuality = 'good';
 
-// Pointer → point on the goal plane, kept within reach of the goal.
+// Pointer → point on the goal plane, kept inside the goal frame.
 const raycaster = new THREE.Raycaster();
 const goalPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -world.goal.lineZ);
 function updateAim() {
   raycaster.setFromCamera(new THREE.Vector2(input.pointer.x, input.pointer.y), camera);
   if (!raycaster.ray.intersectPlane(goalPlane, aim)) return;
-  const reachX = world.goal.outerHalfWidth + 1.5;
-  aim.x = THREE.MathUtils.clamp(aim.x, -reachX, reachX);
-  aim.y = THREE.MathUtils.clamp(aim.y, world.groundY + 0.2, world.goal.outerHeight + 1.2);
+  clampAimToGoal(aim, world.goal, world.groundY, world.ballRadius);
 }
 
 function setPhase(next: Phase) {
@@ -133,10 +114,7 @@ input.onRelease = () => {
 };
 
 function showResult() {
-  const goal = outcome.result === 'goal';
-  score.record(goal);
-  hud.showScore(score.goals, score.shots);
-  if (goal) {
+  if (outcome.result === 'goal') {
     const perfect = lastQuality === 'perfect';
     const ball = physics.ball.translation();
     const dived = keeper.wentFor;
@@ -150,8 +128,7 @@ function showResult() {
           : perfect
             ? 'perfect strike'
             : '';
-    const streak = score.streak >= 2 ? `${score.streak} in a row!` : '';
-    hud.showBanner('GOAL!', [how, streak].filter(Boolean).join(' · '), perfect);
+    hud.showBanner('GOAL!', how, perfect);
   } else if (outcome.result === 'saved') {
     const why = lastQuality === 'weak' ? 'not enough power' : keeper.guessed ? 'the keeper guessed right' : '';
     hud.showBanner('SAVED!', why || 'great save');
@@ -161,7 +138,7 @@ function showResult() {
     hud.showBanner('MISS!', lastQuality === 'skied' ? 'too much power' : lastQuality === 'weak' ? 'not enough power' : '');
   }
   setPhase('result');
-  events.emit('result', { result: outcome.result!, quality: lastQuality, woodwork: outcome.hitFrame, streak: score.streak });
+  events.emit('result', { result: outcome.result!, quality: lastQuality, woodwork: outcome.hitFrame });
 }
 
 function resetShot() {
@@ -249,11 +226,11 @@ renderer.setAnimationLoop((time) => {
 
   // Sway with the mouse while aiming (and hold it while charging), settle back otherwise.
   const sway = finePointer && input.hasPointer && (phase === 'aiming' || phase === 'charging');
-  view.update(realDt, { charging: phase === 'charging', swayTarget: sway ? input.pointer.x : null });
+  view.update(realDt, { charging: phase === 'charging', swayTarget: sway ? input.pointer : null });
   trail.update(gameTime, camera.position);
   keeperModel.update(keeper.pose, dt);
   effects.update(dt);
-  net.update(dt);
+  sky.update(gameTime);
 
   renderer.render(scene, camera);
 });

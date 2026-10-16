@@ -1,6 +1,6 @@
 # What we learned from Blob Cup
 
-Glenn shared the game code of [Blob Cup](https://blob-cup.vercel.app/) because he likes how its shooting feels. We studied how it works and then built our own versions of the ideas that make it fun. **Nothing was copied**: no code, art, sounds, words or tuning numbers. Everything in our game is written from scratch and tuned by playing our game.
+Glenn shared the game code of [Blob Cup](https://blob-cup.vercel.app/) because Glenn likes how its shooting feels. We studied how it works and then built our own versions of the ideas that make it fun. **Nothing was copied**: no code, art, sounds, words or tuning numbers. Everything in our game is written from scratch and tuned by playing our game.
 
 ## How Blob Cup's shot works (in short)
 
@@ -31,17 +31,17 @@ Each opponent is a different mix of these: reaction time, reach, how often it re
 |---|---|---|---|
 | Ball flight | Path decided at the kick, then played back | Real physics with our own curl | Same, on purpose |
 | Holding a shot | Camera creeps forward during the run-up | Camera stood still | Camera slowly pushes in and the view tightens a little |
-| The kick | Camera shake | Nothing | Shake (bigger on a perfect strike), grass and dust fly up, "PERFECT!" pops up with a chime |
-| Moving the mouse | Camera follows the pointer | Nothing | The view turns slightly around the goal (desktop only) |
+| The kick | Camera shake | Nothing | Shake (bigger on a perfect strike), grass and dust fly up, "PERFECT!" pops up |
+| Moving the mouse | Camera follows the pointer | Nothing | The view turns slightly around the goal, sideways and up and down (desktop only) |
 | Phones | Slower meter on touch screens | Same speed everywhere | Meter a bit slower on touch screens, and below the goal on tall screens |
 | Aim line | Moving dots that change colour in the perfect zone | Still dotted line and a plain target ring | Dashes flow toward the goal, the ring grows with power, both turn gold in the gold zone |
 | Trail | Fire trail that grows with power | Thin pink ribbon | Wider and longer the harder you hit; gold with glitter on a perfect strike |
-| Net | Wobbles back when the ball goes in | Didn't move | Bulges where the ball really hits it, more for harder hits |
-| Posts | None | Real posts and crossbar, a banner on a hit | Also a ringing "tonk", a camera jolt and a crowd "ooh" |
-| Scoring a goal | Shockwave on the grass, crowd celebrates | A banner | Short slow motion, camera shake, confetti cannons, gold banner for a perfect strike |
-| Sound | Recorded music, crowd, kick and cheer; mute button | None | Kick, post, net, bounce, chime, crowd murmur, cheer and "ooh", all made in code; a mute button that remembers your choice |
+| Net | Wobbles back when the ball goes in | Didn't move | Still doesn't move (we tried a bulge and took it out again) |
+| Posts | None | Real posts and crossbar, a banner on a hit | Also a camera jolt |
+| Scoring a goal | Shockwave on the grass, crowd celebrates | A banner | Short slow motion, camera shake, gold banner for a perfect strike |
+| Sound | Recorded music, crowd, kick and cheer; mute button | None | None (we tried sounds made in code and took them out again) |
 | Learning to play | A 3-step tutorial that pauses the game | One fixed hint | Tips on your first visit that follow what you do, and stop once you've curled a shot |
-| Score | A tournament against 3 opponents | None | Goal counter and "3 in a row!" streaks (the full shootout comes later) |
+| Score | A tournament against 3 opponents | None | None for now (the full shootout comes later) |
 | Keeper | Yes, see above | None | Our own keeper, see below |
 | Overall look | Glow, blurred edges, film-style colours | Blender's colours | Same, on purpose |
 
@@ -50,22 +50,22 @@ Each opponent is a different mix of these: reaction time, reach, how often it re
 - **The scripted flight.** Deciding everything at the kick is easy to balance, but then the ball can't really hit anything. Glenn wants collisions, so we keep real physics: the posts, the net and soon the keeper are real objects the ball bounces off.
 - **The visible shooter and the run-up.** Glenn doesn't want a third-person player, and a run-up adds a delay between letting go and the kick. Our ball leaves the moment you let go.
 - **Their screen effects** (glow, blur and film colours). Glenn's stadium is lit to look exactly like it does in Blender, and these would change those colours. A soft glow just for perfect strikes could be worth trying later.
-- **Their art, sounds, words and numbers.** Our sounds are made in code for now (placeholders until we pick real recordings), our words are our own, and every number is tuned in our game.
+- **Their art, sounds, words and numbers.** Our words are our own, and every number is tuned in our game.
 
 ## Our keeper
 
 Built after this study, in our own way (the code is in `src/ai/`):
 
 - **Look**: a cute, rounded keeper made from simple shapes, as a placeholder until there's a Blender model. How it moves doesn't depend on how it looks, so a model can be swapped in later.
-- **Brain**: it watches the ball and extends where it's heading straight on to its line. A curled shot keeps bending after it looks, so curl fools it. The longer it can watch (a slow shot), the less is left to bend, so slow shots are easier to read. Better keepers also sense some of the curl.
+- **Brain**: it watches the ball and extends where it's heading straight on to its line. A curled shot keeps bending after it looks, so curl fools it. The longer it can watch (a slow shot), the less is left to bend, so slow shots are easier to read. It also senses some of the curl.
 - **Timing**: it moves after its reaction time, or waits for a slow ball so it gets there at the same moment. On a fast shot it sometimes guesses a side instead and goes all-in straight away: a right guess can stop even a perfect strike, and a wrong one sends it the wrong way.
 - **Real saves**: its body, arms and gloves are physics objects that move every step, so a save is a real collision. The ball can be pushed wide, deflect in off the post or sneak past its fingertips.
 - **Alive**: it bounces on its toes and edges toward where you aim, then gets set while you charge.
-- **Difficulty**: easy, normal and hard change its reaction time, dive speed, reach, how often it reads you, how much curl it senses and how far it edges toward your aim.
-- **Fair**: tests play hundreds of shots against it. On normal, soft and central shots are usually saved, while a well-struck shot into a corner, or a curled one, usually goes in.
+- **Strength**: there is one keeper. Its reaction time, dive speed, reach, how often it reads you, how much curl it senses and how far it edges toward your aim are all in `KEEPER_SKILL` (`src/ai/keeper.ts`).
+- **Fair**: tests play shots against it. Soft and central shots are usually saved, while a well-struck shot into a corner, or a curled one, usually goes in.
 
 ## Ideas for later
 
 - A ladder of opponents that get harder (a sharper keeper, a narrower gold zone).
 - Weather that changes per opponent, like rain or snow.
-- Recorded sounds and music instead of the ones made in code.
+- Recorded sounds and music.

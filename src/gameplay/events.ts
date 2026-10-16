@@ -4,15 +4,15 @@ import type { StrikeQuality } from './power';
 
 /**
  * Everything that happens during a shot, in order. Gameplay emits these; the
- * camera, sound, effects and HUD listen, so each stays independent of the others.
+ * camera, effects and HUD listen, so each stays independent of the others.
  */
 export interface GameEventMap {
   /** The ball was struck. */
   kick: { power: number; quality: StrikeQuality };
-  /** The ball touched the ground, the woodwork or the net. */
+  /** The ball touched the ground, the woodwork, the net or the keeper. */
   contact: Contact;
-  /** The shot is decided. `streak` counts goals in a row, including this one. */
-  result: { result: ShotResult; quality: StrikeQuality; woodwork: boolean; streak: number };
+  /** The shot is decided. */
+  result: { result: ShotResult; quality: StrikeQuality; woodwork: boolean };
 }
 
 type Listener<K extends keyof GameEventMap> = (payload: GameEventMap[K]) => void;

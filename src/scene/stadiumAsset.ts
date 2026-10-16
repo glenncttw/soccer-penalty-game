@@ -15,8 +15,6 @@ export interface Stadium {
   environment: THREE.Group;
   /** The model's football, detached so gameplay can move it. Origin = ball centre. */
   ball: THREE.Object3D;
-  /** The goal net mesh (it stays in the environment). */
-  net: THREE.Mesh;
   sun: THREE.DirectionalLight | null;
   config: WorldConfig;
   dispose(): void;
@@ -60,13 +58,9 @@ export async function loadStadium(): Promise<Stadium> {
   });
   camera.removeFromParent();
 
-  const net = gltf.scene.getObjectByName(STADIUM_NODES.goalNet);
-  if (!(net instanceof THREE.Mesh)) throw new Error(`Stadium model is missing the "${STADIUM_NODES.goalNet}" mesh`);
-
   return {
     environment,
     ball,
-    net,
     sun,
     config,
     dispose() {

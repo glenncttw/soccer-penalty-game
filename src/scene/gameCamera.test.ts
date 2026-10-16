@@ -47,10 +47,23 @@ describe('game camera', () => {
   it('sways around the goal, keeping the goal centre in front', () => {
     const view = createGameCamera(world);
     view.fit(16 / 9);
-    settle(view, { charging: false, swayTarget: 1 });
+    settle(view, { charging: false, swayTarget: { x: 1, y: 0 } });
     expect(view.camera.position.x).not.toBeCloseTo(0, 2);
     const forward = view.camera.getWorldDirection(view.camera.position.clone());
     const toGoal = view.camera.position.clone().negate().setY(0).normalize();
     expect(forward.setY(0).normalize().angleTo(toGoal)).toBeLessThan(0.01);
+  });
+
+  it('tilts up when the pointer goes up, circling down around the goal', () => {
+    const view = createGameCamera(world);
+    view.fit(16 / 9);
+    const restPitch = view.camera.getWorldDirection(view.camera.position.clone()).y;
+    settle(view, { charging: false, swayTarget: { x: 0, y: 1 } });
+    expect(view.camera.position.y).toBeLessThan(0.94 - 0.05);
+    expect(view.camera.getWorldDirection(view.camera.position.clone()).y).toBeGreaterThan(restPitch + 0.004);
+    settle(view, { charging: false, swayTarget: { x: 0, y: -1 } });
+    expect(view.camera.position.y).toBeGreaterThan(0.94 + 0.05);
+    settle(view, still, 6);
+    expect(view.camera.position.y).toBeCloseTo(0.94, 3);
   });
 });

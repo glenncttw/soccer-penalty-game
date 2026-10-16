@@ -1,6 +1,6 @@
 /**
  * Slows the game down for a dramatic moment, then eases back to full speed.
- * The camera, sound and HUD keep running in real time.
+ * The camera and HUD keep running in real time.
  */
 export class SlowMotion {
   /** How fast game time runs compared with real time (1 = normal). */
