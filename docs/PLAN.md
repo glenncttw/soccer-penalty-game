@@ -8,6 +8,7 @@ A fun, fast 3D penalty shootout that runs in the browser on desktop and mobile. 
 - **No visible shooter**: there is no third-person player model. The ball, its flight and its curl are the star.
 - **Curl is visible**: the ball spins visibly and leaves a bright trail ribbon, so the bend of every shot reads clearly.
 - **Stadium**: a stylized stadium modelled in Blender by Glenn (`public/assets/stadium/`), with stands, railings, ad boards, floodlights and trees. Only the sector the gameplay camera sees is modelled. Goal, ball and penalty spot sizes come from the model (goal opening 5.64 x 1.92 m, penalty 12.4 m, ball radius 0.175 m). A crowd can be added on the stands later.
+- **Shooting feel**: inspired by Blob Cup's shooting (ideas only, nothing copied). See [blob-cup-study.md](blob-cup-study.md).
 - **Art style**: fun and playful, inspired by the kodeclubs.com 3D world:
   - Low-poly, flat-shaded (faceted) geometry with chunky, simplified shapes. No outlines, no realistic textures.
   - Bright sunny daylight with soft, slightly blue-tinted shadows and gentle ambient light.
@@ -36,7 +37,7 @@ Native mobile apps, online multiplayer, full matches, licensed teams or players,
 | Build / dev server | **Vite** | Instant reloads, trivial static build |
 | Physics | **Rapier** (`@dimforge/rapier3d-compat`) | Fast WASM physics for collisions: ball against posts, crossbar, net and keeper, plus props, rebounds and anything else that needs to collide |
 | Ball flight | Custom Magnus (curl) force applied to the Rapier ball each step | Full control over how the curl feels, which a generic engine doesn't give |
-| Audio | **Howler.js** | Simple cross-browser sound with mobile audio unlock handled |
+| Audio | **Web Audio API**, sounds made in code | Nothing to download; placeholders until we pick recordings, which the same code (or Howler.js) can play |
 | UI / HUD | HTML/CSS overlay | Menus and scoreboard don't need to be in 3D |
 | Assets | Low-poly glTF (CC0 packs from Kenney / Quaternius, or Blender) | Light, fits the playful style, loads natively in Three.js |
 | Tests | **Vitest** | Unit tests for scoring, AI and shot math |
@@ -64,7 +65,7 @@ Rapier handles every collision (posts, net, keeper, future props and objects) ro
 4. **Keeper AI**: stylized keeper that dives with difficulty-based timing and reach.
 5. **Saving turn**: first-person goal-line view, dive input, AI shooter.
 6. **Shootout loop**: alternate turns, 5 kicks plus sudden death, HUD and result screen.
-7. **Polish**: sound, net ripple, slow-mo, particles, menus, mobile touch tuning, performance pass.
+7. **Polish**: sound, net ripple, slow-mo, particles and camera feel (done, with placeholder sounds); menus, mobile touch tuning, performance pass.
 8. **Crowd**: fill the stands with an instanced, animated crowd that reacts to goals and saves.
 
 ## Repo layout (planned)
@@ -72,13 +73,15 @@ Rapier handles every collision (posts, net, keeper, future props and objects) ro
 ```
 src/
   main.ts          entry, renderer, loop
+  feedback.ts      connects game moments (kick, touch, result) to camera, sound, effects and HUD
   worldConfig.ts   gameplay coordinates measured from the stadium
-  scene/           stadium loading and measuring, lighting, camera, trail, aim markers
+  scene/           stadium loading and measuring, lighting, camera, trail, aim markers, net ripple, effects
   physics/         Rapier world, ball, Magnus (curl) force
-  gameplay/        shootout state machine, scoring
+  gameplay/        shootout state machine, scoring, game events, slow motion
+  audio/           sound effects and crowd
   ai/              keeper and shooter AI
   input/           swipe / mouse handling
-  ui/              HUD and menus (HTML/CSS)
-public/assets/     stadium GLB, later audio
-docs/PLAN.md
+  ui/              HUD, first-visit tips and menus (HTML/CSS)
+public/assets/     stadium GLB, later recorded audio
+docs/              this plan, the Blob Cup study
 ```

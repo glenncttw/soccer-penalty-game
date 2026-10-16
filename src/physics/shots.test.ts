@@ -3,7 +3,7 @@ import { OutcomeTracker } from '../gameplay/outcome';
 import { shapeShot } from '../gameplay/shot';
 import type { WorldConfig } from '../worldConfig';
 import { FIXED_STEP, solveKick } from './flight';
-import { createPhysicsWorld } from './world';
+import { createPhysicsWorld, type Contact } from './world';
 
 // Values measured from the Blender stadium (Stadium_Recon_web.glb), placed with its goal line at z = 0.
 const world: WorldConfig = {
@@ -30,21 +30,25 @@ const physics = await createPhysicsWorld(world);
 const outcome = new OutcomeTracker(world.goal, world.ballRadius);
 
 /** Plays one shot through the real pipeline: shot shaping, kick solver, Rapier and goal detection. */
-function play(aimX: number, aimY: number, power = 0.87, curl = 0) {
+function play(aimX: number, aimY: number, power = 0.87, curl = 0, { followUp = 0 } = {}) {
   physics.resetBall();
   outcome.reset();
   const shot = shapeShot({ aim: { x: aimX, y: aimY, z: 0 }, power, curl, minTargetY: world.ballRadius }, () => 0.5);
   physics.kick(solveKick(world.ballStart, shot.target, shot.speed, shot.spin), shot.spin);
   let maxZ = -Infinity;
-  for (let i = 0; i < 6 / FIXED_STEP; i++) {
+  const contacts: Contact[] = [];
+  let result: ReturnType<OutcomeTracker['update']> = null;
+  let after = 0;
+  for (let i = 0; i < 6 / FIXED_STEP && after <= followUp; i++) {
     physics.step();
+    contacts.push(...physics.takeContacts());
     const p = physics.ball.translation();
     const v = physics.ball.linvel();
     maxZ = Math.max(maxZ, p.z);
-    const r = outcome.update(p, Math.hypot(v.x, v.y, v.z), FIXED_STEP);
-    if (r) return { result: r, hitFrame: outcome.hitFrame, maxZ };
+    result = outcome.update(p, Math.hypot(v.x, v.y, v.z), FIXED_STEP);
+    if (result) after += FIXED_STEP; // keep simulating `followUp` seconds past the result
   }
-  return { result: null, hitFrame: outcome.hitFrame, maxZ };
+  return { result, hitFrame: outcome.hitFrame, maxZ, contacts };
 }
 
 describe('shots in the Blender stadium', () => {
@@ -83,6 +87,17 @@ describe('shots in the Blender stadium', () => {
     const r = play(-2.45, 0.35, 0.15);
     expect(r.result).not.toBeNull();
     expect(r.maxZ).toBeLessThanOrEqual(world.ballStart.z + 0.01);
+  });
+
+  it('reports what the ball touches', () => {
+    const touched = (r: ReturnType<typeof play>) => r.contacts.filter((c) => c.surface !== 'ground');
+    const goal = touched(play(0.6, 1.1, 0.87, 0, { followUp: 0.5 }));
+    expect(goal[0].surface).toBe('net');
+    expect(goal[0].speed).toBeGreaterThan(15);
+    expect(goal[0].point.z).toBeLessThan(0);
+    expect(touched(play(0, 2.01))[0].surface).toBe('woodwork');
+    expect(touched(play(2.91, 1))[0].surface).toBe('woodwork');
+    expect(touched(play(3.9, 1, 0.87, 0, { followUp: 0.5 }))).toEqual([]);
   });
 
   it('keeps working over many consecutive shots', () => {
