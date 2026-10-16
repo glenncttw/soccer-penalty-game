@@ -1,8 +1,8 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import { BALL_MASS, BALL_RADIUS, GOAL_DEPTH, GOAL_HEIGHT, GOAL_WIDTH, PENALTY_SPOT_Z, POST_RADIUS } from '../dimensions';
+import { AERO_RADIUS, BALL_MASS } from '../dimensions';
+import type { WorldConfig } from '../worldConfig';
 import { aeroForce } from './ballForces';
 import { BALL_SPIN_DAMPING, FIXED_STEP } from './flight';
-
 
 export interface PhysicsWorld {
   world: RAPIER.World;
@@ -12,49 +12,83 @@ export interface PhysicsWorld {
   kick(velocity: RAPIER.Vector, spin: RAPIER.Vector): void;
 }
 
-export async function createPhysicsWorld(): Promise<PhysicsWorld> {
+export async function createPhysicsWorld(config: WorldConfig): Promise<PhysicsWorld> {
   await RAPIER.init();
   const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   world.timestep = FIXED_STEP;
+  const g = config.goal;
 
-  // Pitch
+  // Pitch, with its top at the stadium's grass level
   world.createCollider(
-    RAPIER.ColliderDesc.cuboid(60, 0.5, 60).setTranslation(0, -0.5, 0).setFriction(0.8).setRestitution(0.55),
+    RAPIER.ColliderDesc.cuboid(60, 0.5, 60)
+      .setTranslation(0, config.groundY - 0.5, g.lineZ)
+      .setFriction(0.8)
+      .setRestitution(0.55),
   );
 
-  // Goal frame
-  const halfW = GOAL_WIDTH / 2;
-  for (const x of [-halfW, halfW]) {
+  // Goal frame: square posts and crossbar, matching the model
+  const halfT = g.postThickness / 2;
+  const halfD = g.postDepth / 2;
+  const post = (x: number) =>
     world.createCollider(
-      RAPIER.ColliderDesc.cylinder(GOAL_HEIGHT / 2, POST_RADIUS).setTranslation(x, GOAL_HEIGHT / 2, 0).setRestitution(0.7),
+      RAPIER.ColliderDesc.cuboid(halfT, g.outerHeight / 2, halfD)
+        .setTranslation(x, g.outerHeight / 2, g.lineZ)
+        .setRestitution(0.7),
     );
-  }
+  post(-(g.innerHalfWidth + halfT));
+  post(g.innerHalfWidth + halfT);
   world.createCollider(
-    RAPIER.ColliderDesc.capsule(halfW, POST_RADIUS)
-      .setTranslation(0, GOAL_HEIGHT, 0)
-      .setRotation({ x: 0, y: 0, z: Math.SQRT1_2, w: Math.SQRT1_2 })
+    RAPIER.ColliderDesc.cuboid(g.outerHalfWidth, (g.outerHeight - g.crossbarY) / 2, halfD)
+      .setTranslation(0, (g.outerHeight + g.crossbarY) / 2, g.lineZ)
       .setRestitution(0.7),
   );
 
-  // Net: soft, low-bounce panels behind the goal line
-  const net = (hx: number, hy: number, hz: number, x: number, y: number, z: number) =>
-    world.createCollider(
-      RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setRestitution(0.05).setFriction(1),
+  // Net: soft, low-bounce surfaces following the model's net shape
+  const soft = (desc: RAPIER.ColliderDesc) => world.createCollider(desc.setRestitution(0.05).setFriction(1));
+  const roofDepth = g.lineZ - g.netRoofBackZ;
+  if (roofDepth > 0.01) {
+    soft(
+      RAPIER.ColliderDesc.cuboid(g.netHalfWidth, 0.02, roofDepth / 2).setTranslation(
+        0,
+        g.netRoofY,
+        g.lineZ - roofDepth / 2,
+      ),
     );
-  net(halfW, GOAL_HEIGHT / 2, 0.02, 0, GOAL_HEIGHT / 2, -GOAL_DEPTH);
-  net(0.02, GOAL_HEIGHT / 2, GOAL_DEPTH / 2, -halfW, GOAL_HEIGHT / 2, -GOAL_DEPTH / 2);
-  net(0.02, GOAL_HEIGHT / 2, GOAL_DEPTH / 2, halfW, GOAL_HEIGHT / 2, -GOAL_DEPTH / 2);
-  net(halfW, 0.02, GOAL_DEPTH / 2, 0, GOAL_HEIGHT, -GOAL_DEPTH / 2);
+  }
+  // Sloping back panel from the end of the roof down to the ground
+  const dz = g.netRoofBackZ - g.netBackZ;
+  const dy = g.netRoofY - config.groundY;
+  const angle = Math.atan2(dz, dy); // tilt from vertical: the top leans toward the goal line
+  soft(
+    RAPIER.ColliderDesc.cuboid(g.netHalfWidth, Math.hypot(dz, dy) / 2, 0.02)
+      .setTranslation(0, config.groundY + dy / 2, g.netBackZ + dz / 2)
+      .setRotation({ x: Math.sin(angle / 2), y: 0, z: 0, w: Math.cos(angle / 2) }),
+  );
+  // Side panels: the net's side outline as a thin convex shape
+  for (const x of [-g.netHalfWidth, g.netHalfWidth]) {
+    const pts: number[] = [];
+    for (const dx of [-0.02, 0.02]) {
+      pts.push(
+        x + dx, config.groundY, g.lineZ,
+        x + dx, g.netRoofY, g.lineZ,
+        x + dx, g.netRoofY, g.netRoofBackZ,
+        x + dx, config.groundY, g.netBackZ,
+      );
+    }
+    const desc = RAPIER.ColliderDesc.convexHull(new Float32Array(pts));
+    if (desc) soft(desc);
+  }
 
   // Ball
+  const start = config.ballStart;
   const ball = world.createRigidBody(
     RAPIER.RigidBodyDesc.dynamic()
-      .setTranslation(0, BALL_RADIUS, PENALTY_SPOT_Z)
+      .setTranslation(start.x, start.y, start.z)
       .setCcdEnabled(true)
       .setAngularDamping(BALL_SPIN_DAMPING),
   );
   world.createCollider(
-    RAPIER.ColliderDesc.ball(BALL_RADIUS).setMass(BALL_MASS).setRestitution(0.6).setFriction(0.6),
+    RAPIER.ColliderDesc.ball(config.ballRadius).setMass(BALL_MASS).setRestitution(0.6).setFriction(0.6),
     ball,
   );
 
@@ -63,12 +97,12 @@ export async function createPhysicsWorld(): Promise<PhysicsWorld> {
     ball,
     step() {
       ball.resetForces(true);
-      const f = aeroForce(ball.linvel(), ball.angvel(), BALL_RADIUS);
+      const f = aeroForce(ball.linvel(), ball.angvel(), AERO_RADIUS);
       ball.addForce(f, true);
       world.step();
     },
     resetBall() {
-      ball.setTranslation({ x: 0, y: BALL_RADIUS, z: PENALTY_SPOT_Z }, true);
+      ball.setTranslation(start, true);
       ball.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
       ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
       ball.setAngvel({ x: 0, y: 0, z: 0 }, true);

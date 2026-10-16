@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { crossingPoint, simulateFlight, solveKick } from './flight';
 
-const start = { x: 0, y: 0.11, z: 11 };
+const start = { x: 0, y: 0.175, z: 12.4 };
 const noSpin = { x: 0, y: 0, z: 0 };
 
 describe('solveKick', () => {

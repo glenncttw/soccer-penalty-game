@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { BALL_RADIUS, GOAL_HEIGHT, GOAL_WIDTH, PENALTY_SPOT_Z } from './dimensions';
 import { OutcomeTracker } from './gameplay/outcome';
 import { PowerMeter } from './gameplay/power';
 import { shapeShot } from './gameplay/shot';
@@ -7,11 +6,10 @@ import { ShootInput } from './input/shootInput';
 import { FIXED_STEP, solveKick } from './physics/flight';
 import { createPhysicsWorld } from './physics/world';
 import { AimMarkers } from './scene/aimMarkers';
-import { BallTrail, createBallMesh } from './scene/ball';
-import { createGoal } from './scene/goal';
-import { createPitch } from './scene/pitch';
-import { createStadium } from './scene/stadium';
-import { palette } from './theme';
+import { BallTrail } from './scene/ball';
+import { createGameCamera } from './scene/gameCamera';
+import { setUpLighting } from './scene/lighting';
+import { loadStadium } from './scene/stadiumAsset';
 import { Hud } from './ui/hud';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
@@ -19,55 +17,48 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
+// The stadium was lit with Blender's "Standard" view transform: plain sRGB, no tone mapping.
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(palette.sky);
-scene.fog = new THREE.Fog(palette.sky, 80, 220);
 
-// First-person view from behind the ball. The camera sits a bit higher and looks
-// down the pitch so the goal sits high on screen, leaving room to aim and drag.
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 500);
-camera.position.set(0, 2.1, PENALTY_SPOT_Z + 4.2);
-camera.lookAt(0, 0.5, 2.5);
+// The Blender stadium is the whole environment: pitch, goal, stands, ball and sun.
+const stadium = await loadStadium();
+const world = stadium.config;
+scene.add(stadium.environment);
+setUpLighting(scene, stadium.sun);
 
-// Bright, sunny light with soft, blue-tinted shadows.
-scene.add(new THREE.HemisphereLight(0xcfeeff, palette.grass, 1.4));
-const sun = new THREE.DirectionalLight(0xfff6e0, 2.2);
-sun.position.set(-20, 40, 30);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -50, right: 50, top: 50, bottom: -50, near: 1, far: 120 });
-sun.shadow.radius = 4;
-scene.add(sun);
+// The gameplay camera designed in Blender: ball low in the foreground, goal centred.
+const { camera, fit: fitCamera } = createGameCamera(world);
 
-scene.add(createPitch(), createGoal(), createStadium());
-
-const ballMesh = createBallMesh();
+const ballMesh = stadium.ball;
 const trail = new BallTrail();
 const markers = new AimMarkers();
 scene.add(ballMesh, trail.mesh, markers.group);
 
-const physics = await createPhysicsWorld();
+const physics = await createPhysicsWorld(world);
 const hud = new Hud(document.querySelector<HTMLElement>('#hud')!);
 const input = new ShootInput(canvas);
 const power = new PowerMeter();
-const outcome = new OutcomeTracker();
+const outcome = new OutcomeTracker(world.goal, world.ballRadius);
 
-const BALL_START = { x: 0, y: BALL_RADIUS, z: PENALTY_SPOT_Z };
+const BALL_START = world.ballStart;
 type Phase = 'aiming' | 'charging' | 'flight' | 'result';
 let phase: Phase = 'aiming';
 let phaseTime = 0;
-const aim = new THREE.Vector3(0, 1.2, 0);
+const aim = new THREE.Vector3(0, 1.2, world.goal.lineZ);
 let lastQuality = '';
 
-// Pointer → point on the goal plane (z = 0), kept within reach of the goal.
+// Pointer → point on the goal plane, kept within reach of the goal.
 const raycaster = new THREE.Raycaster();
-const goalPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+const goalPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -world.goal.lineZ);
 function updateAim() {
   raycaster.setFromCamera(new THREE.Vector2(input.pointer.x, input.pointer.y), camera);
   if (!raycaster.ray.intersectPlane(goalPlane, aim)) return;
-  aim.x = THREE.MathUtils.clamp(aim.x, -GOAL_WIDTH / 2 - 1.5, GOAL_WIDTH / 2 + 1.5);
-  aim.y = THREE.MathUtils.clamp(aim.y, 0.2, GOAL_HEIGHT + 1.2);
+  const reachX = world.goal.outerHalfWidth + 1.5;
+  aim.x = THREE.MathUtils.clamp(aim.x, -reachX, reachX);
+  aim.y = THREE.MathUtils.clamp(aim.y, world.groundY + 0.2, world.goal.outerHeight + 1.2);
 }
 
 function setPhase(next: Phase) {
@@ -84,7 +75,7 @@ input.onPress = () => {
 
 input.onRelease = () => {
   if (phase !== 'charging') return;
-  const shot = shapeShot({ aim, power: power.value, curl: input.curl });
+  const shot = shapeShot({ aim, power: power.value, curl: input.curl, minTargetY: world.ballRadius });
   const velocity = solveKick(BALL_START, shot.target, shot.speed, shot.spin);
   physics.kick(velocity, shot.spin);
   outcome.reset();
@@ -121,10 +112,7 @@ function resize() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   renderer.setSize(w, h, false);
-  camera.aspect = w / h;
-  // Widen the view on narrow phone screens so the whole goal fits.
-  camera.fov = w / h < 1 ? 50 + (1 - w / h) * 34 : 50;
-  camera.updateProjectionMatrix();
+  fitCamera(w / h);
 }
 window.addEventListener('resize', resize);
 resize();
@@ -149,7 +137,7 @@ renderer.setAnimationLoop((time) => {
     power.update(dt);
     hud.showPower(power.value);
     markers.showReticle(aim, true);
-    const preview = shapeShot({ aim, power: 0.87, curl: input.curl }, () => 0.5);
+    const preview = shapeShot({ aim, power: 0.87, curl: input.curl, minTargetY: world.ballRadius }, () => 0.5);
     markers.showPreview(BALL_START, solveKick(BALL_START, preview.target, preview.speed, preview.spin), preview.spin);
     if (power.sweeps >= 2) input.forceRelease(); // don't let a charge last forever
   }

@@ -1,4 +1,4 @@
-import { BALL_MASS, BALL_RADIUS } from '../dimensions';
+import { AERO_RADIUS, BALL_MASS } from '../dimensions';
 import { aeroForce, type Vec3 } from './ballForces';
 
 export const FIXED_STEP = 1 / 120;
@@ -11,7 +11,7 @@ const MAX_FLIGHT_TIME = 4;
 /**
  * Integrates a free ball flight (gravity, drag and curl, no collisions) with the
  * same fixed step as the physics world. Calls `visit` for every step and stops
- * as soon as it returns true or the ball lands.
+ * as soon as it returns true or the ball lands (drops below half its starting height).
  */
 export function simulateFlight(
   start: Vec3,
@@ -23,9 +23,10 @@ export function simulateFlight(
   const v = { ...velocity };
   const w = { ...spin };
   const spinDecay = 1 / (1 + FIXED_STEP * BALL_SPIN_DAMPING);
+  const landingY = start.y * 0.5;
 
   for (let t = 0; t < MAX_FLIGHT_TIME; t += FIXED_STEP) {
-    const f = aeroForce(v, w, BALL_RADIUS);
+    const f = aeroForce(v, w, AERO_RADIUS);
     v.x += (f.x / BALL_MASS) * FIXED_STEP;
     v.y += (f.y / BALL_MASS - GRAVITY) * FIXED_STEP;
     v.z += (f.z / BALL_MASS) * FIXED_STEP;
@@ -35,7 +36,7 @@ export function simulateFlight(
     w.x *= spinDecay;
     w.y *= spinDecay;
     w.z *= spinDecay;
-    if (visit(p, t) || p.y < BALL_RADIUS * 0.5) return;
+    if (visit(p, t) || p.y < landingY) return;
   }
 }
 
