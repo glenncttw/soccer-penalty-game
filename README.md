@@ -34,7 +34,7 @@ relies on these node names:
 | `GOAL_Frame` | goal line position (its origin), posts and crossbar (measured from the geometry) |
 | `GOAL_Net` (child of `GOAL_Frame`) | net shape for collisions |
 | `Football_Ball` | the ball's look, start position and radius (origin must be the ball's centre) |
-| `PITCH_Grass` | ground height |
+| `PITCH_Grass` | ground height, and where the stripes are: it needs two materials, and the darker one marks the dark stripes |
 | the first glTF camera | gameplay camera position, direction and field of view |
 | the directional light | the sun |
 
@@ -60,6 +60,31 @@ handiest ones:
 | `cloudSeed` | any whole number gives a different set of clouds |
 | `cloudColorTop`, `cloudColorBottom`, `skyColorTop`, `skyColorBottom` | the colours |
 | `cloudSoftness`, `cloudShading`, `lightDirection`, `cloudLayerDepth` | edge softness, shading between puffs, where the light comes from, and how much smaller and hazier far clouds are |
+
+## The grass
+
+The pitch is coloured by one shader (`src/scene/grass.ts`) that adds three things to the stripes from the Blender model:
+
+- **Tiny blades.** A small greyscale picture of curly blades, drawn on the graphics card when the game loads
+  (`src/scene/grassTexture.ts`), repeats over the pitch. Each area shows it shifted and turned differently, so you
+  never see the same patch twice. Far away it blurs smoothly into plain colour instead of flickering.
+- **Soft, mown stripe edges.** The blades nibble a little into the next stripe.
+- **Viewing-angle shading.** Grass you look down onto, in front of the ball, is darker and deeper green than grass
+  you look across near the goal, as real grass is.
+
+To change the look, edit `GRASS_SETTINGS` in `src/scene/grassSettings.ts`. Each setting has a short note. The
+handiest ones:
+
+| Setting | What it does |
+|---|---|
+| `colorLight`, `colorDark` | the stripe colours |
+| `bladeContrast` | how strongly the blades show (0 = smooth colour) |
+| `bladeTileSize`, `bladeStretch` | how big the blades are, and how much they're stretched so they look upright |
+| `angleShading` | how much darker the grass in front of you is (0 = the same everywhere) |
+| `stripeSoftness`, `stripeRagged` | how soft and how ragged the stripe edges are |
+| `bladeSeed` | any whole number draws a different set of blades |
+
+To move or resize the stripes, change them in Blender and export again.
 
 ## Getting started
 

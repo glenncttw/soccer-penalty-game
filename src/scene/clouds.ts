@@ -1,3 +1,4 @@
+import { hash, random } from './random';
 import type { SkySettings } from './skySettings';
 
 /** Shader limits: how many clouds the sky holds, and round lobes per cloud. */
@@ -242,26 +243,4 @@ function wrapAngle(a: number) {
 
 function clamp01(v: number) {
   return Math.min(1, Math.max(0, v));
-}
-
-function hash(...parts: number[]) {
-  let h = 2166136261;
-  for (const p of parts) {
-    h ^= Math.floor(p) | 0;
-    h = Math.imul(h, 16777619);
-    h ^= h >>> 13;
-  }
-  return h >>> 0;
-}
-
-/** A small seeded random generator (mulberry32): numbers in 0..1. */
-function random(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }

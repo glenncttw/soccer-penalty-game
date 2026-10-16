@@ -24,6 +24,7 @@ A fun, fast 3D penalty shootout that runs in the browser on desktop and mobile. 
 - **AI keeper and AI shooter**: readable behaviour, with reaction time, reach and accuracy as their skill settings. The AI keeper is visible in goal when you shoot (stylized, playful character). For now there is one keeper strength and no level switch.
 - **Juice**: slow-mo on goals, camera shake on kicks, post hits and saves, grass puffs and glitter on perfect strikes. Sound, a net that bulges and confetti were tried and taken out again.
 - **Sky**: a blue gradient with puffy, stylised clouds that drift slowly behind the stadium, drawn by one shader (settings in `src/scene/skySettings.ts`).
+- **Grass**: one shader on the pitch adds tiny curly blades (a small texture drawn at load and repeated without visible tiling), soft mown stripe edges and viewing-angle shading to the stripes from the Blender model (settings in `src/scene/grassSettings.ts`). No 3D grass blades. Baked ambient occlusion and fuzzy "shell" grass near the ball are possible next steps.
 
 ## Out of scope for v1
 
@@ -66,7 +67,7 @@ Rapier handles every collision (posts, net, keeper, future props and objects) ro
 4. **Keeper AI**: stylized keeper that dives with limited timing and reach (done, with a placeholder look; see [blob-cup-study.md](blob-cup-study.md#our-keeper)).
 5. **Saving turn**: first-person goal-line view, dive input, AI shooter.
 6. **Shootout loop**: alternate turns, 5 kicks plus sudden death, HUD and result screen.
-7. **Polish**: slow-mo, particles, camera feel and drifting clouds (done); menus, mobile touch tuning, performance pass.
+7. **Polish**: slow-mo, particles, camera feel, drifting clouds and grass detail (done); menus, mobile touch tuning, performance pass.
 8. **Crowd**: fill the stands with an instanced, animated crowd that reacts to goals and saves.
 
 ## Repo layout (planned)
@@ -76,7 +77,7 @@ src/
   main.ts          entry, renderer, loop
   feedback.ts      connects game moments (kick, touch, result) to camera, effects and HUD
   worldConfig.ts   gameplay coordinates measured from the stadium
-  scene/           stadium loading and measuring, lighting, sky and clouds, camera, trail, aim markers, effects, keeper look
+  scene/           stadium loading and measuring, lighting, sky and clouds, grass, camera, trail, aim markers, effects, keeper look
   physics/         Rapier world, ball, Magnus (curl) force
   gameplay/        aim, shot shaping, outcome, game events, slow motion, later the shootout
   ai/              keeper brain (reading the shot), keeper movement, later the shooter AI

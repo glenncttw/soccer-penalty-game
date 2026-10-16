@@ -15,6 +15,7 @@ import { AimMarkers } from './scene/aimMarkers';
 import { BallTrail, trailStyle } from './scene/ball';
 import { Effects } from './scene/effects';
 import { createGameCamera } from './scene/gameCamera';
+import { applyGrass } from './scene/grass';
 import { KeeperModel } from './scene/keeper';
 import { setUpLighting } from './scene/lighting';
 import { Sky } from './scene/sky';
@@ -39,6 +40,8 @@ const stadium = await loadStadium();
 const world = stadium.config;
 scene.add(stadium.environment);
 setUpLighting(scene, stadium.sun);
+// The pitch's grass: stripes, tiny blades and shading; tweak it in src/scene/grassSettings.ts.
+applyGrass(stadium.environment, renderer);
 // The sky and its drifting clouds; tweak them in src/scene/skySettings.ts.
 const sky = new Sky(SKY_SETTINGS);
 scene.add(sky.mesh);
