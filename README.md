@@ -41,6 +41,26 @@ relies on these node names:
 Coordinates: Y up, metres, shots travel toward -Z. The game shifts the model along Z so its goal line sits at z = 0.
 If a node is missing or a measurement looks wrong, the game stops with an error naming it.
 
+## The sky
+
+The sky and its clouds are drawn by one shader (`src/scene/sky.ts`), not a picture: a blue gradient with
+puffy, cartoon clouds that drift slowly to the right, nearer ones a little faster than far ones. Each cloud is
+made of 4 to 7 round puffs on a flat bottom, lit from the same side as the stadium's sun. The clouds are built
+from a seed, so they look the same every time you load the game.
+
+To change the look, edit `SKY_SETTINGS` in `src/scene/skySettings.ts`. Each setting has a short note. The
+handiest ones:
+
+| Setting | What it does |
+|---|---|
+| `clouds` | `false` turns the clouds off and keeps the blue gradient |
+| `cloudCount`, `cloudCoverage` | how many clouds there are, and how much of the sky they fill (0 = clear sky) |
+| `cloudScale`, `cloudWidthVariation`, `cloudHeightVariation` | how big they are, and how much they differ |
+| `cloudSpeed` | drift speed in degrees per second (negative drifts left) |
+| `cloudSeed` | any whole number gives a different set of clouds |
+| `cloudColorTop`, `cloudColorBottom`, `skyColorTop`, `skyColorBottom` | the colours |
+| `cloudSoftness`, `cloudShading`, `lightDirection`, `cloudLayerDepth` | edge softness, shading between puffs, where the light comes from, and how much smaller and hazier far clouds are |
+
 ## Getting started
 
 Requires Node 22+.

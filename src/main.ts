@@ -17,6 +17,8 @@ import { Effects } from './scene/effects';
 import { createGameCamera } from './scene/gameCamera';
 import { KeeperModel } from './scene/keeper';
 import { setUpLighting } from './scene/lighting';
+import { Sky } from './scene/sky';
+import { SKY_SETTINGS } from './scene/skySettings';
 import { loadStadium } from './scene/stadiumAsset';
 import { COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
@@ -37,6 +39,9 @@ const stadium = await loadStadium();
 const world = stadium.config;
 scene.add(stadium.environment);
 setUpLighting(scene, stadium.sun);
+// The sky and its drifting clouds; tweak them in src/scene/skySettings.ts.
+const sky = new Sky(SKY_SETTINGS);
+scene.add(sky.mesh);
 
 // The gameplay camera designed in Blender: ball low in the foreground, goal centred.
 const view = createGameCamera(world);
@@ -225,6 +230,7 @@ renderer.setAnimationLoop((time) => {
   trail.update(gameTime, camera.position);
   keeperModel.update(keeper.pose, dt);
   effects.update(dt);
+  sky.update(gameTime);
 
   renderer.render(scene, camera);
 });
