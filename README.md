@@ -71,7 +71,8 @@ The pitch is drawn by one shader (`src/scene/grass.ts`) on top of the stripes fr
   `grass_normal.jpg`). Each area shows them shifted and mirrored differently, so you never see the same patch twice.
   Far away they blur smoothly (mipmaps) and the bumps fade out, so the grass doesn't flicker. The colour picture
   only adds variation around the stripe colours, so the stripes keep their colours.
-- **Soft, ragged stripe edges.** The edges wobble a little and blades poke across them.
+- **Soft, ragged stripe edges and cross stripes.** The edges wobble a little and blades poke across them.
+  See-through stripes run from left to right over them, counted from the goal line, like a cross-mown pitch.
 - **Painted lines and spot.** The white markings in the model are hidden; the shader paints the grass white in
   their place, with blades poking out of the edges.
 - **Soft patches and viewing-angle shading.** Gentle lighter and darker patches, and grass you look down onto, in
@@ -89,6 +90,7 @@ handiest ones:
 | `normalStrength` | how strongly the bumps catch the light (0 = flat) |
 | `textureTileSize`, `textureStretch` | how much pitch one copy of the pictures covers, and how much longer it is toward the goal so the blades look upright |
 | `stripeSoftness`, `stripeRagged` | how soft and how ragged the stripe edges are |
+| `crossStripeWidth`, `crossStripeOpacity` | how wide the see-through stripes running left to right are (0 = none), and how dark they are (1 = as dark as a dark stripe) |
 | `patchStrength`, `patchSize` | the soft lighter and darker patches |
 | `angleShading` | how much darker the grass in front of you is (0 = the same everywhere) |
 | `lineColor`, `lineRagged` | the colour of the painted lines and spot, and how far blades poke out of their edges |

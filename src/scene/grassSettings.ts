@@ -14,6 +14,13 @@ export interface GrassSettings {
   stripeSoftness: number;
   /** How far a stripe edge wobbles and how far blades poke across it, so it looks mown instead of ruled. */
   stripeRagged: number;
+  /**
+   * Width of the see-through stripes running left to right over the stripes,
+   * counted from the goal line, with gaps as wide in between. 0 = no cross stripes.
+   */
+  crossStripeWidth: number;
+  /** 0..1: how see-through the cross stripes are. 0 = invisible, 1 = as dark as a dark stripe. */
+  crossStripeOpacity: number;
   /** How much of the pitch one copy of the texture covers. Smaller = finer grass. */
   textureTileSize: number;
   /**
@@ -47,6 +54,8 @@ export const GRASS_SETTINGS: GrassSettings = {
   colorDark: '#51872f',
   stripeSoftness: 0.03,
   stripeRagged: 0.03,
+  crossStripeWidth: 1.3,
+  crossStripeOpacity: 0.6,
   textureTileSize: 0.5,
   textureStretch: 3,
   textureStrength: 1,
