@@ -1,11 +1,18 @@
 import * as THREE from 'three';
-import { PENALTY_SPOT_Z } from './dimensions';
-import { createPhysicsWorld, FIXED_STEP } from './physics/world';
+import { BALL_RADIUS, GOAL_HEIGHT, GOAL_WIDTH, PENALTY_SPOT_Z } from './dimensions';
+import { OutcomeTracker } from './gameplay/outcome';
+import { PowerMeter } from './gameplay/power';
+import { shapeShot } from './gameplay/shot';
+import { ShootInput } from './input/shootInput';
+import { FIXED_STEP, solveKick } from './physics/flight';
+import { createPhysicsWorld } from './physics/world';
+import { AimMarkers } from './scene/aimMarkers';
 import { BallTrail, createBallMesh } from './scene/ball';
 import { createGoal } from './scene/goal';
 import { createPitch } from './scene/pitch';
 import { createStadium } from './scene/stadium';
 import { palette } from './theme';
+import { Hud } from './ui/hud';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -17,10 +24,11 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(palette.sky);
 scene.fog = new THREE.Fog(palette.sky, 80, 220);
 
-// First-person view from just behind the ball, goal dead center.
+// First-person view from behind the ball. The camera sits a bit higher and looks
+// down the pitch so the goal sits high on screen, leaving room to aim and drag.
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 500);
-camera.position.set(0, 1.5, PENALTY_SPOT_Z + 3.2);
-camera.lookAt(0, 1.1, 0);
+camera.position.set(0, 2.1, PENALTY_SPOT_Z + 4.2);
+camera.lookAt(0, 0.5, 2.5);
 
 // Bright, sunny light with soft, blue-tinted shadows.
 scene.add(new THREE.HemisphereLight(0xcfeeff, palette.grass, 1.4));
@@ -36,31 +44,86 @@ scene.add(createPitch(), createGoal(), createStadium());
 
 const ballMesh = createBallMesh();
 const trail = new BallTrail();
-scene.add(ballMesh, trail.mesh);
+const markers = new AimMarkers();
+scene.add(ballMesh, trail.mesh, markers.group);
 
 const physics = await createPhysicsWorld();
+const hud = new Hud(document.querySelector<HTMLElement>('#hud')!);
+const input = new ShootInput(canvas);
+const power = new PowerMeter();
+const outcome = new OutcomeTracker();
 
-// Test shot: a curled kick toward a random spot in the goal, to try out physics and curl.
-let shotTimer = -1;
-function testShot() {
+const BALL_START = { x: 0, y: BALL_RADIUS, z: PENALTY_SPOT_Z };
+type Phase = 'aiming' | 'charging' | 'flight' | 'result';
+let phase: Phase = 'aiming';
+let phaseTime = 0;
+const aim = new THREE.Vector3(0, 1.2, 0);
+let lastQuality = '';
+
+// Pointer → point on the goal plane (z = 0), kept within reach of the goal.
+const raycaster = new THREE.Raycaster();
+const goalPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+function updateAim() {
+  raycaster.setFromCamera(new THREE.Vector2(input.pointer.x, input.pointer.y), camera);
+  if (!raycaster.ray.intersectPlane(goalPlane, aim)) return;
+  aim.x = THREE.MathUtils.clamp(aim.x, -GOAL_WIDTH / 2 - 1.5, GOAL_WIDTH / 2 + 1.5);
+  aim.y = THREE.MathUtils.clamp(aim.y, 0.2, GOAL_HEIGHT + 1.2);
+}
+
+function setPhase(next: Phase) {
+  phase = next;
+  phaseTime = 0;
+}
+
+input.onPress = () => {
+  updateAim();
+  power.reset();
+  hud.hideHint();
+  setPhase('charging');
+};
+
+input.onRelease = () => {
+  if (phase !== 'charging') return;
+  const shot = shapeShot({ aim, power: power.value, curl: input.curl });
+  const velocity = solveKick(BALL_START, shot.target, shot.speed, shot.spin);
+  physics.kick(velocity, shot.spin);
+  outcome.reset();
+  trail.clear();
+  markers.hide();
+  hud.showPower(null);
+  input.enabled = false;
+  lastQuality = shot.quality;
+  setPhase('flight');
+};
+
+function showResult() {
+  const goal = outcome.result === 'goal';
+  if (goal) {
+    const perfect = lastQuality === 'perfect';
+    hud.showBanner('GOAL!', outcome.hitFrame ? 'in off the woodwork' : perfect ? 'perfect strike' : '', perfect);
+  } else if (outcome.hitFrame) {
+    hud.showBanner('WOODWORK!', 'so close');
+  } else {
+    hud.showBanner('MISS!', lastQuality === 'skied' ? 'too much power' : lastQuality === 'weak' ? 'not enough power' : '');
+  }
+  setPhase('result');
+}
+
+function resetShot() {
   physics.resetBall();
   trail.clear();
-  const curl = (Math.random() * 2 - 1) * 45; // rad/s around the vertical axis
-  const aimX = (Math.random() * 2 - 1) * 2.5 + curl * 0.04;
-  const aimY = 0.3 + Math.random() * 1.6;
-  const dir = new THREE.Vector3(aimX, aimY + 0.9, -PENALTY_SPOT_Z).normalize().multiplyScalar(24);
-  physics.kick(dir, { x: -20, y: curl, z: 0 });
-  shotTimer = 3.5;
+  hud.hideBanner();
+  input.enabled = true;
+  setPhase('aiming');
 }
-canvas.addEventListener('pointerdown', testShot);
 
 function resize() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
-  // Keep the whole goal mouth in view on narrow phone screens.
-  camera.fov = w / h < 1 ? 50 + (1 - w / h) * 30 : 50;
+  // Widen the view on narrow phone screens so the whole goal fits.
+  camera.fov = w / h < 1 ? 50 + (1 - w / h) * 34 : 50;
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize);
@@ -73,6 +136,24 @@ const tmp = new THREE.Vector3();
 renderer.setAnimationLoop((time) => {
   timer.update(time);
   const dt = Math.min(timer.getDelta(), 0.1);
+  phaseTime += dt;
+
+  if (phase === 'aiming') {
+    if (input.hasPointer) {
+      updateAim();
+      markers.showReticle(aim, false);
+    } else {
+      markers.hide();
+    }
+  } else if (phase === 'charging') {
+    power.update(dt);
+    hud.showPower(power.value);
+    markers.showReticle(aim, true);
+    const preview = shapeShot({ aim, power: 0.87, curl: input.curl }, () => 0.5);
+    markers.showPreview(BALL_START, solveKick(BALL_START, preview.target, preview.speed, preview.spin), preview.spin);
+    if (power.sweeps >= 2) input.forceRelease(); // don't let a charge last forever
+  }
+
   accumulator += dt;
   while (accumulator >= FIXED_STEP) {
     physics.step();
@@ -83,13 +164,14 @@ renderer.setAnimationLoop((time) => {
   const q = physics.ball.rotation();
   ballMesh.position.set(p.x, p.y, p.z);
   ballMesh.quaternion.set(q.x, q.y, q.z, q.w);
-  if (shotTimer > 0) {
+
+  if (phase === 'flight') {
     trail.push(tmp.set(p.x, p.y, p.z));
-    shotTimer -= dt;
-    if (shotTimer <= 0) {
-      physics.resetBall();
-      trail.clear();
-    }
+    const v = physics.ball.linvel();
+    if (outcome.update(p, Math.hypot(v.x, v.y, v.z), dt)) showResult();
+  } else if (phase === 'result') {
+    if (phaseTime < 0.8) trail.push(tmp.set(p.x, p.y, p.z));
+    if (phaseTime > 1.8) resetShot();
   }
 
   renderer.render(scene, camera);

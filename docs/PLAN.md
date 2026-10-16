@@ -4,7 +4,7 @@ A fun, fast 3D penalty shootout that runs in the browser on desktop and mobile. 
 
 ## Design decisions
 
-- **Camera**: first-person, low behind the ball, with the goal dead center of the screen.
+- **Camera**: first-person from behind the ball, with the goal centered horizontally and high on screen, leaving room below to aim and drag.
 - **No visible shooter**: there is no third-person player model. The ball, its flight and its curl are the star.
 - **Curl is visible**: the ball spins visibly and leaves a bright trail ribbon, so the bend of every shot reads clearly.
 - **Stadium**: the pitch is enclosed by a stylized stadium (stands, roof edge, floodlights, ad boards). Stands are built so a crowd can be added later (instanced seats now, instanced crowd sprites or meshes later).
@@ -17,7 +17,7 @@ A fun, fast 3D penalty shootout that runs in the browser on desktop and mobile. 
 
 ## Core gameplay
 
-- **Shoot**: swipe or drag from the ball. Swipe direction sets the target, swipe speed sets power, and a curved swipe adds curl.
+- **Shoot**: aim with the pointer at a spot in the goal, press and hold to charge a power meter that sweeps up and down (release in the gold zone for a perfect strike; too much power skies it, too little is soft), drag sideways while holding to curl, release to shoot. The ball is kicked so it bends into the aimed spot.
 - **Save**: on the opponent's turn the camera moves to the goal line (still first-person, no visible keeper body, just gloves). You pick a dive direction before the ball arrives.
 - **Shootout rules**: 5 kicks each, then sudden death. Score, kick history dots, winner screen.
 - **AI keeper and AI shooter**: readable behaviour with easy / normal / hard levels that change reaction time, reach and accuracy. The AI keeper is visible in goal when you shoot (stylized, playful character).
@@ -60,7 +60,7 @@ Rapier handles every collision (posts, net, keeper, future props and objects) ro
 
 1. **Scaffold**: Vite + TS + Three.js, lint, Vitest, CI build, GitHub Pages deploy of an empty scene.
 2. **Pitch, goal and stadium**: centered goal with net, pitch markings, enclosed stylized stadium, lighting, low-poly flat-shaded look and soft shadows.
-3. **Shooting**: swipe input, power and aim, Rapier ball physics with custom curl, visible spin and trail, goal / post / miss detection.
+3. **Shooting**: aim, hold-to-charge power meter, drag-to-curl input, Rapier ball physics with custom curl, visible spin and trail, goal / post / miss detection.
 4. **Keeper AI**: stylized keeper that dives with difficulty-based timing and reach.
 5. **Saving turn**: first-person goal-line view, dive input, AI shooter.
 6. **Shootout loop**: alternate turns, 5 kicks plus sudden death, HUD and result screen.

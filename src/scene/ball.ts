@@ -43,7 +43,7 @@ export class BallTrail {
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
-      uniforms: { color: { value: new THREE.Color(palette.pink) } },
+      uniforms: { color: { value: new THREE.Color(0xff6fb0) } },
       vertexShader: `attribute float alpha; varying float vAlpha;
         void main() { vAlpha = alpha; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
       fragmentShader: `uniform vec3 color; varying float vAlpha;
