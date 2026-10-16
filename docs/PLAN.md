@@ -62,7 +62,7 @@ Rapier handles every collision (posts, net, keeper, future props and objects) ro
 1. **Scaffold**: Vite + TS + Three.js, lint, Vitest, CI build, GitHub Pages deploy of an empty scene.
 2. **Pitch, goal and stadium**: Glenn's Blender stadium loaded as the environment, with lighting matched to Blender and soft shadows.
 3. **Shooting**: aim, hold-to-charge power meter, drag-to-curl input, Rapier ball physics with custom curl, visible spin and trail, goal / post / miss detection.
-4. **Keeper AI**: stylized keeper that dives with difficulty-based timing and reach.
+4. **Keeper AI**: stylized keeper that dives with difficulty-based timing and reach (done, with a placeholder look; see [blob-cup-study.md](blob-cup-study.md#our-keeper)).
 5. **Saving turn**: first-person goal-line view, dive input, AI shooter.
 6. **Shootout loop**: alternate turns, 5 kicks plus sudden death, HUD and result screen.
 7. **Polish**: sound, net ripple, slow-mo, particles and camera feel (done, with placeholder sounds); menus, mobile touch tuning, performance pass.
@@ -79,7 +79,7 @@ src/
   physics/         Rapier world, ball, Magnus (curl) force
   gameplay/        shootout state machine, scoring, game events, slow motion
   audio/           sound effects and crowd
-  ai/              keeper and shooter AI
+  ai/              keeper brain (reading the shot), keeper movement, later the shooter AI
   input/           swipe / mouse handling
   ui/              HUD, first-visit tips and menus (HTML/CSS)
 public/assets/     stadium GLB, later recorded audio

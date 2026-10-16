@@ -42,7 +42,7 @@ Each opponent is a different mix of these: reaction time, reach, how often it re
 | Sound | Recorded music, crowd, kick and cheer; mute button | None | Kick, post, net, bounce, chime, crowd murmur, cheer and "ooh", all made in code; a mute button that remembers your choice |
 | Learning to play | A 3-step tutorial that pauses the game | One fixed hint | Tips on your first visit that follow what you do, and stop once you've curled a shot |
 | Score | A tournament against 3 opponents | None | Goal counter and "3 in a row!" streaks (the full shootout comes later) |
-| Keeper | Yes, see above | None | Next step |
+| Keeper | Yes, see above | None | Our own keeper, see below |
 | Overall look | Glow, blurred edges, film-style colours | Blender's colours | Same, on purpose |
 
 ## What we deliberately did not take
@@ -52,15 +52,17 @@ Each opponent is a different mix of these: reaction time, reach, how often it re
 - **Their screen effects** (glow, blur and film colours). Glenn's stadium is lit to look exactly like it does in Blender, and these would change those colours. A soft glow just for perfect strikes could be worth trying later.
 - **Their art, sounds, words and numbers.** Our sounds are made in code for now (placeholders until we pick real recordings), our words are our own, and every number is tuned in our game.
 
-## Next: our keeper (proposal)
+## Our keeper
 
-- **Look**: a cute, rounded keeper made from simple shapes, in the kodeclubs style, as a placeholder until there's a Blender model. How it moves doesn't depend on how it looks, so the model can be swapped in later.
-- **Brain**: when you kick, it sees which way the ball **starts** going, not where the curl will take it. That's why curl beats it, and it comes straight out of our real physics, with no dice roll. Better keepers also allow for some curl.
-- **Timing**: it waits a moment (its reaction time), then dives toward its guess at a limited speed and with a limited reach. Sometimes it guesses a side instead of reading you.
-- **Real saves**: the keeper is a physics object, so a save is a real collision. The ball can be pushed wide, deflect in off the post or squeeze under the dive.
-- **Alive**: it bobs while you aim and shifts a little toward where you're aiming, which gives you a clue and a chance to fake it out.
-- **Difficulty**: easy, normal and hard change its reaction time, reach, dive speed, how often it reads you and how much curl it understands.
-- **Fair**: we test it with scripted shots, like the shooting tests we have today, so each level saves a fair share and corners and perfect strikes stay very hard to stop.
+Built after this study, in our own way (the code is in `src/ai/`):
+
+- **Look**: a cute, rounded keeper made from simple shapes, as a placeholder until there's a Blender model. How it moves doesn't depend on how it looks, so a model can be swapped in later.
+- **Brain**: it watches the ball and extends where it's heading straight on to its line. A curled shot keeps bending after it looks, so curl fools it. The longer it can watch (a slow shot), the less is left to bend, so slow shots are easier to read. Better keepers also sense some of the curl.
+- **Timing**: it moves after its reaction time, or waits for a slow ball so it gets there at the same moment. On a fast shot it sometimes guesses a side instead and goes all-in straight away: a right guess can stop even a perfect strike, and a wrong one sends it the wrong way.
+- **Real saves**: its body, arms and gloves are physics objects that move every step, so a save is a real collision. The ball can be pushed wide, deflect in off the post or sneak past its fingertips.
+- **Alive**: it bounces on its toes and edges toward where you aim, then gets set while you charge.
+- **Difficulty**: easy, normal and hard change its reaction time, dive speed, reach, how often it reads you, how much curl it senses and how far it edges toward your aim.
+- **Fair**: tests play hundreds of shots against it. On normal, soft and central shots are usually saved, while a well-struck shot into a corner, or a curled one, usually goes in.
 
 ## Ideas for later
 

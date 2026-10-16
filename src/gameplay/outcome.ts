@@ -1,13 +1,15 @@
 import type { Vec3 } from '../physics/ballForces';
 import type { GoalConfig } from '../worldConfig';
 
-export type ShotResult = 'goal' | 'miss';
+export type ShotResult = 'goal' | 'miss' | 'saved';
 
-/** Watches the ball after a kick and decides if it went in, and whether it hit the frame. */
+/** Watches the ball after a kick and decides if it went in, and whether it hit the frame or the keeper. */
 export class OutcomeTracker {
   result: ShotResult | null = null;
   hitFrame = false;
+  hitKeeper = false;
   private elapsed = 0;
+  private keeperZ = 0;
 
   constructor(
     private readonly goal: GoalConfig,
@@ -17,7 +19,15 @@ export class OutcomeTracker {
   reset() {
     this.result = null;
     this.hitFrame = false;
+    this.hitKeeper = false;
     this.elapsed = 0;
+  }
+
+  /** Call when the ball touches the keeper (`z` = where). A shot the keeper touched that stays out is a save. */
+  keeperTouched(z: number) {
+    if (this.result || this.hitKeeper) return;
+    this.hitKeeper = true;
+    this.keeperZ = z;
   }
 
   update(p: Vec3, speed: number, dt: number): ShotResult | null {
@@ -41,8 +51,10 @@ export class OutcomeTracker {
     // The whole ball must be over the whole line, inside the posts and under the bar.
     const fullyOver = z < -(g.postDepth / 2 + this.ballRadius);
     if (fullyOver && Math.abs(p.x) < g.innerHalfWidth && p.y < g.crossbarY) this.result = 'goal';
-    else if (fullyOver || z < -3 || Math.abs(p.x) > 30 || this.elapsed > 4 || (this.elapsed > 0.5 && speed < 0.3)) {
-      this.result = 'miss';
+    else if (this.hitKeeper && (p.z > this.keeperZ + 0.4 || Math.abs(p.x) > g.outerHalfWidth + 0.6)) {
+      this.result = 'saved'; // pushed back out or wide
+    } else if (fullyOver || z < -3 || Math.abs(p.x) > 30 || this.elapsed > 4 || (this.elapsed > 0.5 && speed < 0.3)) {
+      this.result = this.hitKeeper ? 'saved' : 'miss';
     }
     return this.result;
   }

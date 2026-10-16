@@ -7,7 +7,7 @@ export type CoachTip = 'aim' | 'curl' | 'release' | null;
 
 export const COACH_TEXT: Record<Exclude<CoachTip, null>, string> = {
   aim: 'Point at a spot in the goal, then press and hold',
-  curl: 'Drag sideways to curl it · let go in the gold zone',
+  curl: 'Drag sideways to curl it past the keeper · let go in the gold zone',
   release: 'Nice curl! Let go when the bar is in the gold zone',
 };
 

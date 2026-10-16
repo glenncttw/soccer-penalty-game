@@ -3,16 +3,19 @@ import { PERFECT_MAX, PERFECT_MIN } from '../gameplay/power';
 const SOUND_ON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 const SOUND_OFF = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 
-/** HTML overlay: tips, score, sound button, power meter with its gold zone, and banners. */
+/** HTML overlay: tips, score, keeper and sound buttons, power meter with its gold zone, and banners. */
 export class Hud {
   /** Called when the player taps the sound button. */
   onToggleSound: () => void = () => {};
+  /** Called when the player taps the keeper button. */
+  onToggleKeeper: () => void = () => {};
   private readonly meter: HTMLElement;
   private readonly fill: HTMLElement;
   private readonly banner: HTMLElement;
   private readonly hint: HTMLElement;
   private readonly score: HTMLElement;
   private readonly sound: HTMLButtonElement;
+  private readonly keeper: HTMLButtonElement;
   private readonly pop: HTMLElement;
   private hintText = '';
 
@@ -20,6 +23,7 @@ export class Hud {
     root.insertAdjacentHTML(
       'beforeend',
       `<div class="score" hidden></div>
+       <button class="keeper" type="button"></button>
        <button class="sound" type="button"></button>
        <div class="hint faded"></div>
        <div class="meter" hidden>
@@ -31,12 +35,14 @@ export class Hud {
     );
     this.score = root.querySelector('.score')!;
     this.sound = root.querySelector('.sound')!;
+    this.keeper = root.querySelector('.keeper')!;
     this.hint = root.querySelector('.hint')!;
     this.meter = root.querySelector('.meter')!;
     this.fill = root.querySelector('.meter-fill')!;
     this.pop = root.querySelector('.pop')!;
     this.banner = root.querySelector('.banner')!;
     this.sound.addEventListener('click', () => this.onToggleSound());
+    this.keeper.addEventListener('click', () => this.onToggleKeeper());
   }
 
   /** Shows a tip at the top, or fades it out with null. */
@@ -65,6 +71,13 @@ export class Hud {
   showSound(on: boolean) {
     this.sound.innerHTML = on ? SOUND_ON : SOUND_OFF;
     this.sound.setAttribute('aria-label', on ? 'Turn sound off' : 'Turn sound on');
+  }
+
+  /** Shows how good the keeper is; tapping the button changes it. */
+  showKeeper(level: string) {
+    const name = level.charAt(0).toUpperCase() + level.slice(1);
+    this.keeper.innerHTML = `<small>Keeper</small>${name}`;
+    this.keeper.setAttribute('aria-label', `Keeper: ${name}. Tap to change`);
   }
 
   /** A quick word that pops up where the meter was, like "PERFECT!". */

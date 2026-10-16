@@ -63,4 +63,32 @@ describe('OutcomeTracker', () => {
     t.update({ x: 0, y: R, z: 6 }, 5, 0.6);
     expect(t.update({ x: 0, y: R, z: 6 }, 0.1, 0.1)).toBe('miss');
   });
+
+  it('counts a shot the keeper pushes back out as a save', () => {
+    const t = tracker();
+    t.keeperTouched(0.6);
+    expect(t.update({ x: 0.5, y: 1, z: 0.8 }, 9, 0.01)).toBeNull();
+    expect(t.update({ x: 0.5, y: 1, z: 1.1 }, 9, 0.01)).toBe('saved');
+  });
+
+  it('counts a shot the keeper pushes wide as a save', () => {
+    const t = tracker();
+    t.keeperTouched(0.6);
+    expect(t.update({ x: 3.7, y: 1, z: 0.5 }, 9, 0.01)).toBe('saved');
+  });
+
+  it('still counts a goal when the ball gets past the keeper', () => {
+    const t = tracker();
+    t.keeperTouched(0.6);
+    expect(t.update({ x: 2.4, y: 1, z: -0.4 }, 15, 0.01)).toBe('goal');
+    expect(t.hitKeeper).toBe(true);
+  });
+
+  it('ignores the keeper once the shot is decided', () => {
+    const t = tracker();
+    t.update({ x: 3.4, y: 1, z: -0.4 }, 20, 0.1);
+    t.keeperTouched(0.6);
+    expect(t.result).toBe('miss');
+    expect(t.hitKeeper).toBe(false);
+  });
 });
