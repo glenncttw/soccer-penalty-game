@@ -166,6 +166,7 @@ export function paintMaskFromMarkings(renderer: THREE.WebGLRenderer, markings: T
 /**
  * Gives the pitch one grass material that draws, in a single pass:
  * - the mowing stripes from the model, with soft edges that wobble a little,
+ *   crossed by bands toward the goal for a checkerboard,
  * - the grass texture (colour and normal map) around the stripe colours, shifted
  *   and mirrored from place to place so its repeat doesn't show,
  * - soft lighter and darker patches, so the pitch looks less flat,
@@ -193,6 +194,8 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     uStripeCount: { value: stripes.darkStripes.length },
     uStripeSoftness: { value: s.stripeSoftness },
     uStripeRagged: { value: s.stripeRagged },
+    uCheckerSize: { value: s.checkerSize },
+    uCheckerStrength: { value: s.checkerStrength },
     uAlbedo: { value: textures.albedo },
     uNormal: { value: textures.normal },
     uTile: { value: new THREE.Vector2(s.textureTileSize, s.textureTileSize * s.textureStretch) },
@@ -250,6 +253,8 @@ uniform vec2 uStripes[MAX_STRIPES];
 uniform int uStripeCount;
 uniform float uStripeSoftness;
 uniform float uStripeRagged;
+uniform float uCheckerSize;
+uniform float uCheckerStrength;
 uniform sampler2D uAlbedo;
 uniform sampler2D uNormal;
 uniform vec2 uTile;
@@ -352,6 +357,21 @@ const GRASS_COLOR = /* glsl */ `
     if (i >= uStripeCount) break;
     vec2 s = uStripes[i];
     dark = max(dark, smoothstep(s.x - stripeEdge, s.x + stripeEdge, stripeX) * (1.0 - smoothstep(s.y - stripeEdge, s.y + stripeEdge, stripeX)));
+  }
+
+  // Cross-mowing: bands across the pitch, counted from the goal line (z = 0).
+  // Where a band crosses a stripe, light and dark swap, which makes the
+  // checkerboard. Far away, where a band gets thinner than a few pixels, it
+  // fades to an even mix so it doesn't flicker.
+  if (uCheckerSize > 0.0) {
+    float wobbleZ = grassNoise(grassXZ * vec2(7.0, 4.0) + 53.0) + 0.5 * grassNoise(grassXZ * vec2(19.0, 11.0) + 71.0) - 0.75;
+    float bandZ = -grassXZ.y + uStripeRagged * (1.4 * wobbleZ + 2.0 * grassBlades.y);
+    float bandPos = bandZ / (2.0 * uCheckerSize) + 0.25; // one band each way per repeat
+    float bandWave = abs(fract(bandPos) * 2.0 - 1.0);   // 1 in the middle of a band, 0 in the middle of the next
+    float bandEdge = max(max(uStripeSoftness, fwidth(grassXZ.y)), 1e-4) / (2.0 * uCheckerSize);
+    float band = smoothstep(0.5 - bandEdge, 0.5 + bandEdge, bandWave);
+    band = mix(band, 0.5, smoothstep(0.15, 0.35, bandEdge));
+    dark = mix(dark, dark + band - 2.0 * dark * band, uCheckerStrength);
   }
   vec3 grass = mix(uGrassLight, uGrassDark, dark) * grassDetail;
 
