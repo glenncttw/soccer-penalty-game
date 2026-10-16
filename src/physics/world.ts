@@ -1,8 +1,8 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import { BALL_RADIUS, GOAL_DEPTH, GOAL_HEIGHT, GOAL_WIDTH, PENALTY_SPOT_Z, POST_RADIUS } from '../dimensions';
+import { BALL_MASS, BALL_RADIUS, GOAL_DEPTH, GOAL_HEIGHT, GOAL_WIDTH, PENALTY_SPOT_Z, POST_RADIUS } from '../dimensions';
 import { aeroForce } from './ballForces';
+import { BALL_SPIN_DAMPING, FIXED_STEP } from './flight';
 
-export const FIXED_STEP = 1 / 120;
 
 export interface PhysicsWorld {
   world: RAPIER.World;
@@ -51,11 +51,10 @@ export async function createPhysicsWorld(): Promise<PhysicsWorld> {
     RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(0, BALL_RADIUS, PENALTY_SPOT_Z)
       .setCcdEnabled(true)
-      .setLinearDamping(0.05)
-      .setAngularDamping(0.3),
+      .setAngularDamping(BALL_SPIN_DAMPING),
   );
   world.createCollider(
-    RAPIER.ColliderDesc.ball(BALL_RADIUS).setMass(0.43).setRestitution(0.6).setFriction(0.6),
+    RAPIER.ColliderDesc.ball(BALL_RADIUS).setMass(BALL_MASS).setRestitution(0.6).setFriction(0.6),
     ball,
   );
 

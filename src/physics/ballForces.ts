@@ -6,7 +6,7 @@ export interface Vec3 {
 
 const AIR_DENSITY = 1.2; // kg/m³
 const DRAG_COEFFICIENT = 0.25;
-const LIFT_COEFFICIENT = 1; // tuned for a clearly visible, fun curl
+const LIFT_COEFFICIENT = 2.4; // arcade value: well above real life so the curl is big and fun
 
 /**
  * Aerodynamic force on a spinning ball: quadratic drag against the velocity

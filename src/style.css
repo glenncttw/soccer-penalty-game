@@ -6,26 +6,120 @@ body {
   background: #9fdcf5;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 #game {
   display: block;
   width: 100%;
   height: 100%;
+  cursor: crosshair;
 }
 
-#hint {
+#hud {
   position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font-family: system-ui, sans-serif;
+}
+
+.hint {
+  position: absolute;
   left: 50%;
   top: 20px;
   transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  box-sizing: border-box;
   padding: 10px 18px;
   border-radius: 999px;
   background: #ffffff;
   color: #e5186f;
-  font: 800 14px/1 system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 13px;
   letter-spacing: 0.04em;
+  text-align: center;
   text-transform: uppercase;
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.12);
-  pointer-events: none;
+  transition: opacity 0.6s;
+}
+
+.hint.faded {
+  opacity: 0;
+}
+
+.meter {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  width: 22px;
+  height: 200px;
+  transform: translateY(-50%);
+  border: 4px solid #ffffff;
+  border-radius: 999px;
+  background: rgba(108, 57, 139, 0.55);
+  overflow: hidden;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.12);
+}
+
+.meter[hidden] {
+  display: none;
+}
+
+.meter-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: #ffcf3a;
+}
+
+.meter-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.85);
+  mix-blend-mode: screen;
+}
+
+.banner {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%) scale(0.4);
+  opacity: 0;
+  color: #ffffff;
+  font-weight: 900;
+  font-size: clamp(44px, 12vw, 96px);
+  letter-spacing: 0.02em;
+  text-align: center;
+  white-space: nowrap;
+  text-shadow:
+    0 5px 0 #e5186f,
+    0 10px 18px rgba(0, 0, 0, 0.25);
+}
+
+.banner small {
+  display: block;
+  font-size: 0.28em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.banner.gold {
+  color: #ffcf3a;
+  text-shadow:
+    0 5px 0 #6c398b,
+    0 10px 18px rgba(0, 0, 0, 0.25);
+}
+
+.banner.show {
+  animation: pop 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) forwards;
+}
+
+@keyframes pop {
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
