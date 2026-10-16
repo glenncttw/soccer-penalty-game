@@ -8,6 +8,7 @@ export const STADIUM_NODES = {
   goalNet: 'GOAL_Net',
   ball: 'Football_Ball',
   grass: 'PITCH_Grass',
+  markings: 'STATIC_Markings',
 } as const;
 
 function required(root: THREE.Object3D, name: string): THREE.Object3D {

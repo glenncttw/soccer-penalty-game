@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { GRASS_SETTINGS, type GrassSettings } from './grassSettings';
-import { renderBladeTexture } from './grassTexture';
 import { STADIUM_NODES } from './measureStadium';
 
 /** The shader holds up to this many dark stripes. */
@@ -66,21 +65,124 @@ export function measureStripes(grass: THREE.Object3D): PitchStripes {
   return { meshes, light, dark, darkStripes };
 }
 
+
+/** The grass texture: a colour picture and a normal map that tile seamlessly. Replace these files to change the grass. */
+export const GRASS_TEXTURE_URLS = {
+  albedo: `${import.meta.env.BASE_URL}assets/grass/grass_albedo.webp`,
+  normal: `${import.meta.env.BASE_URL}assets/grass/grass_normal.jpg`,
+};
+
+/** Loads the grass texture's two pictures, set up to repeat and to blur smoothly in the distance. */
+export async function loadGrassTextures(renderer: THREE.WebGLRenderer) {
+  const loader = new THREE.TextureLoader();
+  const [albedo, normal] = await Promise.all([
+    loader.loadAsync(GRASS_TEXTURE_URLS.albedo),
+    loader.loadAsync(GRASS_TEXTURE_URLS.normal),
+  ]);
+  albedo.colorSpace = THREE.SRGBColorSpace;
+  normal.colorSpace = THREE.NoColorSpace; // directions, not colours
+  for (const t of [albedo, normal]) {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    // Mipmaps (smaller, blurred copies) and anisotropic filtering keep the grass
+    // calm far away instead of sparkling.
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.generateMipmaps = true;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  }
+  return { albedo, normal };
+}
+
+export interface PaintMask {
+  texture: THREE.Texture;
+  /** World x of the mask's left edge and z of its near edge (toward the camera). */
+  corner: THREE.Vector2;
+  /** Width (x) and depth (z) the mask covers, in metres. */
+  size: THREE.Vector2;
+  dispose(): void;
+}
+
+const MASK_PIXEL = 0.01; // metres per mask pixel
+const MASK_MAX = 2048;
+
+/**
+ * Turns the model's white markings into a map of where the grass is painted,
+ * seen from straight above, and hides the markings themselves. The grass shader
+ * then paints the grass white there, so the lines and spot look like painted
+ * grass. Moving a line in Blender still moves the painted line.
+ */
+export function paintMaskFromMarkings(renderer: THREE.WebGLRenderer, markings: THREE.Object3D): PaintMask {
+  markings.updateWorldMatrix(true, true);
+  const box = new THREE.Box3().setFromObject(markings, true).expandByScalar(0.2);
+  const size = new THREE.Vector2(box.max.x - box.min.x, box.max.z - box.min.z);
+  const width = Math.min(MASK_MAX, Math.ceil(size.x / MASK_PIXEL));
+  const height = Math.min(MASK_MAX, Math.ceil(size.y / MASK_PIXEL));
+
+  // A camera above the pitch looking straight down, with the goal at the top.
+  const centre = box.getCenter(new THREE.Vector3());
+  const camera = new THREE.OrthographicCamera(-size.x / 2, size.x / 2, size.y / 2, -size.y / 2, 0.1, 100);
+  camera.position.set(centre.x, box.max.y + 10, centre.z);
+  camera.up.set(0, 0, -1);
+  camera.lookAt(centre.x, 0, centre.z);
+  camera.updateMatrixWorld();
+
+  const white = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+  const scene = new THREE.Scene();
+  markings.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const copy = new THREE.Mesh(o.geometry, white);
+    copy.matrixAutoUpdate = false;
+    copy.matrix.copy(o.matrixWorld);
+    scene.add(copy);
+  });
+
+  const target = new THREE.WebGLRenderTarget(width, height, {
+    format: THREE.RedFormat,
+    minFilter: THREE.LinearMipmapLinearFilter,
+    generateMipmaps: true,
+    anisotropy: renderer.capabilities.getMaxAnisotropy(),
+    samples: 4, // smooth edges
+    depthBuffer: false,
+  });
+  target.texture.name = 'PitchPaint';
+  const before = renderer.getRenderTarget();
+  const clear = renderer.getClearColor(new THREE.Color());
+  const clearAlpha = renderer.getClearAlpha();
+  renderer.setRenderTarget(target);
+  renderer.setClearColor(0x000000, 1);
+  renderer.render(scene, camera);
+  renderer.setRenderTarget(before);
+  renderer.setClearColor(clear, clearAlpha);
+  white.dispose();
+
+  markings.visible = false;
+  return {
+    texture: target.texture,
+    corner: new THREE.Vector2(box.min.x, box.max.z),
+    size,
+    dispose: () => target.dispose(),
+  };
+}
+
 /**
  * Gives the pitch one grass material that draws, in a single pass:
- * - the mowing stripes from the model, with soft, slightly ragged edges,
- * - tiny curly blades from a small repeating texture, shuffled and turned from
- *   place to place so the repeat doesn't show,
+ * - the mowing stripes from the model, with soft edges that wobble a little,
+ * - the grass texture (colour and normal map) around the stripe colours, shifted
+ *   and mirrored from place to place so its repeat doesn't show,
+ * - soft lighter and darker patches, so the pitch looks less flat,
  * - viewing-angle shading: grass in front of you, which you look down onto, is
  *   darker than grass you look across, because you see the shady gaps between
- *   the blades instead of their sunlit sides.
+ *   the blades instead of their sunlit sides,
+ * - the white lines and penalty spot, painted onto the grass.
  * Sunlight and shadows work as before.
  */
-export function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLRenderer, s: GrassSettings = GRASS_SETTINGS) {
+export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLRenderer, s: GrassSettings = GRASS_SETTINGS) {
   const grass = stadium.getObjectByName(STADIUM_NODES.grass);
   if (!grass) throw new Error(`Stadium model is missing the "${STADIUM_NODES.grass}" node`);
+  const markings = stadium.getObjectByName(STADIUM_NODES.markings);
+  if (!markings) throw new Error(`Stadium model is missing the "${STADIUM_NODES.markings}" node`);
   const stripes = measureStripes(grass);
-  const blades = renderBladeTexture(renderer, s.bladeSeed);
+  const textures = await loadGrassTextures(renderer);
+  const paint = paintMaskFromMarkings(renderer, markings);
 
   const stripeData = new Float32Array(MAX_STRIPES * 2);
   stripeData.set(stripes.darkStripes.flat());
@@ -91,12 +193,19 @@ export function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLRendere
     uStripeCount: { value: stripes.darkStripes.length },
     uStripeSoftness: { value: s.stripeSoftness },
     uStripeRagged: { value: s.stripeRagged },
-    uBlades: { value: blades.texture },
-    uBladeTile: { value: s.bladeTileSize },
-    uBladeStretch: { value: s.bladeStretch },
-    uBladeContrast: { value: s.bladeContrast },
-    uBladeWarmth: { value: s.bladeTipWarmth },
+    uAlbedo: { value: textures.albedo },
+    uNormal: { value: textures.normal },
+    uTile: { value: new THREE.Vector2(s.textureTileSize, s.textureTileSize * s.textureStretch) },
+    uTextureStrength: { value: s.textureStrength },
+    uNormalStrength: { value: s.normalStrength },
+    uPatchStrength: { value: s.patchStrength },
+    uPatchSize: { value: s.patchSize },
     uAngleShading: { value: s.angleShading },
+    uPaint: { value: paint.texture },
+    uPaintCorner: { value: paint.corner },
+    uPaintSize: { value: paint.size },
+    uLineColor: { value: new THREE.Color(s.lineColor) },
+    uLineRagged: { value: s.lineRagged },
   };
 
   // Start from the model's light grass so roughness and the sun's sheen stay as in Blender.
@@ -104,6 +213,7 @@ export function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLRendere
   material.name = 'M_Grass_Shader';
   material.color.set(0xffffff);
   material.map = null;
+  material.normalMap = null;
   material.defines = { ...material.defines, MAX_STRIPES };
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
@@ -115,9 +225,14 @@ export function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLRendere
       );
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${GRASS_PARS}`)
-      .replace('#include <map_fragment>', `#include <map_fragment>\n${GRASS_COLOR}`);
+      .replace('#include <map_fragment>', `#include <map_fragment>\n${GRASS_COLOR}`)
+      .replace('#include <normal_fragment_maps>', GRASS_NORMAL);
   };
-  material.addEventListener('dispose', () => blades.dispose());
+  material.addEventListener('dispose', () => {
+    textures.albedo.dispose();
+    textures.normal.dispose();
+    paint.dispose();
+  });
 
   for (const old of [stripes.light, stripes.dark]) {
     for (const value of Object.values(old)) if (value instanceof THREE.Texture) value.dispose();
@@ -135,12 +250,19 @@ uniform vec2 uStripes[MAX_STRIPES];
 uniform int uStripeCount;
 uniform float uStripeSoftness;
 uniform float uStripeRagged;
-uniform sampler2D uBlades;
-uniform float uBladeTile;
-uniform float uBladeStretch;
-uniform float uBladeContrast;
-uniform float uBladeWarmth;
+uniform sampler2D uAlbedo;
+uniform sampler2D uNormal;
+uniform vec2 uTile;
+uniform float uTextureStrength;
+uniform float uNormalStrength;
+uniform float uPatchStrength;
+uniform float uPatchSize;
 uniform float uAngleShading;
+uniform sampler2D uPaint;
+uniform vec2 uPaintCorner;
+uniform vec2 uPaintSize;
+uniform vec3 uLineColor;
+uniform float uLineRagged;
 
 // A random number per grid cell (no sin(), so it is the same on every phone).
 float grassHash(vec2 p) {
@@ -161,54 +283,108 @@ float grassNoise(vec2 p) {
   );
 }
 
-// One copy of the blade tile, turned and shifted. The derivatives keep the
-// texture's blurring for distance (mipmaps) seamless across the copies.
-float grassTile(vec2 uv, vec2 dx, vec2 dy, float copy) {
-  float a = copy * 2.39996; // the golden angle: every copy turns differently
-  mat2 turn = mat2(cos(a), sin(a), -sin(a), cos(a));
+// One copy of the texture tile, shifted and maybe mirrored left to right. It is
+// never turned, so the blades keep leaning toward the goal. Gives its colour and
+// its slope (the normal map's tilt) in the pitch's directions. Passing the
+// original derivatives keeps the mipmaps seamless across the copies.
+void grassTile(vec2 uv, vec2 dx, vec2 dy, float copy, out vec3 albedo, out vec2 slope) {
+  vec2 flip = vec2(grassHash(vec2(copy, 3.0)) < 0.5 ? -1.0 : 1.0, 1.0);
   vec2 shift = vec2(grassHash(vec2(copy, 7.0)), grassHash(vec2(copy, 13.0)));
-  return textureGrad(uBlades, turn * uv + shift, turn * dx, turn * dy).r;
+  vec2 st = flip * uv + shift;
+  albedo = textureGrad(uAlbedo, st, flip * dx, flip * dy).rgb;
+  vec3 n = textureGrad(uNormal, st, flip * dx, flip * dy).xyz * 2.0 - 1.0;
+  slope = flip * (n.xy / max(n.z, 0.25));
 }
 
-// The blades, with the repeat hidden: a smooth random map picks which turned and
-// shifted copy of the tile shows where, and blends neighbouring copies.
-float grassBlades(vec2 uv) {
+// The texture with its repeat hidden: a smooth random map picks which shifted
+// copy of the tile shows where, and blends neighbouring copies.
+void grassTexture(vec2 uv, out vec3 albedo, out vec2 slope) {
   vec2 dx = dFdx(uv);
   vec2 dy = dFdy(uv);
   float pick = grassNoise(uv * 0.6) * 8.0;
   float copy = floor(pick);
-  float a = grassTile(uv, dx, dy, copy);
-  float b = grassTile(uv, dx, dy, copy + 1.0);
-  return mix(a, b, smoothstep(0.25, 0.75, fract(pick) + 0.3 * (b - a)));
+  vec3 a1, a2;
+  vec2 s1, s2;
+  grassTile(uv, dx, dy, copy, a1, s1);
+  grassTile(uv, dx, dy, copy + 1.0, a2, s2);
+  float w = smoothstep(0.25, 0.75, fract(pick) + 0.3 * (dot(a2 - a1, vec3(1.0)) / 3.0));
+  albedo = mix(a1, a2, w);
+  slope = mix(s1, s2, w);
 }
 `;
 
 const GRASS_COLOR = /* glsl */ `
-{
-  float blade = grassBlades(vGrassWorld.xz / (uBladeTile * vec2(1.0, uBladeStretch)));
-  float mean = textureLod(uBlades, vec2(0.5), 16.0).r; // the 1 x 1 mipmap: the average
-  float detail = blade - mean; // brighter on blade tips, darker in the gaps
+  vec2 grassUv = vec2(vGrassWorld.x, -vGrassWorld.z) / uTile; // u to the right, v toward the goal
+  vec3 grassAlbedo;
+  vec2 grassSlope;
+  grassTexture(grassUv, grassAlbedo, grassSlope);
 
-  // Stripes: blades nibble the edge, and the blend is never thinner than a pixel.
-  float x = vGrassWorld.x + uStripeRagged * detail * 2.0;
-  float edge = 0.5 * max(max(uStripeSoftness, fwidth(vGrassWorld.x)), 1e-4);
+  // How small the texture is on screen: 0 where a 256-pixel copy of the tile
+  // would show one texture pixel per screen pixel, +1 for each halving. Where the
+  // blades get smaller than a pixel, the bumps and the ragged edges fade out, so
+  // the grass doesn't sparkle when the camera moves.
+  vec2 grassFootprint = max(abs(dFdx(grassUv)), abs(dFdy(grassUv)));
+  float grassLod = log2(max(max(grassFootprint.x, grassFootprint.y) * 256.0, 1e-4));
+  float grassNear = 1.0 - smoothstep(1.5, 3.5, grassLod);
+
+  // The texture's variation around its own average colour (its 1 x 1 mipmap).
+  vec3 grassMean = textureLod(uAlbedo, vec2(0.5), 16.0).rgb;
+  vec3 grassDetail = mix(vec3(1.0), grassAlbedo / max(grassMean, vec3(1e-3)), uTextureStrength);
+  float grassNibble = dot(grassDetail, vec3(0.333)) - 1.0; // + on blade tips, - in the gaps
+
+  // Thin streaks, each about as wide as a blade and much longer toward the goal,
+  // so on screen they stand up like blades. They break up the stripe and paint
+  // edges. Where a streak gets thinner than a pixel they fade out.
+  vec2 grassXZ = vGrassWorld.xz;
+  float grassEdgeNear = 1.0 - smoothstep(0.003, 0.012, fwidth(grassXZ.x));
+  vec2 grassBlades = vec2(
+    grassNoise(grassXZ * vec2(170.0, 14.0)) + 0.5 * grassNoise(grassXZ * vec2(340.0, 29.0) + 5.0),
+    grassNoise(grassXZ * vec2(150.0, 12.0) + 11.0) + 0.5 * grassNoise(grassXZ * vec2(310.0, 25.0) + 23.0)
+  ) - 0.75;
+  grassBlades *= grassEdgeNear;
+
+  // Stripes: the edge wobbles gently and blades poke across it; the blend is never thinner than a pixel.
+  float wobble = grassNoise(grassXZ * vec2(4.0, 7.0)) + 0.5 * grassNoise(grassXZ * vec2(11.0, 19.0) + 31.0) - 0.75;
+  float stripeX = grassXZ.x + uStripeRagged * (1.4 * wobble + 2.0 * grassBlades.x);
+  float stripeEdge = 0.5 * max(max(uStripeSoftness, fwidth(grassXZ.x)), 1e-4);
   float dark = 0.0;
   for (int i = 0; i < MAX_STRIPES; i++) {
     if (i >= uStripeCount) break;
     vec2 s = uStripes[i];
-    dark = max(dark, smoothstep(s.x - edge, s.x + edge, x) * (1.0 - smoothstep(s.y - edge, s.y + edge, x)));
+    dark = max(dark, smoothstep(s.x - stripeEdge, s.x + stripeEdge, stripeX) * (1.0 - smoothstep(s.y - stripeEdge, s.y + stripeEdge, stripeX)));
   }
-  vec3 grass = mix(uGrassLight, uGrassDark, dark);
+  vec3 grass = mix(uGrassLight, uGrassDark, dark) * grassDetail;
 
-  float d = uBladeContrast * detail;
-  grass *= max(1.0 + d, 0.0) * vec3(1.0 + uBladeWarmth * d, 1.0, 1.0 - uBladeWarmth * d);
+  // Soft lighter and darker patches.
+  float patches = grassNoise(grassXZ / uPatchSize) + 0.5 * grassNoise(grassXZ / (0.4 * uPatchSize) + 17.0) - 0.75;
+  grass *= 1.0 + 2.0 * uPatchStrength * patches;
+
+  // Painted lines and spot: white grass. Blades poke out of the edge up close;
+  // far away, where a line is thinner than a pixel, it keeps its average coverage.
+  vec2 paintUv = vec2(grassXZ.x - uPaintCorner.x, uPaintCorner.y - grassXZ.y) / uPaintSize;
+  paintUv += grassBlades * uLineRagged / uPaintSize;
+  float paintCover = texture(uPaint, paintUv).r;
+  float pixelSize = max(length(dFdx(grassXZ)), length(dFdy(grassXZ)));
+  float paintEdge = clamp(pixelSize / 0.08, 0.06, 0.5);
+  float grassPaint = smoothstep(0.5 - paintEdge, 0.5 + paintEdge, paintCover);
+  grass = mix(grass, uLineColor * (1.0 + 0.4 * grassNibble), grassPaint);
 
   // 0 where you look across the grass, 1 where you look down onto it. Red fades
   // a little faster, so close grass looks deeper green; dark stripes lose a
   // little more, so the stripes stand out more in front of you.
   float down = smoothstep(0.0, 0.35, normalize(cameraPosition - vGrassWorld).y);
-  grass *= pow(vec3(max(1.0 - uAngleShading * down, 0.0)), vec3(1.2, 1.0, 1.0) * (1.0 + 0.85 * dark));
+  grass *= pow(vec3(max(1.0 - uAngleShading * down, 0.0)), vec3(1.2, 1.0, 1.0) * (1.0 + 0.85 * dark * (1.0 - grassPaint)));
 
-  diffuseColor.rgb *= grass;
-}
+  diffuseColor.rgb *= max(grass, vec3(0.0));
+`;
+
+// The grass's bumps, from the normal map, as the light sees them.
+const GRASS_NORMAL = /* glsl */ `
+  {
+    // Paint fills the gaps between the blades a little, so painted grass is smoother.
+    vec2 slope = grassSlope * uNormalStrength * grassNear * (1.0 - 0.7 * grassPaint);
+    slope.y /= max(uTile.y / uTile.x, 1e-3); // undo the stretch toward the goal
+    vec3 bumpy = normalize(vec3(slope.x, 1.0, -slope.y)); // u is +x, v is -z, up is +y
+    normal = normalize((viewMatrix * vec4(bumpy, 0.0)).xyz);
+  }
 `;

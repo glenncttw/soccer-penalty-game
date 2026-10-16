@@ -40,8 +40,8 @@ const stadium = await loadStadium();
 const world = stadium.config;
 scene.add(stadium.environment);
 setUpLighting(scene, stadium.sun);
-// The pitch's grass: stripes, tiny blades and shading; tweak it in src/scene/grassSettings.ts.
-applyGrass(stadium.environment, renderer);
+// The pitch's grass: stripes, texture, shading and painted lines; tweak it in src/scene/grassSettings.ts.
+await applyGrass(stadium.environment, renderer);
 // The sky and its drifting clouds; tweak them in src/scene/skySettings.ts.
 const sky = new Sky(SKY_SETTINGS);
 scene.add(sky.mesh);
