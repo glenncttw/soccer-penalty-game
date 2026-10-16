@@ -1,15 +1,18 @@
-import { BALL_RADIUS, GOAL_HEIGHT, GOAL_WIDTH, POST_RADIUS } from '../dimensions';
 import type { Vec3 } from '../physics/ballForces';
+import type { GoalConfig } from '../worldConfig';
 
 export type ShotResult = 'goal' | 'miss';
-
-const TOUCH = BALL_RADIUS + POST_RADIUS + 0.03;
 
 /** Watches the ball after a kick and decides if it went in, and whether it hit the frame. */
 export class OutcomeTracker {
   result: ShotResult | null = null;
   hitFrame = false;
   private elapsed = 0;
+
+  constructor(
+    private readonly goal: GoalConfig,
+    private readonly ballRadius: number,
+  ) {}
 
   reset() {
     this.result = null;
@@ -20,18 +23,25 @@ export class OutcomeTracker {
   update(p: Vec3, speed: number, dt: number): ShotResult | null {
     if (this.result) return this.result;
     this.elapsed += dt;
-    const halfW = GOAL_WIDTH / 2;
+    const g = this.goal;
+    const touch = this.ballRadius + 0.03;
+    const halfT = g.postThickness / 2;
+    const z = p.z - g.lineZ;
 
-    // Close to a post or the crossbar?
-    if (Math.abs(p.z) < TOUCH) {
-      const nearPost = Math.min(Math.abs(p.x - halfW), Math.abs(p.x + halfW)) < TOUCH && p.y < GOAL_HEIGHT + TOUCH;
-      const nearBar = Math.abs(p.y - GOAL_HEIGHT) < TOUCH && Math.abs(p.x) < halfW + TOUCH;
+    // Touching a post or the crossbar? (distance from the ball centre to each box)
+    if (Math.abs(z) < g.postDepth / 2 + touch) {
+      const postX = g.innerHalfWidth + halfT;
+      const nearPost =
+        Math.min(Math.abs(p.x - postX), Math.abs(p.x + postX)) < halfT + touch && p.y < g.outerHeight + touch;
+      const nearBar =
+        p.y > g.crossbarY - touch && p.y < g.outerHeight + touch && Math.abs(p.x) < g.outerHalfWidth + touch;
       if (nearPost || nearBar) this.hitFrame = true;
     }
 
-    const fullyOver = p.z < -BALL_RADIUS;
-    if (fullyOver && Math.abs(p.x) < halfW && p.y < GOAL_HEIGHT) this.result = 'goal';
-    else if (fullyOver || p.z < -3 || Math.abs(p.x) > 30 || this.elapsed > 4 || (this.elapsed > 0.5 && speed < 0.3)) {
+    // The whole ball must be over the whole line, inside the posts and under the bar.
+    const fullyOver = z < -(g.postDepth / 2 + this.ballRadius);
+    if (fullyOver && Math.abs(p.x) < g.innerHalfWidth && p.y < g.crossbarY) this.result = 'goal';
+    else if (fullyOver || z < -3 || Math.abs(p.x) > 30 || this.elapsed > 4 || (this.elapsed > 0.5 && speed < 0.3)) {
       this.result = 'miss';
     }
     return this.result;

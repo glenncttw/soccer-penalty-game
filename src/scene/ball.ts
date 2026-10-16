@@ -1,24 +1,4 @@
 import * as THREE from 'three';
-import { BALL_RADIUS } from '../dimensions';
-import { palette } from '../theme';
-
-/** Faceted ball with dark patches so its spin reads clearly. */
-export function createBallMesh(): THREE.Mesh {
-  const geo = new THREE.IcosahedronGeometry(BALL_RADIUS, 1);
-  const white = new THREE.Color(palette.ball);
-  const dark = new THREE.Color(palette.ballPatch);
-  const colors: number[] = [];
-  const faces = geo.getAttribute('position').count / 3;
-  for (let f = 0; f < faces; f++) {
-    const c = f % 7 === 0 ? dark : white;
-    for (let v = 0; v < 3; v++) colors.push(c.r, c.g, c.b);
-  }
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.6 }));
-  mesh.castShadow = true;
-  return mesh;
-}
 
 /** A fading ribbon behind the ball that makes its curl visible. */
 export class BallTrail {

@@ -8,6 +8,8 @@ export interface ShotInput {
   power: number;
   /** -1 (bend left) .. 1 (bend right), from the sideways drag. */
   curl: number;
+  /** Lowest point the ball may be sent to, so it is never driven into the ground. Defaults to 0.15 m. */
+  minTargetY?: number;
 }
 
 export interface Shot {
@@ -21,7 +23,7 @@ const MAX_CURL_SPIN = 55; // rad/s
 
 /** Turns raw player input into the shot that will actually be struck. */
 export function shapeShot(input: ShotInput, random: () => number = Math.random): Shot {
-  const { aim, power, curl } = input;
+  const { aim, power, curl, minTargetY = 0.15 } = input;
   const quality = strikeQuality(power);
   const target = { ...aim };
 
@@ -31,8 +33,8 @@ export function shapeShot(input: ShotInput, random: () => number = Math.random):
   target.y += (random() * 2 - 1) * wobble * 0.5;
 
   if (quality === 'skied') target.y += 1.2 + (power - 0.92) * 15;
-  if (quality === 'weak') target.y = Math.max(0.15, target.y - (0.5 - power) * 2);
-  target.y = Math.max(0.15, target.y);
+  if (quality === 'weak') target.y = target.y - (0.5 - power) * 2;
+  target.y = Math.max(minTargetY, target.y);
 
   const speed = 12 + power * 17 + (quality === 'perfect' ? 3 : 0);
   // Positive curl bends right; spin around -y does that for a ball heading to -z.

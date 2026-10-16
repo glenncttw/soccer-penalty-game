@@ -4,10 +4,10 @@ A fun, fast 3D penalty shootout that runs in the browser on desktop and mobile. 
 
 ## Design decisions
 
-- **Camera**: first-person from behind the ball, with the goal centered horizontally and high on screen, leaving room below to aim and drag.
+- **Camera**: the gameplay camera designed in Blender: first-person from behind the ball, ball low in the foreground, goal centred. On screens narrower than 16:9 the view widens just enough to keep the whole goal visible.
 - **No visible shooter**: there is no third-person player model. The ball, its flight and its curl are the star.
 - **Curl is visible**: the ball spins visibly and leaves a bright trail ribbon, so the bend of every shot reads clearly.
-- **Stadium**: the pitch is enclosed by a stylized stadium (stands, roof edge, floodlights, ad boards). Stands are built so a crowd can be added later (instanced seats now, instanced crowd sprites or meshes later).
+- **Stadium**: a stylized stadium modelled in Blender by Glenn (`public/assets/stadium/`), with stands, railings, ad boards, floodlights and trees. Only the sector the gameplay camera sees is modelled. Goal, ball and penalty spot sizes come from the model (goal opening 5.64 x 1.92 m, penalty 12.4 m, ball radius 0.175 m). A crowd can be added on the stands later.
 - **Art style**: fun and playful, inspired by the kodeclubs.com 3D world:
   - Low-poly, flat-shaded (faceted) geometry with chunky, simplified shapes. No outlines, no realistic textures.
   - Bright sunny daylight with soft, slightly blue-tinted shadows and gentle ambient light.
@@ -59,7 +59,7 @@ Rapier handles every collision (posts, net, keeper, future props and objects) ro
 ## Milestones
 
 1. **Scaffold**: Vite + TS + Three.js, lint, Vitest, CI build, GitHub Pages deploy of an empty scene.
-2. **Pitch, goal and stadium**: centered goal with net, pitch markings, enclosed stylized stadium, lighting, low-poly flat-shaded look and soft shadows.
+2. **Pitch, goal and stadium**: Glenn's Blender stadium loaded as the environment, with lighting matched to Blender and soft shadows.
 3. **Shooting**: aim, hold-to-charge power meter, drag-to-curl input, Rapier ball physics with custom curl, visible spin and trail, goal / post / miss detection.
 4. **Keeper AI**: stylized keeper that dives with difficulty-based timing and reach.
 5. **Saving turn**: first-person goal-line view, dive input, AI shooter.
@@ -72,12 +72,13 @@ Rapier handles every collision (posts, net, keeper, future props and objects) ro
 ```
 src/
   main.ts          entry, renderer, loop
-  scene/           pitch, goal, stadium, lighting, camera
+  worldConfig.ts   gameplay coordinates measured from the stadium
+  scene/           stadium loading and measuring, lighting, camera, trail, aim markers
   physics/         Rapier world, ball, Magnus (curl) force
   gameplay/        shootout state machine, scoring
   ai/              keeper and shooter AI
   input/           swipe / mouse handling
   ui/              HUD and menus (HTML/CSS)
-public/assets/     models, textures, audio
+public/assets/     stadium GLB, later audio
 docs/PLAN.md
 ```
