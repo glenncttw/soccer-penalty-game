@@ -8,7 +8,12 @@ A fun, fast 3D penalty shootout that runs in the browser on desktop and mobile. 
 - **No visible shooter**: there is no third-person player model. The ball, its flight and its curl are the star.
 - **Curl is visible**: the ball spins visibly and leaves a bright trail ribbon, so the bend of every shot reads clearly.
 - **Stadium**: the pitch is enclosed by a stylized stadium (stands, roof edge, floodlights, ad boards). Stands are built so a crowd can be added later (instanced seats now, instanced crowd sprites or meshes later).
-- **Art style**: fun and playful, inspired by kodeclubs.com. Bright saturated colors, chunky rounded shapes, toon (cel) shading with soft outlines, bouncy UI with a rounded bold font. Exact palette and font to be confirmed from the reference.
+- **Art style**: fun and playful, inspired by the kodeclubs.com 3D world:
+  - Low-poly, flat-shaded (faceted) geometry with chunky, simplified shapes. No outlines, no realistic textures.
+  - Bright sunny daylight with soft, slightly blue-tinted shadows and gentle ambient light.
+  - Palette: saturated grass green (`#5DCB5E`, darker stripe `#56C357`), mint and teal foliage (`#89CCBC`, `#77C5A3`), cream paths and lines (`#F3E6C8`), clean white structures, soft sky blue, with purple (`#6C398B`) and hot pink accents for banners, ads and UI.
+  - Characters (the keeper) are simple, cute, rounded figures in the same style.
+  - Typography is not decided yet.
 
 ## Core gameplay
 
@@ -29,7 +34,8 @@ Native mobile apps, online multiplayer, full matches, licensed teams or players,
 | Rendering | **Three.js, WebGL 2 renderer** | Works on every current desktop and mobile browser; the mature post-processing ecosystem (outlines, bloom) targets it |
 | Language | **TypeScript** | Catches mistakes early as gameplay code grows; no runtime cost |
 | Build / dev server | **Vite** | Instant reloads, trivial static build |
-| Ball physics | **Small custom simulation** | Gravity, drag and Magnus (curl) force, plus sphere collisions against posts, crossbar, net and keeper hit boxes. Full control over how the curl feels, deterministic, tiny bundle |
+| Physics | **Rapier** (`@dimforge/rapier3d-compat`) | Fast WASM physics for collisions: ball against posts, crossbar, net and keeper, plus props, rebounds and anything else that needs to collide |
+| Ball flight | Custom Magnus (curl) force applied to the Rapier ball each step | Full control over how the curl feels, which a generic engine doesn't give |
 | Audio | **Howler.js** | Simple cross-browser sound with mobile audio unlock handled |
 | UI / HUD | HTML/CSS overlay | Menus and scoreboard don't need to be in 3D |
 | Assets | Low-poly glTF (CC0 packs from Kenney / Quaternius, or Blender) | Light, fits the playful style, loads natively in Three.js |
@@ -40,9 +46,9 @@ Native mobile apps, online multiplayer, full matches, licensed teams or players,
 
 Three.js's WebGPU renderer is production-ready and falls back to WebGL 2, but a stylized scene like this gains nothing visible from WebGPU, and WebGL 2 has the widest mobile support and the most battle-tested post-processing. If we ever need it (for example a huge animated crowd), switching to `WebGPURenderer` is a contained change.
 
-### Why no physics engine (Rapier) for now
+### Why Rapier plus a custom curl force
 
-A penalty kick is one ball against a handful of static shapes. A dedicated engine would cost bundle size and give us less control over the curl, which is the core feel of the game. If later features need many interacting bodies, Rapier is the drop-in choice.
+Rapier handles every collision (posts, net, keeper, future props and objects) robustly, and it is fast and small enough for mobile. On top of it we apply our own drag and Magnus force each physics step, so the bend of the ball feels exactly how we want.
 
 ### Alternatives considered
 
@@ -53,8 +59,8 @@ A penalty kick is one ball against a handful of static shapes. A dedicated engin
 ## Milestones
 
 1. **Scaffold**: Vite + TS + Three.js, lint, Vitest, CI build, GitHub Pages deploy of an empty scene.
-2. **Pitch, goal and stadium**: centered goal with net, pitch markings, enclosed stylized stadium, lighting, toon shading and outline pass.
-3. **Shooting**: swipe input, power and aim, custom ball physics with curl, visible spin and trail, goal / post / miss detection.
+2. **Pitch, goal and stadium**: centered goal with net, pitch markings, enclosed stylized stadium, lighting, low-poly flat-shaded look and soft shadows.
+3. **Shooting**: swipe input, power and aim, Rapier ball physics with custom curl, visible spin and trail, goal / post / miss detection.
 4. **Keeper AI**: stylized keeper that dives with difficulty-based timing and reach.
 5. **Saving turn**: first-person goal-line view, dive input, AI shooter.
 6. **Shootout loop**: alternate turns, 5 kicks plus sudden death, HUD and result screen.
@@ -67,7 +73,7 @@ A penalty kick is one ball against a handful of static shapes. A dedicated engin
 src/
   main.ts          entry, renderer, loop
   scene/           pitch, goal, stadium, lighting, camera
-  physics/         ball simulation, collisions, Magnus force
+  physics/         Rapier world, ball, Magnus (curl) force
   gameplay/        shootout state machine, scoring
   ai/              keeper and shooter AI
   input/           swipe / mouse handling
