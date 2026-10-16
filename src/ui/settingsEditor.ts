@@ -1,9 +1,18 @@
 import GUI from 'three/examples/jsm/libs/lil-gui.module.min.js';
+import { CAMERA_SETTINGS, type CameraSettings } from '../scene/cameraSettings';
 import { GRASS_SETTINGS, type GrassSettings } from '../scene/grassSettings';
 import { settingsSnippet } from './settingsSnippet';
 
 /** A slider: [setting, label, min, max, step]. A colour: [setting, label]. */
 type Row<T> = [keyof T & string, string] | [keyof T & string, string, number, number, number];
+
+const CAMERA_ROWS: Row<CameraSettings>[] = [
+  ['height', 'Height (m)', 0.3, 2.5, 0.01],
+  ['distanceBehindBall', 'Behind the ball (m)', 1, 10, 0.05],
+  ['targetHeight', 'Looks at height (m)', -1, 2.5, 0.01],
+  ['fov', 'Field of view (°)', 15, 60, 0.1],
+  ['verticalShift', 'Slide picture up', -0.25, 0.25, 0.005],
+];
 
 const GRASS_ROWS: Record<string, Row<GrassSettings>[]> = {
   Stripes: [
@@ -34,11 +43,14 @@ const GRASS_ROWS: Record<string, Row<GrassSettings>[]> = {
 };
 
 export interface EditorTargets {
+  camera: { setSettings(settings: CameraSettings): void };
+  /** The camera from the Blender scene, for "Use Blender camera". */
+  blenderCamera: CameraSettings;
   grass: { update(settings: GrassSettings): void };
 }
 
 /**
- * A panel for changing settings while the game runs. Open it by adding ?edit to
+ * A panel for changing the camera and the grass while the game runs. Open it by adding ?edit to
  * the game's address. Changes are only kept until you reload: "Copy settings"
  * copies them as code, to paste into the settings file.
  */
@@ -46,6 +58,19 @@ export function openSettingsEditor(targets: EditorTargets) {
   injectStyles();
   const gui = new GUI({ title: 'Settings editor', width: 300 });
   if (window.innerWidth < 600) gui.close(); // don't cover a phone screen until asked
+
+  const camera = { ...CAMERA_SETTINGS };
+  const cameraFolder = gui.addFolder('Camera');
+  const applyCamera = () => targets.camera.setSettings(camera);
+  for (const row of CAMERA_ROWS) addRow(cameraFolder, camera, row).onChange(applyCamera);
+  addCopyButton(cameraFolder, 'Copy camera settings', () => settingsSnippet('CAMERA_SETTINGS', 'CameraSettings', camera));
+  cameraFolder.add({ reset: () => cameraFolder.reset() }, 'reset').name('Reset camera');
+  const useBlender = () => {
+    Object.assign(camera, targets.blenderCamera);
+    for (const c of cameraFolder.controllers) c.updateDisplay();
+    applyCamera();
+  };
+  cameraFolder.add({ useBlender }, 'useBlender').name('Use Blender camera');
 
   const grass = { ...GRASS_SETTINGS };
   const grassFolder = gui.addFolder('Grass');

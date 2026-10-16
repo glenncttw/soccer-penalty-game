@@ -22,12 +22,12 @@ toward where you point.
 
 ## The stadium
 
-The whole environment (pitch, goal, stands, ball, gameplay camera and sun) is a Blender export:
+The whole environment (pitch, goal, stands, ball and sun) is a Blender export:
 `public/assets/stadium/Stadium_Recon_web.glb`. To update it, export a new GLB over that file.
 
 The game reads all gameplay coordinates from the model when it loads (`src/scene/measureStadium.ts`),
-so goal detection, collisions, the ball's start position and the camera follow the new export. It
-relies on these node names:
+so goal detection, collisions, the ball's start position and the camera (which stands behind the ball) follow
+the new export. It relies on these node names:
 
 | Node | Used for |
 |---|---|
@@ -36,11 +36,28 @@ relies on these node names:
 | `Football_Ball` | the ball's look, start position and radius (origin must be the ball's centre) |
 | `PITCH_Grass` | ground height, and where the stripes are: it needs two materials, and the darker one marks the dark stripes |
 | `STATIC_Markings` | where the white lines and penalty spot are: the game paints the grass white there and hides this mesh |
-| the first glTF camera | gameplay camera position, direction and field of view |
+| the first glTF camera | only for "Use Blender camera" in the settings editor; the game's view comes from `src/scene/cameraSettings.ts` (see [The camera](#the-camera)) |
 | the directional light | the sun |
 
 Coordinates: Y up, metres, shots travel toward -Z. The game shifts the model along Z so its goal line sits at z = 0.
 If a node is missing or a measurement looks wrong, the game stops with an error naming it.
+
+## The camera
+
+The gameplay camera stands behind the ball and looks at the goal. Its rest view is set in `CAMERA_SETTINGS` in
+`src/scene/cameraSettings.ts`, tuned to match the stylised reference picture:
+
+| Setting | What it does |
+|---|---|
+| `height` | how high the camera is above the grass, in metres |
+| `distanceBehindBall` | how far behind the ball it stands; closer makes the ball bigger next to the goal |
+| `targetHeight` | the height on the goal line it looks at; lower tilts the camera down, so the goal moves up the screen |
+| `fov` | how much it sees from top to bottom, in degrees, on a 16:9 screen; smaller zooms in |
+| `verticalShift` | slides the whole picture up or down (share of the screen height) without tilting the camera |
+
+On wider screens you see more at the sides. On screens held upright the view widens just enough to keep the whole
+goal in view. While you play, the camera still pushes in as you charge, sways with the mouse and shakes on impacts
+(`src/scene/gameCamera.ts`). Aiming always follows the camera, so any values here keep the aim on the right spot.
 
 ## The sky
 
@@ -103,13 +120,15 @@ Add `?edit` to the end of the game's address to get a panel where you can change
 example <https://glenncttw.github.io/soccer-penalty-game/?edit>, or `http://localhost:5173/soccer-penalty-game/?edit`
 with `npm run dev`. Without `?edit` the game looks and loads exactly as before.
 
-1. Open the **Grass** folder and drag the sliders or click a colour. The pitch changes straight away. Hover over a
-   setting to see its name in the settings file.
-2. When you like it, click **Copy grass settings**. That copies the settings as code.
-3. Paste them over `GRASS_SETTINGS` in `src/scene/grassSettings.ts` (or paste them in the project chat and Claude
-   puts them in). Changes in the panel are gone when you reload the page, until they are in that file.
+1. Open the **Camera** or **Grass** folder and drag the sliders or click a colour. The game changes straight away.
+   Hover over a setting to see its name in the settings file.
+2. When you like it, click **Copy camera settings** or **Copy grass settings**. That copies the settings as code.
+3. Paste them over `CAMERA_SETTINGS` in `src/scene/cameraSettings.ts` or `GRASS_SETTINGS` in
+   `src/scene/grassSettings.ts` (or paste them in the project chat and Claude puts them in). Changes in the panel
+   are gone when you reload the page, until they are in that file.
 
-**Reset grass** goes back to the settings in the file. On a phone the panel starts folded up; tap
+**Reset camera** and **Reset grass** go back to the settings in the files, and **Use Blender camera** shows the
+camera from the Blender scene. On a phone the panel starts folded up; tap
 **Settings editor** to open it. Clicks and drags on the panel never take a shot.
 
 ## Getting started
