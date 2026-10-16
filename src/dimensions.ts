@@ -1,0 +1,11 @@
+// Real-world sizes in metres. The goal line sits on z = 0 and the pitch extends toward +z.
+export const GOAL_WIDTH = 7.32;
+export const GOAL_HEIGHT = 2.44;
+export const GOAL_DEPTH = 2;
+export const POST_RADIUS = 0.06;
+export const BALL_RADIUS = 0.11;
+export const PENALTY_SPOT_Z = 11;
+export const BOX_WIDTH = 40.3;
+export const BOX_DEPTH = 16.5;
+export const SIX_YARD_WIDTH = 18.32;
+export const SIX_YARD_DEPTH = 5.5;
