@@ -9,7 +9,8 @@ const PUSH_DISTANCE = 0.45; // metres forward at full charge
 const PUSH_DROP = 0.05; // metres down at full charge, so the ball stays in frame
 const PUSH_ZOOM = 0.05; // share of the field of view taken away at full charge
 // A small turn around the goal that follows the mouse, so the stadium feels 3D.
-const SWAY_ANGLE = 0.009; // radians at the screen edge
+const SWAY_ANGLE = 0.009; // radians at the left and right screen edges
+const SWAY_TILT = 0.007; // radians at the top and bottom screen edges
 // Shake: "trauma" (0..1) is added by impacts and fades out; the shake is trauma squared.
 const SHAKE_ANGLE = { pitch: 0.022, yaw: 0.018, roll: 0.012 }; // radians at full trauma
 const SHAKE_SPEED = 17; // how fast the shake wobbles
@@ -18,15 +19,16 @@ const TRAUMA_FADE = 1.3; // trauma lost per second
 export interface CameraState {
   /** True while the player holds a shot. */
   charging: boolean;
-  /** Pointer x in -1..1 to sway toward, or null to settle back to the designed view. */
-  swayTarget: number | null;
+  /** Pointer position (x and y in -1..1) to sway toward, or null to settle back to the designed view. */
+  swayTarget: { x: number; y: number } | null;
 }
 
 /**
  * The gameplay camera from the Blender scene. At rest it is exactly the designed
  * view; its vertical field of view only widens on screens narrower than 16:9 to
  * keep the whole goal (plus a margin) in view. On top of that rest pose it
- * pushes in while charging, sways with the mouse and shakes on impacts.
+ * pushes in while charging, sways with the mouse (sideways and up and down) and
+ * shakes on impacts.
  */
 export function createGameCamera(config: WorldConfig) {
   const c = config.camera;
@@ -43,13 +45,15 @@ export function createGameCamera(config: WorldConfig) {
   let restFov = c.fov;
 
   let charge = 0;
-  let sway = 0;
+  const sway = { x: 0, y: 0 };
   let trauma = 0;
   let time = 0;
   const turn = new THREE.Quaternion();
+  const tilt = new THREE.Quaternion();
   const shake = new THREE.Quaternion();
   const euler = new THREE.Euler();
   const up = new THREE.Vector3(0, 1, 0);
+  const right = new THREE.Vector3(1, 0, 0);
 
   function fit(aspect: number) {
     camera.aspect = aspect;
@@ -68,12 +72,15 @@ export function createGameCamera(config: WorldConfig) {
     time += dt;
     // Ease in slowly while charging, snap back quickly on release.
     charge = THREE.MathUtils.damp(charge, state.charging ? 1 : 0, state.charging ? 1.5 : 7, dt);
-    if (state.swayTarget !== null) sway = THREE.MathUtils.damp(sway, state.swayTarget, 2.5, dt);
-    else sway = THREE.MathUtils.damp(sway, 0, 1.5, dt);
+    const target = state.swayTarget ?? { x: 0, y: 0 };
+    const rate = state.swayTarget ? 2.5 : 1.5;
+    sway.x = THREE.MathUtils.damp(sway.x, target.x, rate, dt);
+    sway.y = THREE.MathUtils.damp(sway.y, target.y, rate, dt);
     trauma = Math.max(0, trauma - TRAUMA_FADE * dt);
 
     const push = charge * charge * (3 - 2 * charge); // smoothstep
-    turn.setFromAxisAngle(up, -sway * SWAY_ANGLE);
+    // Pointer right or up: the camera circles the goal to the left or down, so the view turns toward it.
+    turn.setFromAxisAngle(up, -sway.x * SWAY_ANGLE).multiply(tilt.setFromAxisAngle(right, sway.y * SWAY_TILT));
     camera.position
       .copy(restPosition)
       .addScaledVector(forward, PUSH_DISTANCE * push)

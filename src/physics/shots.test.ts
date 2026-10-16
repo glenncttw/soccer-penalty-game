@@ -63,8 +63,9 @@ describe('shots in the Blender stadium', () => {
   });
 
   it('scores curled shots into the top corners', () => {
-    expect(play(-2.3, 1.5, 0.87, -1).result).toBe('goal');
-    expect(play(2.3, 1.5, 0.87, 1).result).toBe('goal');
+    // Dragging away from the corner swings the ball out that way, so it bends into the corner.
+    expect(play(-2.3, 1.5, 0.87, 1).result).toBe('goal');
+    expect(play(2.3, 1.5, 0.87, -1).result).toBe('goal');
   });
 
   it('hits the woodwork when aimed at the crossbar or a post', () => {

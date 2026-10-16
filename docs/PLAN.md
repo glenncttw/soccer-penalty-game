@@ -21,8 +21,8 @@ A fun, fast 3D penalty shootout that runs in the browser on desktop and mobile. 
 - **Shoot**: aim with the pointer at a spot in the goal, press and hold to charge a power meter that sweeps up and down (release in the gold zone for a perfect strike; too much power skies it, too little is soft), drag sideways while holding to curl, release to shoot. The ball is kicked so it bends into the aimed spot.
 - **Save**: on the opponent's turn the camera moves to the goal line (still first-person, no visible keeper body, just gloves). You pick a dive direction before the ball arrives.
 - **Shootout rules**: 5 kicks each, then sudden death. Score, kick history dots, winner screen.
-- **AI keeper and AI shooter**: readable behaviour with easy / normal / hard levels that change reaction time, reach and accuracy. The AI keeper is visible in goal when you shoot (stylized, playful character).
-- **Juice**: net ripple, crowd roar (audio first, visual crowd later), slow-mo on goals, camera shake on post hits, confetti on wins.
+- **AI keeper and AI shooter**: readable behaviour, with reaction time, reach and accuracy as their skill settings. The AI keeper is visible in goal when you shoot (stylized, playful character). For now there is one keeper strength and no level switch.
+- **Juice**: slow-mo on goals, camera shake on kicks, post hits and saves, grass puffs and glitter on perfect strikes. Sound, a net that bulges and confetti were tried and taken out again.
 
 ## Out of scope for v1
 
@@ -37,7 +37,7 @@ Native mobile apps, online multiplayer, full matches, licensed teams or players,
 | Build / dev server | **Vite** | Instant reloads, trivial static build |
 | Physics | **Rapier** (`@dimforge/rapier3d-compat`) | Fast WASM physics for collisions: ball against posts, crossbar, net and keeper, plus props, rebounds and anything else that needs to collide |
 | Ball flight | Custom Magnus (curl) force applied to the Rapier ball each step | Full control over how the curl feels, which a generic engine doesn't give |
-| Audio | **Web Audio API**, sounds made in code | Nothing to download; placeholders until we pick recordings, which the same code (or Howler.js) can play |
+| Audio | **None for now** | The placeholder sounds were taken out; recorded sounds can come later (Web Audio API or Howler.js) |
 | UI / HUD | HTML/CSS overlay | Menus and scoreboard don't need to be in 3D |
 | Assets | Low-poly glTF (CC0 packs from Kenney / Quaternius, or Blender) | Light, fits the playful style, loads natively in Three.js |
 | Tests | **Vitest** | Unit tests for scoring, AI and shot math |
@@ -62,10 +62,10 @@ Rapier handles every collision (posts, net, keeper, future props and objects) ro
 1. **Scaffold**: Vite + TS + Three.js, lint, Vitest, CI build, GitHub Pages deploy of an empty scene.
 2. **Pitch, goal and stadium**: Glenn's Blender stadium loaded as the environment, with lighting matched to Blender and soft shadows.
 3. **Shooting**: aim, hold-to-charge power meter, drag-to-curl input, Rapier ball physics with custom curl, visible spin and trail, goal / post / miss detection.
-4. **Keeper AI**: stylized keeper that dives with difficulty-based timing and reach (done, with a placeholder look; see [blob-cup-study.md](blob-cup-study.md#our-keeper)).
+4. **Keeper AI**: stylized keeper that dives with limited timing and reach (done, with a placeholder look; see [blob-cup-study.md](blob-cup-study.md#our-keeper)).
 5. **Saving turn**: first-person goal-line view, dive input, AI shooter.
 6. **Shootout loop**: alternate turns, 5 kicks plus sudden death, HUD and result screen.
-7. **Polish**: sound, net ripple, slow-mo, particles and camera feel (done, with placeholder sounds); menus, mobile touch tuning, performance pass.
+7. **Polish**: slow-mo, particles and camera feel (done); menus, mobile touch tuning, performance pass.
 8. **Crowd**: fill the stands with an instanced, animated crowd that reacts to goals and saves.
 
 ## Repo layout (planned)
@@ -73,12 +73,11 @@ Rapier handles every collision (posts, net, keeper, future props and objects) ro
 ```
 src/
   main.ts          entry, renderer, loop
-  feedback.ts      connects game moments (kick, touch, result) to camera, sound, effects and HUD
+  feedback.ts      connects game moments (kick, touch, result) to camera, effects and HUD
   worldConfig.ts   gameplay coordinates measured from the stadium
-  scene/           stadium loading and measuring, lighting, camera, trail, aim markers, net ripple, effects
+  scene/           stadium loading and measuring, lighting, camera, trail, aim markers, effects, keeper look
   physics/         Rapier world, ball, Magnus (curl) force
-  gameplay/        shootout state machine, scoring, game events, slow motion
-  audio/           sound effects and crowd
+  gameplay/        aim, shot shaping, outcome, game events, slow motion, later the shootout
   ai/              keeper brain (reading the shot), keeper movement, later the shooter AI
   input/           swipe / mouse handling
   ui/              HUD, first-visit tips and menus (HTML/CSS)

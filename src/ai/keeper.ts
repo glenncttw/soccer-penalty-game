@@ -2,8 +2,6 @@ import { FIXED_STEP, GRAVITY, simulateFlight } from '../physics/flight';
 import type { Vec3 } from '../physics/ballForces';
 import type { GoalConfig } from '../worldConfig';
 
-export type KeeperLevel = 'easy' | 'normal' | 'hard';
-
 /** What makes one keeper better than another. */
 export interface KeeperSkill {
   /** Seconds between the kick and the keeper starting to move. */
@@ -22,10 +20,15 @@ export interface KeeperSkill {
   lean: number;
 }
 
-export const KEEPER_SKILLS: Record<KeeperLevel, KeeperSkill> = {
-  easy: { reaction: 0.28, lunge: 0.7, diveSpeed: 2.4, read: 0.55, curlSense: 0.1, misjudge: 0.7, lean: 0.08 },
-  normal: { reaction: 0.23, lunge: 0.9, diveSpeed: 2.75, read: 0.7, curlSense: 0.45, misjudge: 0.5, lean: 0.12 },
-  hard: { reaction: 0.15, lunge: 1.05, diveSpeed: 3.3, read: 0.85, curlSense: 0.65, misjudge: 0.35, lean: 0.2 },
+/** The game's keeper: saves soft and central shots, while well-struck corners and curled shots usually beat it. */
+export const KEEPER_SKILL: KeeperSkill = {
+  reaction: 0.23,
+  lunge: 0.9,
+  diveSpeed: 2.75,
+  read: 0.7,
+  curlSense: 0.45,
+  misjudge: 0.5,
+  lean: 0.12,
 };
 
 /** The keeper's read of a shot: where it thinks the ball will cross its line, and when. */

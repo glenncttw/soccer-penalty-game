@@ -37,8 +37,8 @@ describe('shapeShot', () => {
     expect(shot.target.y).toBeGreaterThan(aim.y + 1);
   });
 
-  it('turns a rightward drag into rightward bend spin', () => {
-    expect(shapeShot({ aim, power: 0.87, curl: 1 }, noRandom).spin.y).toBeLessThan(0);
-    expect(shapeShot({ aim, power: 0.87, curl: -1 }, noRandom).spin.y).toBeGreaterThan(0);
+  it('turns a rightward drag into spin that bends the ball left, so it swings out to the right', () => {
+    expect(shapeShot({ aim, power: 0.87, curl: 1 }, noRandom).spin.y).toBeGreaterThan(0);
+    expect(shapeShot({ aim, power: 0.87, curl: -1 }, noRandom).spin.y).toBeLessThan(0);
   });
 });

@@ -6,7 +6,10 @@ export interface ShotInput {
   aim: Vec3;
   /** 0..1 from the power meter. */
   power: number;
-  /** -1 (bend left) .. 1 (bend right), from the sideways drag. */
+  /**
+   * -1 .. 1 from the sideways drag (negative = left). The ball swings out to the
+   * side you drag toward, then bends back onto the aim.
+   */
   curl: number;
   /** Lowest point the ball may be sent to, so it is never driven into the ground. Defaults to 0.15 m. */
   minTargetY?: number;
@@ -37,7 +40,8 @@ export function shapeShot(input: ShotInput, random: () => number = Math.random):
   target.y = Math.max(minTargetY, target.y);
 
   const speed = 12 + power * 17 + (quality === 'perfect' ? 3 : 0);
-  // Positive curl bends right; spin around -y does that for a ball heading to -z.
-  const spin = { x: 0, y: -curl * MAX_CURL_SPIN, z: 0 };
+  // A rightward drag (positive curl) must swing the ball out to the right, so it
+  // bends left: spin around +y does that for a ball heading to -z.
+  const spin = { x: 0, y: curl * MAX_CURL_SPIN, z: 0 };
   return { target, speed, spin, quality };
 }
