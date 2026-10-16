@@ -325,7 +325,7 @@ const GRASS_COLOR = /* glsl */ `
   // the grass doesn't sparkle when the camera moves.
   vec2 grassFootprint = max(abs(dFdx(grassUv)), abs(dFdy(grassUv)));
   float grassLod = log2(max(max(grassFootprint.x, grassFootprint.y) * 256.0, 1e-4));
-  float grassNear = 1.0 - smoothstep(1.5, 3.5, grassLod);
+  float grassNear = 1.0 - smoothstep(2.0, 4.0, grassLod);
 
   // The texture's variation around its own average colour (its 1 x 1 mipmap).
   vec3 grassMean = textureLod(uAlbedo, vec2(0.5), 16.0).rgb;

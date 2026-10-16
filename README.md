@@ -77,7 +77,7 @@ The pitch is drawn by one shader (`src/scene/grass.ts`) on top of the stripes fr
 - **Soft patches and viewing-angle shading.** Gentle lighter and darker patches, and grass you look down onto, in
   front of the ball, is darker and deeper green than grass you look across near the goal, as real grass is.
 
-The current pictures are stand-ins. To make your own in Blender, follow [docs/grass-textures.md](docs/grass-textures.md).
+The pictures were baked in Blender from a small patch of curly 3D blades. To make new ones, follow [docs/grass-textures.md](docs/grass-textures.md).
 
 To change the look, edit `GRASS_SETTINGS` in `src/scene/grassSettings.ts`. Each setting has a short note. The
 handiest ones:

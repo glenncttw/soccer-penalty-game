@@ -6,8 +6,8 @@ The pitch uses two pictures that repeat over the grass:
 - a **normal map** (`grass_normal`): which way each bit of the grass surface faces, so the game's sun can light the
   bumps itself.
 
-The ones in the game now are stand-ins. This guide makes your own. You bake both pictures from a small patch of
-3D grass onto a flat square.
+The ones in the game now were made this way, from a patch of 5,200 small curly blades. Follow this guide to make
+new ones. You bake both pictures from a small patch of 3D grass onto a flat square.
 
 ## What the game needs
 
@@ -116,6 +116,6 @@ All in `GRASS_SETTINGS` in `src/scene/grassSettings.ts`:
 | Setting | What it does |
 |---|---|
 | `textureStrength` | how much of the colour picture's variation shows (0 = plain stripe colours) |
-| `normalStrength` | how strongly the bumps catch the light (0 = flat) |
+| `normalStrength` | how strongly the bumps catch the light (0 = flat). Baked blades that lie low give gentle bumps, so the game turns them up (2.5 now) |
 | `textureTileSize` | how much pitch one picture covers across, in metres (0.5 matches this guide) |
 | `textureStretch` | how much longer it is toward the goal (1 = not stretched) |

@@ -50,7 +50,7 @@ export const GRASS_SETTINGS: GrassSettings = {
   textureTileSize: 0.5,
   textureStretch: 3,
   textureStrength: 1,
-  normalStrength: 0.7,
+  normalStrength: 2.5,
   patchStrength: 0.05,
   patchSize: 1.5,
   angleShading: 0.53,
