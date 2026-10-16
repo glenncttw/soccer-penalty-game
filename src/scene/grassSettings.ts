@@ -15,12 +15,12 @@ export interface GrassSettings {
   /** How far a stripe edge wobbles and how far blades poke across it, so it looks mown instead of ruled. */
   stripeRagged: number;
   /**
-   * Length of the cross-mown bands toward the goal, counted from the goal line.
-   * Together with the stripes they make a checkerboard. 0 = stripes only.
+   * Width of the see-through stripes running left to right over the stripes,
+   * counted from the goal line, with gaps as wide in between. 0 = no cross stripes.
    */
-  checkerSize: number;
-  /** 0..1: how strongly the cross bands swap light and dark. 1 = a full checkerboard. */
-  checkerStrength: number;
+  crossStripeWidth: number;
+  /** 0..1: how see-through the cross stripes are. 0 = invisible, 1 = as dark as a dark stripe. */
+  crossStripeOpacity: number;
   /** How much of the pitch one copy of the texture covers. Smaller = finer grass. */
   textureTileSize: number;
   /**
@@ -54,8 +54,8 @@ export const GRASS_SETTINGS: GrassSettings = {
   colorDark: '#51872f',
   stripeSoftness: 0.03,
   stripeRagged: 0.03,
-  checkerSize: 1.3,
-  checkerStrength: 1,
+  crossStripeWidth: 1.3,
+  crossStripeOpacity: 0.6,
   textureTileSize: 0.5,
   textureStretch: 3,
   textureStrength: 1,
