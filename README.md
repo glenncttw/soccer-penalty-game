@@ -35,6 +35,7 @@ relies on these node names:
 | `GOAL_Net` (child of `GOAL_Frame`) | net shape for collisions |
 | `Football_Ball` | the ball's look, start position and radius (origin must be the ball's centre) |
 | `PITCH_Grass` | ground height, and where the stripes are: it needs two materials, and the darker one marks the dark stripes |
+| `STATIC_Markings` | where the white lines and penalty spot are: the game paints the grass white there and hides this mesh |
 | the first glTF camera | gameplay camera position, direction and field of view |
 | the directional light | the sun |
 
@@ -63,14 +64,20 @@ handiest ones:
 
 ## The grass
 
-The pitch is coloured by one shader (`src/scene/grass.ts`) that adds three things to the stripes from the Blender model:
+The pitch is drawn by one shader (`src/scene/grass.ts`) on top of the stripes from the Blender model:
 
-- **Tiny blades.** A small greyscale picture of curly blades, drawn on the graphics card when the game loads
-  (`src/scene/grassTexture.ts`), repeats over the pitch. Each area shows it shifted and turned differently, so you
-  never see the same patch twice. Far away it blurs smoothly into plain colour instead of flickering.
-- **Soft, mown stripe edges.** The blades nibble a little into the next stripe.
-- **Viewing-angle shading.** Grass you look down onto, in front of the ball, is darker and deeper green than grass
-  you look across near the goal, as real grass is.
+- **Grass texture.** Two pictures that repeat over the pitch: a colour picture with curly blades and a normal map
+  that gives them bumps the sun catches. They live in `public/assets/grass/` (`grass_albedo.webp` and
+  `grass_normal.jpg`). Each area shows them shifted and mirrored differently, so you never see the same patch twice.
+  Far away they blur smoothly (mipmaps) and the bumps fade out, so the grass doesn't flicker. The colour picture
+  only adds variation around the stripe colours, so the stripes keep their colours.
+- **Soft, ragged stripe edges.** The edges wobble a little and blades poke across them.
+- **Painted lines and spot.** The white markings in the model are hidden; the shader paints the grass white in
+  their place, with blades poking out of the edges.
+- **Soft patches and viewing-angle shading.** Gentle lighter and darker patches, and grass you look down onto, in
+  front of the ball, is darker and deeper green than grass you look across near the goal, as real grass is.
+
+The pictures were baked in Blender from a small patch of curly 3D blades. To make new ones, follow [docs/grass-textures.md](docs/grass-textures.md).
 
 To change the look, edit `GRASS_SETTINGS` in `src/scene/grassSettings.ts`. Each setting has a short note. The
 handiest ones:
@@ -78,13 +85,15 @@ handiest ones:
 | Setting | What it does |
 |---|---|
 | `colorLight`, `colorDark` | the stripe colours |
-| `bladeContrast` | how strongly the blades show (0 = smooth colour) |
-| `bladeTileSize`, `bladeStretch` | how big the blades are, and how much they're stretched so they look upright |
-| `angleShading` | how much darker the grass in front of you is (0 = the same everywhere) |
+| `textureStrength` | how much of the colour picture's variation shows (0 = plain stripe colours) |
+| `normalStrength` | how strongly the bumps catch the light (0 = flat) |
+| `textureTileSize`, `textureStretch` | how much pitch one copy of the pictures covers, and how much longer it is toward the goal so the blades look upright |
 | `stripeSoftness`, `stripeRagged` | how soft and how ragged the stripe edges are |
-| `bladeSeed` | any whole number draws a different set of blades |
+| `patchStrength`, `patchSize` | the soft lighter and darker patches |
+| `angleShading` | how much darker the grass in front of you is (0 = the same everywhere) |
+| `lineColor`, `lineRagged` | the colour of the painted lines and spot, and how far blades poke out of their edges |
 
-To move or resize the stripes, change them in Blender and export again.
+To move or resize the stripes, lines or spot, change them in Blender and export again.
 
 ## Getting started
 
