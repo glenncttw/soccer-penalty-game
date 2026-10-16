@@ -14,6 +14,10 @@ See [docs/PLAN.md](docs/PLAN.md) for the gameplay scope, tech stack and mileston
 3. **Curl**: while holding, drag left or right to bend the ball that way. A dotted line shows the start of the curve.
 4. **Shoot**: let go.
 
+A goalkeeper tries to stop you. It watches which way the ball is heading, so a curled shot fools it, and soft
+shots are easy saves. The **Keeper** button at the top right switches it between easy, normal and hard. Its look
+is a placeholder made from simple shapes until there's a Blender model.
+
 On your first visit, tips at the top walk you through your first shots. The round button at the top right turns
 the sound on and off, and the game remembers your choice. The sounds are made in code for now, as placeholders.
 

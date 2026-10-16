@@ -10,14 +10,15 @@ const MAX_FLIGHT_TIME = 4;
 
 /**
  * Integrates a free ball flight (gravity, drag and curl, no collisions) with the
- * same fixed step as the physics world. Calls `visit` for every step and stops
- * as soon as it returns true or the ball lands (drops below half its starting height).
+ * same fixed step as the physics world. Calls `visit` with the position, time and
+ * velocity after every step, and stops as soon as it returns true or the ball
+ * lands (drops below half its starting height).
  */
 export function simulateFlight(
   start: Vec3,
   velocity: Vec3,
   spin: Vec3,
-  visit: (p: Vec3, t: number) => boolean,
+  visit: (p: Vec3, t: number, v: Vec3) => boolean,
 ): void {
   const p = { ...start };
   const v = { ...velocity };
@@ -25,7 +26,7 @@ export function simulateFlight(
   const spinDecay = 1 / (1 + FIXED_STEP * BALL_SPIN_DAMPING);
   const landingY = start.y * 0.5;
 
-  for (let t = 0; t < MAX_FLIGHT_TIME; t += FIXED_STEP) {
+  for (let t = FIXED_STEP; t < MAX_FLIGHT_TIME; t += FIXED_STEP) {
     const f = aeroForce(v, w, AERO_RADIUS);
     v.x += (f.x / BALL_MASS) * FIXED_STEP;
     v.y += (f.y / BALL_MASS - GRAVITY) * FIXED_STEP;
@@ -36,7 +37,7 @@ export function simulateFlight(
     w.x *= spinDecay;
     w.y *= spinDecay;
     w.z *= spinDecay;
-    if (visit(p, t) || p.y < landingY) return;
+    if (visit(p, t, v) || p.y < landingY) return;
   }
 }
 

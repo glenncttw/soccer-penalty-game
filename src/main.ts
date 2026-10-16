@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { KEEPER_SKILLS, readShot } from './ai/keeper';
+import { loadKeeperLevel, nextKeeperLevel, saveKeeperLevel } from './ai/keeperLevel';
+import { KeeperMotion } from './ai/keeperMotion';
 import { Sound } from './audio/sound';
 import { connectFeedback } from './feedback';
 import { GameEvents } from './gameplay/events';
@@ -14,6 +17,7 @@ import { AimMarkers } from './scene/aimMarkers';
 import { BallTrail, trailStyle } from './scene/ball';
 import { Effects } from './scene/effects';
 import { createGameCamera } from './scene/gameCamera';
+import { KeeperModel } from './scene/keeper';
 import { setUpLighting } from './scene/lighting';
 import { NetRipple } from './scene/netRipple';
 import { loadStadium } from './scene/stadiumAsset';
@@ -46,9 +50,14 @@ const trail = new BallTrail();
 const markers = new AimMarkers();
 const effects = new Effects();
 const net = new NetRipple(stadium.net, { groundY: world.groundY, lineZ: world.goal.lineZ });
-scene.add(ballMesh, trail.mesh, markers.group, effects.group);
 
-const physics = await createPhysicsWorld(world);
+// The keeper stands just off its line, toward the ball.
+let keeperLevel = loadKeeperLevel();
+const keeper = new KeeperMotion({ x: 0, y: world.groundY, z: world.goal.lineZ + 0.35 }, KEEPER_SKILLS[keeperLevel]);
+const keeperModel = new KeeperModel();
+scene.add(ballMesh, trail.mesh, markers.group, effects.group, keeperModel.group);
+
+const physics = await createPhysicsWorld(world, { keeper: keeper.pose });
 const hud = new Hud(document.querySelector<HTMLElement>('#hud')!);
 const input = new ShootInput(canvas);
 const finePointer = window.matchMedia('(pointer: fine)').matches; // a mouse, not a finger
@@ -67,6 +76,13 @@ hud.showSound(!sound.muted);
 hud.onToggleSound = () => {
   sound.setMuted(!sound.muted);
   hud.showSound(!sound.muted);
+};
+hud.showKeeper(keeperLevel);
+hud.onToggleKeeper = () => {
+  keeperLevel = nextKeeperLevel(keeperLevel);
+  keeper.skill = KEEPER_SKILLS[keeperLevel];
+  saveKeeperLevel(keeperLevel);
+  hud.showKeeper(keeperLevel);
 };
 
 const BALL_START = world.ballStart;
@@ -103,6 +119,7 @@ input.onRelease = () => {
   const shot = shapeShot({ aim, power: power.value, curl: input.curl, minTargetY: world.ballRadius });
   const velocity = solveKick(BALL_START, shot.target, shot.speed, shot.spin);
   physics.kick(velocity, shot.spin);
+  keeper.react(readShot({ start: BALL_START, velocity, spin: shot.spin }, keeper.lineZ, world.goal, keeper.skill));
   outcome.reset();
   trail.clear();
   trail.setStyle(trailStyle(power.value, shot.quality === 'perfect'));
@@ -121,9 +138,23 @@ function showResult() {
   hud.showScore(score.goals, score.shots);
   if (goal) {
     const perfect = lastQuality === 'perfect';
-    const how = outcome.hitFrame ? 'in off the woodwork' : perfect ? 'perfect strike' : '';
+    const ball = physics.ball.translation();
+    const dived = keeper.wentFor;
+    const wrongWay = dived !== null && Math.abs(dived.x) > 1 && Math.sign(dived.x) !== Math.sign(ball.x);
+    const how = outcome.hitFrame
+      ? 'in off the woodwork'
+      : outcome.hitKeeper
+        ? "past the keeper's fingertips"
+        : wrongWay
+          ? 'sent the keeper the wrong way'
+          : perfect
+            ? 'perfect strike'
+            : '';
     const streak = score.streak >= 2 ? `${score.streak} in a row!` : '';
     hud.showBanner('GOAL!', [how, streak].filter(Boolean).join(' · '), perfect);
+  } else if (outcome.result === 'saved') {
+    const why = lastQuality === 'weak' ? 'not enough power' : keeper.guessed ? 'the keeper guessed right' : '';
+    hud.showBanner('SAVED!', why || 'great save');
   } else if (outcome.hitFrame) {
     hud.showBanner('WOODWORK!', 'so close');
   } else {
@@ -135,6 +166,7 @@ function showResult() {
 
 function resetShot() {
   physics.resetBall();
+  keeper.recover();
   trail.clear();
   hud.hideBanner();
   input.enabled = true;
@@ -184,12 +216,21 @@ renderer.setAnimationLoop((time) => {
   const tip = coach.update(phase, input.curl);
   hud.showHint(tip ? COACH_TEXT[tip] : null);
 
+  // The keeper edges toward where you aim while you line up the shot, and gets set while you charge.
+  keeper.aimX = phase === 'charging' || (phase === 'aiming' && input.hasPointer) ? aim.x : null;
+  keeper.set = phase === 'charging';
+
   accumulator += dt;
   while (accumulator >= FIXED_STEP) {
+    keeper.step(FIXED_STEP);
+    physics.poseKeeper(keeper.pose);
     physics.step();
     accumulator -= FIXED_STEP;
   }
-  for (const contact of physics.takeContacts()) events.emit('contact', contact);
+  for (const contact of physics.takeContacts()) {
+    if (contact.surface === 'keeper') outcome.keeperTouched(contact.point.z);
+    events.emit('contact', contact);
+  }
 
   const p = physics.ball.translation();
   const q = physics.ball.rotation();
@@ -210,6 +251,7 @@ renderer.setAnimationLoop((time) => {
   const sway = finePointer && input.hasPointer && (phase === 'aiming' || phase === 'charging');
   view.update(realDt, { charging: phase === 'charging', swayTarget: sway ? input.pointer.x : null });
   trail.update(gameTime, camera.position);
+  keeperModel.update(keeper.pose, dt);
   effects.update(dt);
   net.update(dt);
 

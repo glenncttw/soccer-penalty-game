@@ -85,6 +85,39 @@ body {
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
 }
 
+.keeper {
+  position: absolute;
+  right: 68px;
+  top: 16px;
+  height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #6c398b;
+  font: inherit;
+  font-weight: 900;
+  font-size: 15px;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.12);
+  pointer-events: auto;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.keeper small {
+  margin-right: 6px;
+  color: #e5186f;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+
+.keeper:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
+}
+
 .hint {
   position: absolute;
   left: 50%;

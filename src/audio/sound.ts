@@ -50,6 +50,9 @@ export class Sound {
   bounce(strength: number) {
     this.voices?.bounce(strength);
   }
+  save(strength: number) {
+    this.voices?.save(strength);
+  }
   perfect() {
     this.voices?.perfect();
   }
@@ -127,6 +130,14 @@ export class Voices {
     const s = clamp01(strength);
     this.tone('sine', 95, at, { attack: 0.002, peak: 0.35 * s, decay: 0.1 }, 60, 0.08);
     this.hiss('lowpass', 600, 0.7, at, { attack: 0.002, peak: 0.18 * s, decay: 0.05 });
+  }
+
+  /** Ball into the keeper's gloves: a padded smack. */
+  save(strength: number, at = this.ctx.currentTime) {
+    const s = clamp01(strength);
+    this.tone('sine', 170, at, { attack: 0.002, peak: 0.55 * s, decay: 0.09 }, 75, 0.07);
+    this.hiss('bandpass', 1050, 1.1, at, { attack: 0.001, peak: 0.5 * s, decay: 0.06 });
+    this.hiss('lowpass', 500, 0.7, at, { attack: 0.003, peak: 0.3 * s, decay: 0.12 });
   }
 
   /** A bright two-note chime for a strike in the gold zone. */
