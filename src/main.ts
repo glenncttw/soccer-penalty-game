@@ -41,7 +41,7 @@ const world = stadium.config;
 scene.add(stadium.environment);
 setUpLighting(scene, stadium.sun);
 // The pitch's grass: stripes, texture, shading and painted lines; tweak it in src/scene/grassSettings.ts.
-await applyGrass(stadium.environment, renderer);
+const grass = await applyGrass(stadium.environment, renderer);
 // The sky and its drifting clouds; tweak them in src/scene/skySettings.ts.
 const sky = new Sky(SKY_SETTINGS);
 scene.add(sky.mesh);
@@ -162,6 +162,12 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 resize();
+
+// Add ?edit to the game's address to open the settings editor (see the README).
+if (new URLSearchParams(location.search).has('edit')) {
+  const { openSettingsEditor } = await import('./ui/settingsEditor');
+  openSettingsEditor({ grass });
+}
 
 const timer = new THREE.Timer();
 let accumulator = 0;

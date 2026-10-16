@@ -80,8 +80,8 @@ The pitch is drawn by one shader (`src/scene/grass.ts`) on top of the stripes fr
 
 The pictures were baked in Blender from a small patch of curly 3D blades. To make new ones, follow [docs/grass-textures.md](docs/grass-textures.md).
 
-To change the look, edit `GRASS_SETTINGS` in `src/scene/grassSettings.ts`. Each setting has a short note. The
-handiest ones:
+To change the look, try the settings in the [settings editor](#the-settings-editor), then put the ones you like in
+`GRASS_SETTINGS` in `src/scene/grassSettings.ts`. Each setting has a short note there. The handiest ones:
 
 | Setting | What it does |
 |---|---|
@@ -96,6 +96,21 @@ handiest ones:
 | `lineColor`, `lineRagged` | the colour of the painted lines and spot, and how far blades poke out of their edges |
 
 To move or resize the stripes, lines or spot, change them in Blender and export again.
+
+## The settings editor
+
+Add `?edit` to the end of the game's address to get a panel where you can change settings while the game runs, for
+example <https://glenncttw.github.io/soccer-penalty-game/?edit>, or `http://localhost:5173/soccer-penalty-game/?edit`
+with `npm run dev`. Without `?edit` the game looks and loads exactly as before.
+
+1. Open the **Grass** folder and drag the sliders or click a colour. The pitch changes straight away. Hover over a
+   setting to see its name in the settings file.
+2. When you like it, click **Copy grass settings**. That copies the settings as code.
+3. Paste them over `GRASS_SETTINGS` in `src/scene/grassSettings.ts` (or paste them in the project chat and Claude
+   puts them in). Changes in the panel are gone when you reload the page, until they are in that file.
+
+**Reset grass** goes back to the settings in the file. On a phone the panel starts folded up; tap
+**Settings editor** to open it. Clicks and drags on the panel never take a shot.
 
 ## Getting started
 
