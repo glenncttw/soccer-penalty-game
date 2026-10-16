@@ -14,7 +14,7 @@ import { createPhysicsWorld } from './physics/world';
 import { AimMarkers } from './scene/aimMarkers';
 import { BallTrail, trailStyle } from './scene/ball';
 import { Effects } from './scene/effects';
-import { createGameCamera } from './scene/gameCamera';
+import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera';
 import { applyGrass } from './scene/grass';
 import { KeeperModel } from './scene/keeper';
 import { setUpLighting } from './scene/lighting';
@@ -46,7 +46,7 @@ const grass = await applyGrass(stadium.environment, renderer);
 const sky = new Sky(SKY_SETTINGS);
 scene.add(sky.mesh);
 
-// The gameplay camera designed in Blender: ball low in the foreground, goal centred.
+// The gameplay camera: ball low in the foreground, goal centred; tweak it in src/scene/cameraSettings.ts.
 const view = createGameCamera(world);
 const camera = view.camera;
 
@@ -166,7 +166,7 @@ resize();
 // Add ?edit to the game's address to open the settings editor (see the README).
 if (new URLSearchParams(location.search).has('edit')) {
   const { openSettingsEditor } = await import('./ui/settingsEditor');
-  openSettingsEditor({ grass });
+  openSettingsEditor({ camera: view, blenderCamera: cameraSettingsFromBlender(world), grass });
 }
 
 const timer = new THREE.Timer();

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { WorldConfig } from '../worldConfig';
+import { CAMERA_SETTINGS, type CameraSettings } from './cameraSettings';
 
 const DESIGN_ASPECT = 16 / 9;
 const GOAL_MARGIN = 0.8; // metres kept visible beside each post on narrow screens
@@ -24,25 +25,21 @@ export interface CameraState {
 }
 
 /**
- * The gameplay camera from the Blender scene. At rest it is exactly the designed
- * view; its vertical field of view only widens on screens narrower than 16:9 to
- * keep the whole goal (plus a margin) in view. On top of that rest pose it
- * pushes in while charging, sways with the mouse (sideways and up and down) and
- * shakes on impacts.
+ * The gameplay camera. At rest it is the view from `CameraSettings` (behind the
+ * ball, looking at the goal); its vertical field of view only widens on screens
+ * narrower than 16:9 if that is needed to keep the whole goal (plus a margin) in
+ * view. On top of that rest pose it pushes in while charging, sways with the
+ * mouse (sideways and up and down) and shakes on impacts.
  */
-export function createGameCamera(config: WorldConfig) {
-  const c = config.camera;
-  const camera = new THREE.PerspectiveCamera(c.fov, DESIGN_ASPECT, 0.05, 400);
-  const restPosition = new THREE.Vector3(c.position.x, c.position.y, c.position.z);
-  const restQuaternion = new THREE.Quaternion(c.quaternion.x, c.quaternion.y, c.quaternion.z, c.quaternion.w).normalize();
-  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(restQuaternion);
-  const pivot = new THREE.Vector3(0, c.position.y, config.goal.lineZ); // sway turns around the goal
-  camera.position.copy(restPosition);
-  camera.quaternion.copy(restQuaternion);
-
-  const goalDistance = c.position.z - config.goal.lineZ;
-  const goalHalfAngle = Math.atan((config.goal.outerHalfWidth + GOAL_MARGIN) / goalDistance);
-  let restFov = c.fov;
+export function createGameCamera(config: WorldConfig, settings: CameraSettings = CAMERA_SETTINGS) {
+  const camera = new THREE.PerspectiveCamera(settings.fov, DESIGN_ASPECT, 0.05, 400);
+  const restPosition = new THREE.Vector3();
+  const restQuaternion = new THREE.Quaternion();
+  const forward = new THREE.Vector3();
+  const pivot = new THREE.Vector3(); // sway turns around the goal
+  let designFov = settings.fov;
+  let goalHalfAngle = 0;
+  let restFov = designFov;
 
   let charge = 0;
   const sway = { x: 0, y: 0 };
@@ -58,10 +55,29 @@ export function createGameCamera(config: WorldConfig) {
   function fit(aspect: number) {
     camera.aspect = aspect;
     const neededVertical = 2 * Math.atan(Math.tan(goalHalfAngle) / aspect);
-    restFov = Math.max(c.fov, THREE.MathUtils.radToDeg(neededVertical));
+    restFov = Math.max(designFov, THREE.MathUtils.radToDeg(neededVertical));
     camera.fov = restFov;
     camera.updateProjectionMatrix();
   }
+
+  /** Moves the rest view to new settings straight away (the settings editor uses this). */
+  function setSettings(s: CameraSettings) {
+    const rest = restPose(config, s);
+    restPosition.copy(rest.position);
+    restQuaternion.copy(rest.quaternion);
+    forward.set(0, 0, -1).applyQuaternion(restQuaternion);
+    pivot.set(0, restPosition.y, config.goal.lineZ);
+    camera.position.copy(restPosition);
+    camera.quaternion.copy(restQuaternion);
+    goalHalfAngle = Math.atan((config.goal.outerHalfWidth + GOAL_MARGIN) / (restPosition.z - config.goal.lineZ));
+    designFov = s.fov;
+    // A shifted view window slides the picture without turning the camera; aiming
+    // follows it because it is part of the camera's projection.
+    if (s.verticalShift) camera.setViewOffset(1, 1, 0, s.verticalShift, 1, 1);
+    else camera.clearViewOffset();
+    fit(camera.aspect);
+  }
+  setSettings(settings);
 
   /** Adds shake; big impacts add more. Capped at 1. */
   function addTrauma(amount: number) {
@@ -105,7 +121,32 @@ export function createGameCamera(config: WorldConfig) {
     }
   }
 
-  return { camera, fit, update, addTrauma };
+  return { camera, fit, update, addTrauma, setSettings };
+}
+
+/** The rest position, behind the ball, and the rotation that looks at the target on the goal line. */
+export function restPose(config: WorldConfig, s: CameraSettings) {
+  const ball = config.ballStart;
+  const position = new THREE.Vector3(ball.x, config.groundY + s.height, ball.z + s.distanceBehindBall);
+  const target = new THREE.Vector3(ball.x, config.groundY + s.targetHeight, config.goal.lineZ);
+  const look = new THREE.Matrix4().lookAt(position, target, new THREE.Vector3(0, 1, 0));
+  return { position, quaternion: new THREE.Quaternion().setFromRotationMatrix(look) };
+}
+
+/** The settings that give the camera from the Blender scene. */
+export function cameraSettingsFromBlender(config: WorldConfig): CameraSettings {
+  const c = config.camera;
+  const look = new THREE.Vector3(0, 0, -1).applyQuaternion(
+    new THREE.Quaternion(c.quaternion.x, c.quaternion.y, c.quaternion.z, c.quaternion.w).normalize(),
+  );
+  const toGoalLine = (config.goal.lineZ - c.position.z) / look.z;
+  return {
+    height: c.position.y - config.groundY,
+    distanceBehindBall: c.position.z - config.ballStart.z,
+    targetHeight: c.position.y + look.y * toGoalLine - config.groundY,
+    fov: c.fov,
+    verticalShift: 0,
+  };
 }
 
 /** Smooth random wobble in -1..1; each channel wobbles differently. */

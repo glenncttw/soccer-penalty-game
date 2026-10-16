@@ -4,7 +4,7 @@ A fun, fast 3D penalty shootout that runs in the browser on desktop and mobile. 
 
 ## Design decisions
 
-- **Camera**: the gameplay camera designed in Blender: first-person from behind the ball, ball low in the foreground, goal centred. On screens narrower than 16:9 the view widens just enough to keep the whole goal visible.
+- **Camera**: first-person from behind the ball, ball low in the foreground, goal centred. It started as the Blender camera and is now tuned to the stylised reference picture in `src/scene/cameraSettings.ts` (height, distance behind the ball, look-at height, field of view, vertical shift), adjustable live with `?edit`. On screens narrower than 16:9 the view widens just enough to keep the whole goal visible.
 - **No visible shooter**: there is no third-person player model. The ball, its flight and its curl are the star.
 - **Curl is visible**: the ball spins visibly and leaves a bright trail ribbon, so the bend of every shot reads clearly.
 - **Stadium**: a stylized stadium modelled in Blender by Glenn (`public/assets/stadium/`), with stands, railings, ad boards, floodlights and trees. Only the sector the gameplay camera sees is modelled. Goal, ball and penalty spot sizes come from the model (goal opening 5.64 x 1.92 m, penalty 12.4 m, ball radius 0.175 m). A crowd can be added on the stands later.
