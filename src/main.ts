@@ -18,6 +18,8 @@ import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera'
 import { applyGrass } from './scene/grass';
 import { KeeperModel } from './scene/keeper';
 import { lightMovingObject, setUpLighting } from './scene/lighting';
+import { RenderPipeline } from './scene/renderPipeline';
+import { RENDER_SETTINGS } from './scene/renderSettings';
 import { Sky } from './scene/sky';
 import { SKY_SETTINGS } from './scene/skySettings';
 import { loadStadium } from './scene/stadiumAsset';
@@ -25,13 +27,12 @@ import { COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// The canvas only receives the finished picture: the scene is drawn, with its own smoothed edges and
+// depth, by the render pipeline below, so the canvas needs neither.
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, depth: false, stencil: false });
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
-// The stadium was lit with Blender's "Standard" view transform: plain sRGB, no tone mapping.
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.NoToneMapping;
 
 const scene = new THREE.Scene();
 
@@ -50,6 +51,10 @@ scene.add(sky.mesh);
 // The gameplay camera: ball low in the foreground, goal centred; tweak it in src/scene/cameraSettings.ts.
 const view = createGameCamera(world);
 const camera = view.camera;
+
+// Tone mapping, colour grading and the glow on the floodlights; tweak them in src/scene/renderSettings.ts.
+const pipeline = new RenderPipeline(renderer, scene, camera, RENDER_SETTINGS);
+pipeline.sharpUntil.set(0, world.groundY, world.goal.netBackZ); // depth of field keeps the whole goal sharp
 
 const ballMesh = stadium.ball;
 const trail = new BallTrail();
@@ -159,7 +164,7 @@ function resetShot() {
 function resize() {
   const w = window.innerWidth;
   const h = window.innerHeight;
-  renderer.setSize(w, h, false);
+  pipeline.setSize(w, h);
   view.fit(w / h);
   effects.setViewportHeight(renderer.domElement.height);
 }
@@ -169,7 +174,12 @@ resize();
 // Add ?edit to the game's address to open the settings editor (see the README).
 if (new URLSearchParams(location.search).has('edit')) {
   const { openSettingsEditor } = await import('./ui/settingsEditor');
-  openSettingsEditor({ camera: view, blenderCamera: cameraSettingsFromBlender(world), grass });
+  const gui = openSettingsEditor({ camera: view, blenderCamera: cameraSettingsFromBlender(world), grass });
+  // The rendering controls are for development only: `npm run build` leaves them out of the game.
+  if (import.meta.env.DEV) {
+    const { addRenderingPanel } = await import('./ui/renderingPanel');
+    addRenderingPanel(gui, pipeline, renderer);
+  }
 }
 
 const timer = new THREE.Timer();
@@ -244,5 +254,5 @@ renderer.setAnimationLoop((time) => {
   effects.update(dt);
   sky.update(gameTime);
 
-  renderer.render(scene, camera);
+  pipeline.render();
 });

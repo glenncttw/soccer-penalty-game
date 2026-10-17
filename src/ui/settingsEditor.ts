@@ -4,7 +4,7 @@ import { GRASS_SETTINGS, type GrassSettings } from '../scene/grassSettings';
 import { settingsSnippet } from './settingsSnippet';
 
 /** A slider: [setting, label, min, max, step]. A colour: [setting, label]. */
-type Row<T> = [keyof T & string, string] | [keyof T & string, string, number, number, number];
+export type Row<T> = [keyof T & string, string] | [keyof T & string, string, number, number, number];
 
 const CAMERA_ROWS: Row<CameraSettings>[] = [
   ['height', 'Height (m)', 0.3, 2.5, 0.01],
@@ -83,7 +83,7 @@ export function openSettingsEditor(targets: EditorTargets) {
   return gui;
 }
 
-function addRow<T extends object>(folder: GUI, settings: T, row: Row<T>) {
+export function addRow<T extends object>(folder: GUI, settings: T, row: Row<T>) {
   const [key, label, min, max, step] = row;
   const controller =
     min === undefined
@@ -93,7 +93,7 @@ function addRow<T extends object>(folder: GUI, settings: T, row: Row<T>) {
   return controller.name(label);
 }
 
-function addCopyButton(folder: GUI, label: string, text: () => string) {
+export function addCopyButton(folder: GUI, label: string, text: () => string) {
   const button = folder.add({ copy: () => copy(text()) }, 'copy').name(label);
   async function copy(snippet: string) {
     try {
