@@ -1,22 +1,42 @@
 import * as THREE from 'three';
+import { setupStadiumLighting } from './stadium_lighting.js';
 
-// Lighting matched to the Blender scene (see the stadium's THREEJS_NOTES.md):
-// the exported sun plus a hemisphere fill equal to Blender's world strength
-// (1.15 x PI, since Three.js does not multiply ambient light by PI).
-// The sky you see is drawn separately, in sky.ts.
-const AMBIENT_SKY = 0xedf2f9;
-const AMBIENT_GROUND = 0xdcd6cb;
-const AMBIENT_INTENSITY = 3.6;
+/** The light baked in Blender: KTX2 pictures (with WebP copies as a fallback) and a panorama. */
+const BAKES_URL = `${import.meta.env.BASE_URL}assets/stadium/bakes/`;
+/** The KTX2 decoder, copied from node_modules/three/examples/jsm/libs/basis/ so it's served with the game. */
+const BASIS_URL = `${import.meta.env.BASE_URL}basis/`;
 
-export function setUpLighting(scene: THREE.Scene, sun: THREE.DirectionalLight | null) {
-  scene.add(new THREE.HemisphereLight(AMBIENT_SKY, AMBIENT_GROUND, AMBIENT_INTENSITY));
+/**
+ * Lights the stadium with the light baked in Blender (see public/assets/stadium/bakes/README.md):
+ * - the stands, rails, floodlights, trees and ground show their baked picture and ignore lights,
+ * - the ad boards, goal and grass keep the live sun and its shadows, plus baked soft light,
+ * - the net and corner flags get soft light and reflections from a panorama taken at the ball's spot.
+ * The sun comes from the model, already aimed to match the bakes. There is no fill light: the bakes
+ * and the panorama hold all the soft light.
+ *
+ * Call it after applyGrass, so the baked light goes onto the grass's own material.
+ * `model` is the glTF scene itself: the sun's shadow area is placed in its coordinates.
+ */
+export async function setUpLighting(renderer: THREE.WebGLRenderer, model: THREE.Object3D) {
+  return setupStadiumLighting(renderer, model, {
+    bakes: BAKES_URL,
+    format: 'ktx2',
+    standsHQ: false,
+    basisPath: BASIS_URL,
+  });
+}
 
-  if (sun) {
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 140 });
-    sun.shadow.camera.updateProjectionMatrix();
-    sun.shadow.bias = -0.0004;
-    sun.shadow.normalBias = 0.02;
-  }
+/** Gives something that moves (the ball, the keeper) the panorama's soft light and reflections, and live shadows. */
+export function lightMovingObject(object: THREE.Object3D, envMap: THREE.Texture) {
+  object.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    o.castShadow = true;
+    o.receiveShadow = true;
+    for (const m of [o.material].flat()) {
+      if (!(m instanceof THREE.MeshStandardMaterial)) continue;
+      m.envMap = envMap;
+      m.envMapIntensity = 1;
+      m.needsUpdate = true;
+    }
+  });
 }

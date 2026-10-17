@@ -17,7 +17,7 @@ import { Effects } from './scene/effects';
 import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera';
 import { applyGrass } from './scene/grass';
 import { KeeperModel } from './scene/keeper';
-import { setUpLighting } from './scene/lighting';
+import { lightMovingObject, setUpLighting } from './scene/lighting';
 import { Sky } from './scene/sky';
 import { SKY_SETTINGS } from './scene/skySettings';
 import { loadStadium } from './scene/stadiumAsset';
@@ -39,9 +39,10 @@ const scene = new THREE.Scene();
 const stadium = await loadStadium();
 const world = stadium.config;
 scene.add(stadium.environment);
-setUpLighting(scene, stadium.sun);
 // The pitch's grass: stripes, texture, shading and painted lines; tweak it in src/scene/grassSettings.ts.
 const grass = await applyGrass(stadium.environment, renderer);
+// The light baked in Blender, plus the live sun. After the grass, so the grass gets the baked light too.
+const { envMap } = await setUpLighting(renderer, stadium.model);
 // The sky and its drifting clouds; tweak them in src/scene/skySettings.ts.
 const sky = new Sky(SKY_SETTINGS);
 scene.add(sky.mesh);
@@ -58,6 +59,8 @@ const effects = new Effects();
 // The keeper stands just off its line, toward the ball.
 const keeper = new KeeperMotion({ x: 0, y: world.groundY, z: world.goal.lineZ + 0.35 }, KEEPER_SKILL);
 const keeperModel = new KeeperModel();
+lightMovingObject(ballMesh, envMap);
+lightMovingObject(keeperModel.group, envMap);
 scene.add(ballMesh, trail.mesh, markers.group, effects.group, keeperModel.group);
 
 const physics = await createPhysicsWorld(world, { keeper: keeper.pose });

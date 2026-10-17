@@ -23,7 +23,17 @@ toward where you point.
 ## The stadium
 
 The whole environment (pitch, goal, stands, ball and sun) is a Blender export:
-`public/assets/stadium/Stadium_Recon_web.glb`. To update it, export a new GLB over that file.
+`public/assets/stadium/Stadium_Recon_web.glb`. Its light is baked in Blender too (see [The lighting](#the-lighting)),
+so it comes as a package with three parts:
+
+| File | What it is |
+|---|---|
+| `public/assets/stadium/Stadium_Recon_web.glb` | the stadium model |
+| `public/assets/stadium/bakes/` | the baked light (KTX2 pictures, WebP copies as a fallback, and a panorama); its `README.md` lists every object |
+| `src/scene/stadium_lighting.js` | puts the baked light on the model (kept exactly as the package delivers it; `stadium_lighting.d.ts` next to it describes it for TypeScript) |
+
+To update the stadium, replace all three with the files from the new package. The bakes only fit the model they
+were baked with.
 
 The game reads all gameplay coordinates from the model when it loads (`src/scene/measureStadium.ts`),
 so goal detection, collisions, the ball's start position and the camera (which stands behind the ball) follow
@@ -37,10 +47,31 @@ the new export. It relies on these node names:
 | `PITCH_Grass` | ground height, and where the stripes are: it needs two materials, and the darker one marks the dark stripes |
 | `STATIC_Markings` | where the white lines and penalty spot are: the game paints the grass white there and hides this mesh |
 | the first glTF camera | only for "Use Blender camera" in the settings editor; the game's view comes from `src/scene/cameraSettings.ts` (see [The camera](#the-camera)) |
-| the directional light | the sun |
+| the directional light (`SUN_Key`) | the sun: its direction, colour and strength are used as exported, because the baked light is lined up with it |
 
 Coordinates: Y up, metres, shots travel toward -Z. The game shifts the model along Z so its goal line sits at z = 0.
 If a node is missing or a measurement looks wrong, the game stops with an error naming it.
+
+The goal opening is 5.64 x 2.05 m (6.0 x 2.23 m outside). `stadium_lighting.js` also finds the ad boards, corner
+flags, stands, trees and floodlights by name; the game itself doesn't use their positions or sizes.
+
+## The lighting
+
+The light is baked in Blender (`src/scene/lighting.ts` sets it up, right after the grass):
+
+- **Stands, railings, floodlights, trees and the ground outside** show one baked picture each, with the light,
+  shadows and bounce light already in it. They ignore lights, which makes them cheap to draw.
+- **Ad boards, goal and grass** keep the live sun and its shadows, plus baked soft light and soft contact
+  shadows (a lightmap and an ambient-occlusion map on the model's second UV set).
+- **Ball, keeper, net and corner flags** get soft light and reflections from a 360° panorama taken at the ball's
+  spot, plus the live sun and shadows. Anything that moves and is made in code (like a crowd later) should get the
+  same with `lightMovingObject` from `src/scene/lighting.ts`.
+
+There is no fill light: the bakes and the panorama hold all the soft light, so adding one would count it twice.
+The sun comes from the right, so the ball's shadow falls to the left.
+
+The KTX2 pictures need a decoder, served from `public/basis/`. Those two files are copies of
+`node_modules/three/examples/jsm/libs/basis/`; copy them again after updating three.
 
 ## The camera
 
@@ -92,6 +123,8 @@ The pitch is drawn by one shader (`src/scene/grass.ts`) on top of the stripes fr
   See-through stripes run from left to right over them, counted from the goal line, like a cross-mown pitch.
 - **Painted lines and spot.** The white markings in the model are hidden; the shader paints the grass white in
   their place, with blades poking out of the edges.
+- **Baked light.** On top of all this, the grass gets the stadium's baked soft light and contact shadows, like
+  the ad boards and goal (see [The lighting](#the-lighting)).
 - **Soft patches and viewing-angle shading.** Gentle lighter and darker patches, and grass you look down onto, in
   front of the ball, is darker and deeper green than grass you look across near the goal, as real grass is.
 
