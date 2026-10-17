@@ -90,7 +90,7 @@ export class Effects {
       });
     }
     // Cut blades of grass: flung up and back (away from where the ball goes), tumbling and
-    // fluttering down like light leaves, then they lie on the grass for a moment and shrink away.
+    // fluttering down like light leaves, then shrinking away as they reach the grass.
     const blades = 6 + Math.round(power * 5);
     for (let i = 0; i < blades; i++) {
       const angle = rand(0.15, 0.85) * Math.PI;
@@ -103,7 +103,7 @@ export class Effects {
         vy: rand(1.6, 2.8) * p,
         vz: Math.sin(angle) * speed,
         size: rand(0.07, 0.1),
-        life: rand(0.9, 1.2),
+        life: rand(1.5, 1.9),
         color: this.bladeColor.lerpColors(BLADE_DARK, BLADE_LIGHT, Math.random()).getHex(),
         gravity: 6,
         drag: 2.2,
@@ -111,7 +111,7 @@ export class Effects {
         spin: rand(6, 12),
         flutter: rand(0.3, 0.6),
         pop: false,
-        shrinkFrom: 0.75,
+        shrinkFrom: 0.85,
         grow: 0,
       });
     }
@@ -215,7 +215,7 @@ interface PuffSpec {
   /** Downward pull (m/s²) and air drag (per second). */
   gravity: number;
   drag: number;
-  /** Height of the grass: it comes to rest there. */
+  /** Height of the grass: it shrinks away as soon as it gets down there. */
   floor?: number;
   /** How fast it tumbles (radians per second; default 2) and sways side to side (m/s; default 0). */
   spin?: number;
@@ -229,6 +229,8 @@ interface PuffSpec {
 
 /** How long (s) a puff takes to pop up to full size. */
 const POP_TIME = 0.1;
+/** How long (s) a falling bit takes to shrink away once it reaches the grass. */
+const VANISH_TIME = 0.15;
 
 /**
  * A fixed pool of solid shapes in one draw call: lumpy dust blobs or blades of grass. A dust blob pops
@@ -236,7 +238,7 @@ const POP_TIME = 0.1;
  */
 class PuffPool {
   readonly mesh: THREE.InstancedMesh;
-  private readonly puffs: (PuffSpec & { age: number; axis: THREE.Vector3; turn: number })[] = [];
+  private readonly puffs: (PuffSpec & { age: number; axis: THREE.Vector3; turn: number; landedAt?: number })[] = [];
   private next = 0;
   private readonly matrix = new THREE.Matrix4();
   private readonly position = new THREE.Vector3();
@@ -311,8 +313,8 @@ class PuffPool {
       }
       s.age += dt;
       const k = Math.min(1, s.age / s.life);
-      const landed = s.floor !== undefined && s.y <= s.floor;
-      if (!landed) {
+      if (s.landedAt === undefined && s.floor !== undefined && s.y <= s.floor) s.landedAt = s.age;
+      if (s.landedAt === undefined) {
         const drag = Math.exp(-s.drag * dt);
         s.vx *= drag;
         s.vy = s.vy * drag - s.gravity * dt;
@@ -327,7 +329,9 @@ class PuffPool {
       const popped = s.pop === false ? 1 : 1 + 2.7 * pop * pop * pop + 1.7 * pop * pop;
       const from = s.shrinkFrom ?? 0.3;
       const shrink = Math.max(0, (k - from) / (1 - from));
-      const r = s.size * popped * (1 - shrink * shrink) * (1 + (s.grow ?? 0.25) * k);
+      const gone = s.landedAt === undefined ? 0 : Math.min(1, (s.age - s.landedAt) / VANISH_TIME);
+      if (gone >= 1) s.age = s.life;
+      const r = s.size * popped * (1 - shrink * shrink) * (1 + (s.grow ?? 0.25) * k) * (1 - gone * gone);
       this.position.set(s.x, s.y, s.z);
       this.rotation.setFromAxisAngle(s.axis, s.turn);
       this.mesh.setMatrixAt(i, this.matrix.compose(this.position, this.rotation, this.scale.setScalar(r)));
