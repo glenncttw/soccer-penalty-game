@@ -1,7 +1,7 @@
-// Baked-lighting setup for Stadium_Recon_web.glb v012 (Three.js r155+, WebGL 2).
+// Baked-lighting setup for Stadium_Recon_web.glb v013 (Three.js r155+, WebGL 2).
 // Groups (see bakes/README.md):
-//   A  unlit: one baked texture (light, shadow, bounce, gloss)      -> stands, floodlight structure, ground
-//   V  unlit: baked light in the vertex colours (glTF COLOR_0)      -> trees, railings (v012: no texture, no seams)
+//   A  unlit: one baked texture (light, shadow, bounce, gloss)      -> stands, rails, floodlight structure, ground
+//   V  unlit: baked light in the vertex colours (glTF COLOR_0)      -> trees (no texture, no seams)
 //   B  PBR + realtime sun + baked indirect light (lightMap + aoMap) -> ad boards, goal frame, pitch
 //   C  PBR + realtime sun + panorama (envMap)                       -> ball, net, corner flags (+ keeper, crowd)
 //   D  emissive, unchanged                                          -> floodlight lamps
@@ -13,10 +13,11 @@ import { EXRLoader } from "three/addons/loaders/EXRLoader.js";
 const LM_SCALE = 2;              // lightmap PNG/WebP/KTX2 store light / 2
 const AO_INTENSITY = 0.5;        // sky occlusion is already in the lightmap; AO adds contact shading
 const ATLAS = {
-  A: { Stands: ["STATIC_Concrete", "FLOOD_Light_L", "FLOOD_Light_R"], Ground: ["GROUND_Outside"] },
+  A: { Stands: ["STATIC_Concrete", "FLOOD_Light_L", "FLOOD_Light_R"], Rails: ["STATIC_Railings"],
+       Ground: ["GROUND_Outside"] },
   B: { Props: ["ADV_Panel_", "GOAL_Frame"], Grass: ["PITCH_Grass"] },
 };
-const GROUP_V = ["STATIC_Trees", "STATIC_Railings"];
+const GROUP_V = ["STATIC_Trees"];
 const GROUP_C = ["Football_Ball", "GOAL_Net", "CORNER_Flag_"];
 const LAMP_MATERIALS = ["M_Floodlight_Emissive", "M_Floodlight_Glow"];
 const SHADOW_CASTERS = ["STATIC_Concrete", "GOAL_Frame", "CORNER_Flag_", "Football_Ball"];
