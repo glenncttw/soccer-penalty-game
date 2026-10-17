@@ -116,6 +116,6 @@ All in `GRASS_SETTINGS` in `src/scene/grassSettings.ts`:
 | Setting | What it does |
 |---|---|
 | `textureStrength` | how much of the colour picture's variation shows (0 = plain stripe colours) |
-| `normalStrength` | how strongly the bumps catch the light (0 = flat). Baked blades that lie low give gentle bumps, so the game turns them up (2.5 now) |
+| `normalStrength` | how strongly the bumps catch the light (0 = flat). Baked blades that lie low give gentle bumps, so the game turns them up (3 now) |
 | `textureTileSize` | how much pitch one picture covers across, in metres (0.5 matches this guide) |
 | `textureStretch` | how much longer it is toward the goal (1 = not stretched) |
