@@ -23,6 +23,7 @@ import { SKY_SETTINGS } from './scene/skySettings';
 import { loadStadium } from './scene/stadiumAsset';
 import { COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
+import { FpsMeter } from './ui/fpsMeter';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -68,6 +69,7 @@ scene.add(ballMesh, trail.mesh, markers.group, effects.group, keeperModel.group)
 
 const physics = await createPhysicsWorld(world, { keeper: keeper.pose });
 const hud = new Hud(document.querySelector<HTMLElement>('#hud')!);
+const fps = new FpsMeter(document.querySelector<HTMLElement>('#hud')!);
 const input = new ShootInput(canvas);
 const finePointer = window.matchMedia('(pointer: fine)').matches; // a mouse, not a finger
 const power = createPowerMeter(window.matchMedia('(pointer: coarse)').matches);
@@ -182,6 +184,7 @@ const PREVIEW_POWER = (PERFECT_MIN + PERFECT_MAX) / 2; // the preview shows a we
 
 renderer.setAnimationLoop((time) => {
   timer.update(time);
+  fps.tick(time);
   const realDt = Math.min(timer.getDelta(), 0.1);
   const dt = slowMotion.update(realDt); // game time: slows down for a goal
   gameTime += dt;

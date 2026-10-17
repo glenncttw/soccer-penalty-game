@@ -44,8 +44,13 @@ export interface GrassSettings {
   angleShading: number;
   /** Colour of the painted lines and penalty spot. */
   lineColor: string;
-  /** How far blades poke out of the edges of the painted lines and spot. */
+  /** How far blades poke out of the edges of the painted lines and spot (only seen up close). */
   lineRagged: number;
+  /**
+   * How far (m) the edges of the painted lines wave in and out, slowly, over 20 to 50 cm. Unlike the
+   * blades, this stays visible on the far lines.
+   */
+  lineWobble: number;
 }
 
 /** The game's grass, tuned to the stylised reference picture. */
@@ -65,4 +70,5 @@ export const GRASS_SETTINGS: GrassSettings = {
   angleShading: 0.53,
   lineColor: '#fefbf6',
   lineRagged: 0.04,
+  lineWobble: 0.05,
 };
