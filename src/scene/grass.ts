@@ -212,6 +212,7 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     uPaintSize: { value: paint.size },
     uLineColor: { value: new THREE.Color() },
     uLineRagged: { value: 0 },
+    uLineWobble: { value: 0 },
   };
   // Settings only change uniforms, so they can change while the game runs (see the settings editor).
   function update(settings: GrassSettings) {
@@ -229,6 +230,7 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     uniforms.uAngleShading.value = settings.angleShading;
     uniforms.uLineColor.value.set(settings.lineColor);
     uniforms.uLineRagged.value = settings.lineRagged;
+    uniforms.uLineWobble.value = settings.lineWobble;
   }
   update(s);
 
@@ -289,6 +291,7 @@ uniform vec2 uPaintCorner;
 uniform vec2 uPaintSize;
 uniform vec3 uLineColor;
 uniform float uLineRagged;
+uniform float uLineWobble;
 
 // A random number per grid cell (no sin(), so it is the same on every phone).
 float grassHash(vec2 p) {
@@ -407,7 +410,13 @@ const GRASS_COLOR = /* glsl */ `
   // Painted lines and spot: white grass. Blades poke out of the edge up close;
   // far away, where a line is thinner than a pixel, it keeps its average coverage.
   vec2 paintUv = vec2(grassXZ.x - uPaintCorner.x, uPaintCorner.y - grassXZ.y) / uPaintSize;
-  paintUv += grassBlades * uLineRagged / uPaintSize;
+  // Plus a slow wave in and out along the edges (cells of about 20 to 50 cm), big enough to stay
+  // visible on the far lines, where the blades have faded out.
+  vec2 paintWobble = vec2(
+    grassNoise(grassXZ * vec2(3.0, 2.0) + 83.0) + 0.5 * grassNoise(grassXZ * vec2(7.0, 5.0) + 97.0),
+    grassNoise(grassXZ * vec2(2.0, 3.0) + 89.0) + 0.5 * grassNoise(grassXZ * vec2(5.0, 7.0) + 101.0)
+  ) - 0.75;
+  paintUv += (grassBlades * uLineRagged + paintWobble * uLineWobble) / uPaintSize;
   float paintCover = texture(uPaint, paintUv).r;
   float pixelSize = max(length(dFdx(grassXZ)), length(dFdy(grassXZ)));
   float paintEdge = clamp(pixelSize / 0.08, 0.06, 0.5);

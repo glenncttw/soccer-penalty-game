@@ -149,7 +149,7 @@ To change the look, try the settings in the [settings editor](#the-settings-edit
 | `crossStripeWidth`, `crossStripeOpacity` | how wide the see-through stripes running left to right are (0 = none), and how dark they are (1 = as dark as a dark stripe) |
 | `patchStrength`, `patchSize` | the soft lighter and darker patches |
 | `angleShading` | how much darker the grass in front of you is (0 = the same everywhere) |
-| `lineColor`, `lineRagged` | the colour of the painted lines and spot, and how far blades poke out of their edges |
+| `lineColor`, `lineRagged`, `lineWobble` | the colour of the painted lines and spot, how far blades poke out of their edges (only seen up close: far away they would flicker), and how far the edges wave in and out over 20 to 50 cm (seen on the far lines too) |
 
 To move or resize the stripes, lines or spot, change them in Blender and export again.
 
