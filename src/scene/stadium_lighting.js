@@ -1,10 +1,11 @@
-// Baked-lighting setup for Stadium_Recon_web.glb (Three.js r155+, WebGL 2).
+// Baked-lighting setup for Stadium_Recon_web.glb v012 (Three.js r155+, WebGL 2).
 // Groups (see bakes/README.md):
-//   A  unlit: one baked texture (light, shadow, bounce, gloss)      -> stands, rails, floodlight structure, trees, ground
+//   A  unlit: one baked texture (light, shadow, bounce, gloss)      -> stands, floodlight structure, ground
+//   V  unlit: baked light in the vertex colours (glTF COLOR_0)      -> trees, railings (v012: no texture, no seams)
 //   B  PBR + realtime sun + baked indirect light (lightMap + aoMap) -> ad boards, goal frame, pitch
 //   C  PBR + realtime sun + panorama (envMap)                       -> ball, net, corner flags (+ keeper, crowd)
 //   D  emissive, unchanged                                          -> floodlight lamps
-// All bakes use the second UV set (glTF TEXCOORD_1 -> three.js uv1 -> texture.channel = 1).
+// All texture bakes use the second UV set (glTF TEXCOORD_1 -> three.js uv1 -> texture.channel = 1).
 import * as THREE from "three";
 import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import { EXRLoader } from "three/addons/loaders/EXRLoader.js";
@@ -12,10 +13,10 @@ import { EXRLoader } from "three/addons/loaders/EXRLoader.js";
 const LM_SCALE = 2;              // lightmap PNG/WebP/KTX2 store light / 2
 const AO_INTENSITY = 0.5;        // sky occlusion is already in the lightmap; AO adds contact shading
 const ATLAS = {
-  A: { Stands: ["STATIC_Concrete", "STATIC_Railings", "FLOOD_Light_L", "FLOOD_Light_R"],
-       Trees: ["STATIC_Trees"], Ground: ["GROUND_Outside"] },
+  A: { Stands: ["STATIC_Concrete", "FLOOD_Light_L", "FLOOD_Light_R"], Ground: ["GROUND_Outside"] },
   B: { Props: ["ADV_Panel_", "GOAL_Frame"], Grass: ["PITCH_Grass"] },
 };
+const GROUP_V = ["STATIC_Trees", "STATIC_Railings"];
 const GROUP_C = ["Football_Ball", "GOAL_Net", "CORNER_Flag_"];
 const LAMP_MATERIALS = ["M_Floodlight_Emissive", "M_Floodlight_Glow"];
 const SHADOW_CASTERS = ["STATIC_Concrete", "GOAL_Frame", "CORNER_Flag_", "Football_Ball"];
@@ -27,7 +28,7 @@ const startsWithAny = (name, list) => list.some((p) => name === p || name.starts
  * @param {THREE.Object3D} root        gltf.scene
  * @param {object} opts  { bakes: "bakes/", format: "ktx2" | "webp", standsHQ: false, basisPath: ".../libs/basis/",
  *                         sunShadowMapSize, showMarkings }
- *   standsHQ: load T_Stands_Combined_hq.ktx2 (UASTC, 2.3 MB) instead of the 0.55 MB ETC1S default
+ *   standsHQ: load T_Stands_Combined_hq.ktx2 (UASTC, 2.1 MB) instead of the 0.45 MB ETC1S default
  */
 export async function setupStadiumLighting(renderer, root, opts = {}) {
   const base = opts.bakes ?? "bakes/";
@@ -87,6 +88,13 @@ export async function setupStadiumLighting(renderer, root, opts = {}) {
       m.receiveShadow = false;
       m.castShadow = startsWithAny(m.parent?.name ?? "", SHADOW_CASTERS) || startsWithAny(m.name, SHADOW_CASTERS);
     }
+  }
+  // ---- group V: unlit, baked light in the vertex colours (all colours of the mesh, one material)
+  const vertexMat = new THREE.MeshBasicMaterial({ vertexColors: true, name: "BAKED_VertexColour" });
+  for (const m of meshesOf(GROUP_V)) {
+    m.material = vertexMat;
+    m.receiveShadow = false;
+    m.castShadow = false;
   }
   // ---- group B: PBR + realtime sun + baked indirect light
   for (const [atlas, prefixes] of Object.entries(ATLAS.B)) {

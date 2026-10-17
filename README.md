@@ -59,8 +59,9 @@ flags, stands, trees and floodlights by name; the game itself doesn't use their 
 
 The light is baked in Blender (`src/scene/lighting.ts` sets it up, right after the grass):
 
-- **Stands, railings, floodlights, trees and the ground outside** show one baked picture each, with the light,
-  shadows and bounce light already in it. They ignore lights, which makes them cheap to draw.
+- **Stands, floodlights and the ground outside** show a baked picture, with the light, shadows and bounce light
+  already in it. **Trees and railings** carry their baked light in the model's vertex colours instead, so they
+  have no seams. All of these ignore lights, which makes them cheap to draw.
 - **Ad boards, goal and grass** keep the live sun and its shadows, plus baked soft light and soft contact
   shadows (a lightmap and an ambient-occlusion map on the model's second UV set).
 - **Ball, keeper, net and corner flags** get soft light and reflections from a 360° panorama taken at the ball's
