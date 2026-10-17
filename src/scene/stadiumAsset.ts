@@ -14,6 +14,8 @@ export interface Stadium {
   model: THREE.Group;
   /** The model's football, detached so gameplay can move it. Origin = ball centre. */
   ball: THREE.Object3D;
+  /** Animations made in Blender (the corner flags waving). They loop, see main.ts. */
+  animations: THREE.AnimationClip[];
   config: WorldConfig;
   dispose(): void;
 }
@@ -49,6 +51,7 @@ export async function loadStadium(): Promise<Stadium> {
     environment,
     model: gltf.scene,
     ball,
+    animations: gltf.animations,
     config,
     dispose() {
       for (const root of [environment, ball]) {

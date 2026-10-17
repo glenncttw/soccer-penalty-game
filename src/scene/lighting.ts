@@ -33,6 +33,10 @@ export function lightMovingObject(object: THREE.Object3D, envMap: THREE.Texture)
     o.castShadow = true;
     o.receiveShadow = true;
     for (const m of [o.material].flat()) {
+      // The sun's shadow test looks a few centimetres above the ground (the light's normal bias). Right under
+      // the ball that spot is inside the ball, and with three's default (only the far side casts) it counts as
+      // lit, leaving a bright gap in the shadow. Casting from the sunlit side keeps the shadow solid up to it.
+      m.shadowSide = THREE.FrontSide;
       if (!(m instanceof THREE.MeshStandardMaterial)) continue;
       m.envMap = envMap;
       m.envMapIntensity = 1;

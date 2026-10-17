@@ -43,6 +43,9 @@ scene.add(stadium.environment);
 const grass = await applyGrass(stadium.environment, renderer);
 // The light baked in Blender, plus the live sun. After the grass, so the grass gets the baked light too.
 const { envMap } = await setUpLighting(renderer, stadium.model);
+// The stadium's own animations (the corner flags waving) loop for ever, slowed down with the game.
+const stadiumMotion = new THREE.AnimationMixer(stadium.model);
+for (const clip of stadium.animations) stadiumMotion.clipAction(clip).play();
 // The sky and its drifting clouds; tweak them in src/scene/skySettings.ts.
 const sky = new Sky(SKY_SETTINGS);
 scene.add(sky.mesh);
@@ -242,6 +245,7 @@ renderer.setAnimationLoop((time) => {
   trail.update(gameTime, camera.position);
   keeperModel.update(keeper.pose, dt);
   effects.update(dt);
+  stadiumMotion.update(dt);
   sky.update(gameTime);
 
   renderer.render(scene, camera);
