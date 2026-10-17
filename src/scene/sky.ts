@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MAX_CLOUDS, MAX_LOBES, createClouds, packClouds } from './clouds';
+import { EXPOSURE } from './renderPipeline';
 import { SKY_SETTINGS, type SkySettings } from './skySettings';
 
 const DEG = Math.PI / 180;
@@ -31,6 +32,7 @@ export class Sky {
     uLook: { value: new Float32Array(MAX_CLOUDS * 4) },
     uBase: { value: new Float32Array(MAX_CLOUDS * 4) },
     uLobes: { value: new Float32Array(MAX_CLOUDS * MAX_LOBES * 4) },
+    uExposure: EXPOSURE,
   };
 
   constructor(settings: SkySettings = SKY_SETTINGS) {
@@ -41,7 +43,8 @@ export class Sky {
       defines: { MAX_CLOUDS, MAX_LOBES },
       side: THREE.BackSide,
       depthWrite: false,
-      dithering: true, // no banding in the gradient
+      // Tone mapping and dithering (no banding in the gradient) happen once, for the whole picture, in
+      // src/scene/renderPipeline.ts.
       toneMapped: false,
     });
     this.mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 8), material);
@@ -91,7 +94,6 @@ const SKY_VERTEX = /* glsl */ `
 
 const SKY_FRAGMENT = /* glsl */ `
   #include <common>
-  #include <dithering_pars_fragment>
 
   // The sky repeats every 120 degrees, so drifting clouds never meet a seam.
   #define BAND 2.0943951
@@ -117,6 +119,7 @@ const SKY_FRAGMENT = /* glsl */ `
   uniform vec4 uLook[MAX_CLOUDS]; // haze, shading strength, height (in widths), coverage rank
   uniform vec4 uBase[MAX_CLOUDS]; // the base capsule: left and right end of its core, radius
   uniform vec4 uLobes[MAX_CLOUDS * MAX_LOBES]; // spheres: x, y, depth, radius (in widths), back to front
+  uniform float uExposure;
 
   varying vec3 vDir;
 
@@ -241,7 +244,7 @@ const SKY_FRAGMENT = /* glsl */ `
       color = mix(color, cloud.rgb, cloud.a * uOpacity * shown);
     }
 
-    gl_FragColor = vec4(toLinear(color), 1.0);
+    // The colours above are final screen colours, so undo the exposure the finishing pass will apply.
+    gl_FragColor = vec4(toLinear(color) / uExposure, 1.0);
     #include <colorspace_fragment>
-    #include <dithering_fragment>
   }`;

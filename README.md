@@ -75,6 +75,41 @@ The sun comes from the right, so the ball's shadow falls to the left.
 The KTX2 pictures need a decoder, served from `public/basis/`. Those two files are copies of
 `node_modules/three/examples/jsm/libs/basis/`; copy them again after updating three.
 
+## The rendering
+
+The scene is drawn into a picture that keeps light brighter than white, then one finishing pass turns it into
+the colours on screen (`src/scene/renderPipeline.ts`):
+
+- **Tone mapping.** Very bright light (sunlit white, the floodlight lamps) is rounded off softly instead of cut
+  off, with three.js's Khronos PBR Neutral curve, which keeps the baked colours. ACES and AgX were tried too:
+  they turn this sky pale and the greens grey.
+- **Colour grading.** A little brighter, slightly calmer colours, and the darkest shadows lifted a touch toward
+  blue, to match the stylised reference picture. The sky keeps the colours in `src/scene/skySettings.ts`.
+- **Glow (bloom).** Only what's much brighter than white glows, which is the floodlight lamps. The ball and goal
+  stay crisp.
+- **Haze.** Far things (the stands behind the goal, the floodlights, the trees) fade a little toward sky blue,
+  for depth. It's the scene's fog, so it costs nothing extra.
+- **Smooth edges.** 4x MSAA while the scene is drawn, as before, plus a tiny noise (dithering) so the sky shows
+  no bands.
+- **Depth of field** (blurring what's behind the goal) and **film grain** are there, but off: the reference
+  picture is sharp all the way back.
+
+Tone mapping and the conversion to screen colours happen in this pass and nowhere else.
+
+To change the look, edit `RENDER_SETTINGS` in `src/scene/renderSettings.ts`. Each setting has a short note. The
+handiest ones:
+
+| Setting | What it does |
+|---|---|
+| `toneMapping`, `exposure` | the curve (`'neutral'`, or `'none'` for the look before tone mapping) and the brightness |
+| `saturation`, `contrast`, `warmth`, `shadowLift`, `shadowTint` | the colour grading |
+| `bloom`, `bloomStrength`, `bloomThreshold`, `bloomRadius` | the glow: on or off, how strong, how bright something must be to glow, how far it spreads |
+| `atmosphere`, `atmosphereColor`, `atmosphereStart`, `atmosphereEnd` | the haze (0 = none) |
+| `depthOfField`, `depthOfFieldStrength`, `depthOfFieldRange` | the background blur |
+| `antialiasSamples`, `maxPixelRatio` | edge smoothing, and how many screen pixels are drawn per CSS pixel |
+
+The finishing costs one full-screen pass plus 9 small ones for the glow (the biggest a quarter of the screen).
+
 ## The camera
 
 The gameplay camera stands behind the ball and looks at the goal. Its rest view is set in `CAMERA_SETTINGS` in
@@ -165,6 +200,16 @@ with `npm run dev`. Without `?edit` the game looks and loads exactly as before.
 **Reset camera** and **Reset grass** go back to the settings in the files, and **Use Blender camera** shows the
 camera from the Blender scene. On a phone the panel starts folded up; tap
 **Settings editor** to open it. Clicks and drags on the panel never take a shot.
+
+With `npm run dev` (not on the published game) the panel also has a **Rendering (dev only)** folder:
+
+- **Preset**: **Baseline** is the game without tone mapping, grading or effects, **Polished** is the game's
+  look. **Save as preset…** keeps your own in this browser, and **Copy render settings** copies them as code for
+  `RENDER_SETTINGS` in `src/scene/renderSettings.ts`.
+- A folder for each part: tone mapping, colour grading, bloom, depth of field, atmosphere, dithering and grain,
+  and edges and resolution.
+- **Performance**: time on the graphics card per stage (in Chrome and Edge), frame time, draw calls, passes and
+  the memory the pipeline's pictures take.
 
 ## Getting started
 
