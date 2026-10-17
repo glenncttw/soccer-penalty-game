@@ -231,6 +231,7 @@ renderer.setAnimationLoop((time) => {
 
   if (phase === 'flight') {
     trail.push(p, gameTime);
+    effects.skim(p);
     if (lastQuality === 'perfect') effects.glitterTrail(p, dt);
     const v = physics.ball.linvel();
     if (outcome.update(p, Math.hypot(v.x, v.y, v.z), dt)) showResult();
