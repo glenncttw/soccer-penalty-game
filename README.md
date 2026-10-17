@@ -55,6 +55,9 @@ If a node is missing or a measurement looks wrong, the game stops with an error 
 The goal opening is 5.64 x 2.05 m (6.0 x 2.23 m outside). `stadium_lighting.js` also finds the ad boards, corner
 flags, stands, trees and floodlights by name; the game itself doesn't use their positions or sizes.
 
+Animations in the export (like the corner flags waving) play on a loop, slowed down with the game's slow motion.
+Nothing in the game refers to them by name, so a new export can add, change or drop them.
+
 ## The lighting
 
 The light is baked in Blender (`src/scene/lighting.ts` sets it up, right after the grass):
@@ -70,7 +73,8 @@ The light is baked in Blender (`src/scene/lighting.ts` sets it up, right after t
   same with `lightMovingObject` from `src/scene/lighting.ts`.
 
 There is no fill light: the bakes and the panorama hold all the soft light, so adding one would count it twice.
-The sun comes from the right, so the ball's shadow falls to the left.
+The sun comes from the right, so the ball's shadow falls to the left. The ball and keeper cast their shadow from
+their sunlit side; with three's default the ground right under the ball showed a bright gap in the shadow.
 
 The KTX2 pictures need a decoder, served from `public/basis/`. Those two files are copies of
 `node_modules/three/examples/jsm/libs/basis/`; copy them again after updating three.
