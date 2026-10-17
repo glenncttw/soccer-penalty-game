@@ -8,7 +8,7 @@ const BASIS_URL = `${import.meta.env.BASE_URL}basis/`;
 
 /**
  * Lights the stadium with the light baked in Blender (see public/assets/stadium/bakes/README.md):
- * - the stands, rails, floodlights, trees and ground show their baked picture and ignore lights,
+ * - the stands, rails, floodlights, trees and ground show their baked light and ignore lights,
  * - the ad boards, goal and grass keep the live sun and its shadows, plus baked soft light,
  * - the net and corner flags get soft light and reflections from a panorama taken at the ball's spot.
  * The sun comes from the model, already aimed to match the bakes. There is no fill light: the bakes
