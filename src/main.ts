@@ -21,12 +21,15 @@ import { applyGrass } from './scene/grass';
 import { KeeperModel } from './scene/keeper';
 import { loadKeeperModel } from './scene/keeperAsset';
 import { lightMovingObject, setUpLighting } from './scene/lighting';
+import { Replay } from './scene/replay';
+import { REPLAY_SETTINGS } from './scene/replaySettings';
 import { Sky } from './scene/sky';
 import { SKY_SETTINGS } from './scene/skySettings';
 import { loadStadium } from './scene/stadiumAsset';
 import { COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
 import { FpsMeter } from './ui/fpsMeter';
+import { Wipe } from './ui/wipe';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -86,10 +89,22 @@ const outcome = new OutcomeTracker(world.goal, world.ballRadius);
 const events = new GameEvents();
 const slowMotion = new SlowMotion();
 const coach = new Coach();
+// After a goal, save or woodwork: a slow replay in comic panels, between two wipes; see src/scene/replaySettings.ts.
+const replay = new Replay({
+  world,
+  renderer,
+  scene,
+  ball: ballMesh,
+  ballFade,
+  keeper: keeperModel,
+  trail,
+  hide: [effects.group, markers.group],
+});
+const wipe = new Wipe(document.querySelector<HTMLElement>('#hud')!, REPLAY_SETTINGS.wipeTime);
 connectFeedback(events, { world, camera: view, effects, hud, slowMotion });
 
 const BALL_START = world.ballStart;
-type Phase = 'aiming' | 'charging' | 'flight' | 'result';
+type Phase = 'aiming' | 'charging' | 'flight' | 'result' | 'wipe' | 'replay';
 let phase: Phase = 'aiming';
 let phaseTime = 0;
 const aim = new THREE.Vector3(0, 1.2, world.goal.lineZ);
@@ -128,6 +143,7 @@ input.onRelease = () => {
   hud.showPower(null);
   input.enabled = false;
   lastQuality = shot.quality;
+  replay.begin(gameTime);
   coach.shotTaken();
   setPhase('flight');
   events.emit('kick', { power: power.value, quality: shot.quality });
@@ -157,19 +173,55 @@ function showResult() {
   } else {
     hud.showBanner('MISS!', lastQuality === 'skied' ? 'too much power' : lastQuality === 'weak' ? 'not enough power' : '');
   }
+  replay.recorder.markResult(gameTime);
   setPhase('result');
   events.emit('result', { result: outcome.result!, quality: lastQuality, woodwork: outcome.hitFrame });
 }
 
+/** Ends the shot behind a wipe: a replay first if it was a big moment, then the next shot. */
+function endShot() {
+  const withReplay = replay.wanted(outcome.result ?? 'miss', outcome.hitFrame);
+  setPhase('wipe');
+  wipe.run(() => {
+    if (withReplay) replay.start();
+    resetShot();
+    if (replay.active) {
+      setPhase('replay');
+      wipe.showReplayTag(true);
+    }
+  }, nextShot);
+}
+
+/** Leaves the replay (at its end, or when the player taps) behind another wipe. */
+function endReplay() {
+  if (phase !== 'replay' || wipe.running) return;
+  wipe.run(() => {
+    replay.stop();
+    wipe.showReplayTag(false);
+    setPhase('wipe');
+  }, nextShot);
+}
+
+/** Ball back on the spot and the keeper back in the middle, at once: the screen is covered. */
 function resetShot() {
   physics.resetBall();
   ballFade.reset();
-  keeper.recover();
+  keeper.reset();
+  physics.poseKeeper(keeper.pose);
   trail.clear();
   hud.hideBanner();
+}
+
+function nextShot() {
+  if (phase !== 'wipe') return;
   input.enabled = true;
   setPhase('aiming');
 }
+
+// A tap or click skips the replay.
+canvas.addEventListener('pointerdown', () => {
+  if (phase === 'replay') endReplay();
+});
 
 function resize() {
   const w = window.innerWidth;
@@ -177,6 +229,7 @@ function resize() {
   renderer.setSize(w, h, false);
   view.fit(w / h);
   effects.setViewportHeight(renderer.domElement.height);
+  replay.resize(w, h);
 }
 window.addEventListener('resize', resize);
 resize();
@@ -218,7 +271,7 @@ renderer.setAnimationLoop((time) => {
     markers.showPreview(BALL_START, kick, preview.spin, perfect);
     if (power.sweeps >= 2) input.forceRelease(); // don't let a charge last forever
   }
-  const tip = coach.update(phase, input.curl);
+  const tip = coach.update(phase === 'wipe' || phase === 'replay' ? 'result' : phase, input.curl);
   hud.showHint(tip ? COACH_TEXT[tip] : null);
 
   // The keeper edges toward where you aim while you line up the shot, and gets set while you charge.
@@ -257,8 +310,10 @@ renderer.setAnimationLoop((time) => {
     if (outcome.update(p, Math.hypot(v.x, v.y, v.z), dt)) showResult();
   } else if (phase === 'result') {
     trail.push(p, gameTime);
-    if (phaseTime > 1.8) resetShot();
+    const replayNext = replay.wanted(outcome.result ?? 'miss', outcome.hitFrame);
+    if (phaseTime > (replayNext ? REPLAY_SETTINGS.holdWithReplay : REPLAY_SETTINGS.holdWithout)) endShot();
   }
+  if (phase === 'flight' || phase === 'result') replay.record(gameTime, p, q, keeper.pose);
 
   // Sway with the mouse while aiming (and hold it while charging), settle back otherwise.
   const sway = finePointer && input.hasPointer && (phase === 'aiming' || phase === 'charging');
@@ -269,6 +324,12 @@ renderer.setAnimationLoop((time) => {
   ballFade.update(dt);
   stadiumMotion.update(dt);
   sky.update(gameTime);
+  wipe.update(realDt);
 
-  renderer.render(scene, camera);
+  if (replay.active) {
+    replay.render(realDt);
+    if (replay.finished) endReplay();
+  } else {
+    renderer.render(scene, camera);
+  }
 });

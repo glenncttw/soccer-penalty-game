@@ -184,3 +184,52 @@ body {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
 }
+
+/* The wipe before and after a replay: a slanted band, pink in front and purple behind. */
+.wipe {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -65vw;
+  width: 230vw;
+  background: linear-gradient(90deg, #ffffff 0 2%, #e5186f 2% 50%, #6c398b 50% 98%, #ffffff 98%);
+  will-change: transform;
+}
+
+.wipe[hidden],
+.replay-tag[hidden] {
+  display: none;
+}
+
+.replay-tag {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.replay-word {
+  padding: 6px 16px;
+  border-radius: 10px;
+  background: #ffcf3a;
+  color: #6c398b;
+  font-weight: 900;
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  transform: rotate(-4deg);
+  box-shadow: 0 4px 0 #3b1f4f;
+}
+
+.replay-skip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #e5186f;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15);
+}

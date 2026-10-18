@@ -20,6 +20,36 @@ shots are easy saves. Its look is a placeholder made from simple shapes until th
 On your first visit, tips at the top walk you through your first shots. With a mouse, the view turns a little
 toward where you point.
 
+After a goal, a save or a shot off the woodwork, a quick wipe brings up a slow-motion **replay** in two comic
+panels; tap or click to skip it. After any other shot, the wipe just brings back the ball for the next one.
+
+## The replay
+
+Every shot is recorded: where the ball and the keeper are in each frame (`src/gameplay/replayRecorder.ts`).
+After a big moment, `src/scene/replay.ts` plays the shot back slowly in two tilted panels on a striped purple
+background, each from its own camera:
+
+- **left (or top on a phone held upright)**: just behind the spot, a long lens following the ball to the goal;
+- **right (or bottom)**: low beside the goal, on the other side from where the ball went, creeping in.
+
+Both cameras look toward the goal, because that's the part of the stadium that's built. Turning them around would
+show the unbuilt side behind the player. The ball and the keeper go back to their spots while the wipe covers
+the screen, so the keeper never has to get up and walk back to the middle. Each panel is drawn at 75% of the
+screen's sharpness, and the normal game view isn't drawn during a replay, so a replay costs about as much as
+normal play.
+
+Settings are in `REPLAY_SETTINGS` in `src/scene/replaySettings.ts`:
+
+| Setting | What it does |
+|---|---|
+| `moments` | which shots get a replay: `goal`, `save`, `woodwork` |
+| `duration` | how many seconds the replay lasts |
+| `slowest`, `fastest` | replay speed limits (1 = real speed); quick shots play slower to fill the time |
+| `afterResult` | how long the replay keeps going after the ball went in or was saved |
+| `holdWithReplay`, `holdWithout` | how long the GOAL!/MISS! banner shows before the wipe |
+| `wipeTime` | seconds the wipe takes to cover the screen (and again to uncover it) |
+| `resolution` | how sharp the panels are drawn (1 = as sharp as the screen) |
+
 ## The stadium
 
 The whole environment (pitch, goal, stands, ball and sun) is a Blender export:

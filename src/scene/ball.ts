@@ -113,6 +113,16 @@ export class BallTrail {
     this.samples.unshift(reuse);
   }
 
+  /** The trail's colours and size now. */
+  get currentStyle(): TrailStyle {
+    return this.style;
+  }
+
+  /** Game time it stopped following the ball, or null if it still follows it. */
+  get stopTime(): number | null {
+    return this.stoppedAt;
+  }
+
   /** Stops following the ball (at game time `time`): what's left pulls itself in and fades. */
   stop(time: number) {
     this.stoppedAt ??= time;
