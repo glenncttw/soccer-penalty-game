@@ -18,11 +18,20 @@ export function trailStyle(power: number, perfect: boolean): TrailStyle {
   return { width: 0.07 + power * 0.05, life: 0.35 + power * 0.3, edge: 0xff4f9a, core: 0xffd3e6 };
 }
 
-const MAX_SAMPLES = 180; // enough for the longest trail at high frame rates
+// Points are at least this far apart (metres), so a long trail fits at any frame rate:
+// 512 points cover 30 m, more than the fastest shot travels in the longest trail's life.
+const MIN_STEP = 0.06;
+const MAX_SAMPLES = 512;
+/** Seconds the trail takes to pull itself in to the ball's first touch after the shot. */
+const PULL_IN = 0.3;
+/** Metres over which the trail grows in from nothing at its front end. */
+const HEAD_TAPER = 0.3;
 
 /**
  * A fading ribbon behind the ball that makes its curl visible. It always faces
  * the camera, and each point fades by age, so it looks the same at any frame rate.
+ * Both ends taper off smoothly, and once the ball touches something the trail stops
+ * growing and pulls itself in to that spot.
  */
 export class BallTrail {
   readonly mesh: THREE.Mesh;
@@ -31,6 +40,8 @@ export class BallTrail {
   private readonly alphas = new Float32Array(MAX_SAMPLES * 2);
   private readonly uniforms = { edgeColor: { value: new THREE.Color() }, coreColor: { value: new THREE.Color() } };
   private style = trailStyle(0.5, false);
+  /** Game time the trail stopped following the ball, or null while it follows. */
+  private stoppedAt: number | null = null;
   private readonly tangent = new THREE.Vector3();
   private readonly toCamera = new THREE.Vector3();
   private readonly side = new THREE.Vector3();
@@ -88,39 +99,59 @@ export class BallTrail {
 
   /** Adds the ball's position at game time `time` (seconds). */
   push(p: Vec3, time: number) {
+    if (this.stoppedAt !== null) return;
+    const newest = this.samples[0];
+    if (newest && newest.p.distanceToSquared(p) < MIN_STEP * MIN_STEP) return;
     const reuse = this.samples.length >= MAX_SAMPLES ? this.samples.pop()! : { p: new THREE.Vector3(), t: 0 };
     reuse.p.set(p.x, p.y, p.z);
     reuse.t = time;
     this.samples.unshift(reuse);
   }
 
+  /** Stops following the ball (at game time `time`): what's left pulls itself in and fades. */
+  stop(time: number) {
+    this.stoppedAt ??= time;
+  }
+
   clear() {
     this.samples.length = 0;
+    this.stoppedAt = null;
     this.mesh.geometry.setDrawRange(0, 0);
   }
 
   /** Rebuilds the ribbon for game time `time`, facing `cameraPosition`. */
   update(time: number, cameraPosition: THREE.Vector3) {
     const { life, width } = this.style;
-    while (this.samples.length && time - this.samples[this.samples.length - 1].t > life) this.samples.pop();
+    // After a stop, the trail ages faster so even its newest point is gone within PULL_IN.
+    const stopped = this.stoppedAt ?? time;
+    const age = (t: number) => (stopped - t) + (time - stopped) * Math.max(1, life / PULL_IN);
+    while (this.samples.length && age(this.samples[this.samples.length - 1].t) > life) this.samples.pop();
     const n = this.samples.length;
+    let along = 0; // metres from the front end
     for (let i = 0; i < n; i++) {
       const s = this.samples[i];
-      const fade = Math.max(0, 1 - (time - s.t) / life);
+      if (i > 0) along += s.p.distanceTo(this.samples[i - 1].p);
+      const fade = Math.max(0, 1 - age(s.t) / life);
+      const head = smoothstep(along / HEAD_TAPER);
       this.tangent.subVectors(this.samples[Math.max(0, i - 1)].p, this.samples[Math.min(n - 1, i + 1)].p);
       this.toCamera.subVectors(cameraPosition, s.p);
       this.side.crossVectors(this.tangent, this.toCamera);
       if (this.side.lengthSq() < 1e-10) this.side.set(0, 1, 0);
-      this.side.normalize().multiplyScalar(0.5 * width * Math.pow(fade, 0.6));
+      this.side.normalize().multiplyScalar(0.5 * width * Math.pow(fade, 0.6) * (0.4 + 0.6 * head));
       this.positions.set(
         [s.p.x - this.side.x, s.p.y - this.side.y, s.p.z - this.side.z, s.p.x + this.side.x, s.p.y + this.side.y, s.p.z + this.side.z],
         i * 6,
       );
-      this.alphas[i * 2] = this.alphas[i * 2 + 1] = 0.9 * fade;
+      this.alphas[i * 2] = this.alphas[i * 2 + 1] = 0.9 * smoothstep(fade) * head;
     }
     const geo = this.mesh.geometry;
     geo.setDrawRange(0, Math.max(0, n - 1) * 6); // only the segments between live points
     geo.getAttribute('position').needsUpdate = true;
     geo.getAttribute('alpha').needsUpdate = true;
   }
+}
+
+function smoothstep(x: number) {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
 }

@@ -55,8 +55,7 @@ If a node is missing or a measurement looks wrong, the game stops with an error 
 
 The goal opening is 5.64 x 2.05 m (6.0 x 2.23 m outside). `stadium_lighting.js` also finds the ad boards, corner
 flags, stands, trees and floodlights by name. Apart from the ad boards, the game itself doesn't use their positions or
-sizes: a ball that flies over the boards disappears in halftone dots and counts as a miss (or a save, if the keeper
-touched it).
+sizes: a ball that flies over the boards fades out and counts as a miss (or a save, if the keeper touched it).
 
 Animations in the export (like the corner flags waving) play on a loop, slowed down with the game's slow motion.
 Nothing in the game refers to them by name, so a new export can add, change or drop them.
@@ -168,11 +167,6 @@ with `npm run dev`. Without `?edit` the game looks and loads exactly as before.
 3. Paste them over `CAMERA_SETTINGS` in `src/scene/cameraSettings.ts` or `GRASS_SETTINGS` in
    `src/scene/grassSettings.ts` (or paste them in the project chat and Claude puts them in). Changes in the panel
    are gone when you reload the page, until they are in that file.
-
-The **Ball fade** folder sets how the ball disappears in halftone dots after flying over the boards: the dot size,
-how many dots fit across a far-away ball (it gets a finer grid there, so the dots still show), and how long it takes.
-**Play the fade** plays it on the ball on the spot. Its settings go in `BALL_FADE_SETTINGS` in
-`src/scene/ballFadeSettings.ts`.
 
 **Reset camera** and **Reset grass** go back to the settings in the files, and **Use Blender camera** shows the
 camera from the Blender scene. On a phone the panel starts folded up; tap
