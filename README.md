@@ -65,7 +65,8 @@ Nothing in the game refers to them by name, so a new export can add, change or d
 The keeper is Glenn's parrot, a Blender export: `public/assets/keeper/Parrot_GK.glb`, loaded by
 `src/scene/keeperAsset.ts` at the size it was made in Blender (origin between the feet, facing the shooter). The
 game moves and leans it with the keeper's motion; its rig and animations are in the file but nothing plays them
-yet. The physics body that saves shots is still the placeholder's size (`src/physics/keeperBody.ts`).
+yet. The parrot is 1.60 m tall (scale 1 in Blender). The physics body that saves shots is still the placeholder's
+(`src/physics/keeperBody.ts`, 1.52 m tall), which fits the parrot's outline closely enough until its arms animate.
 
 The export was made lighter for the web with [glTF Transform](https://gltf-transform.dev): pictures shrunk to
 1024 x 1024, colour and roughness as WebP, the normal map as JPEG (4:4:4, so it keeps its detail), and the mesh
