@@ -20,10 +20,13 @@ export interface Stadium {
   dispose(): void;
 }
 
-export async function loadStadium(): Promise<Stadium> {
+/** Loads the stadium; `onProgress` (0..1) follows the download, for the loading bar. */
+export async function loadStadium(onProgress?: (fraction: number) => void): Promise<Stadium> {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
-  const gltf = await loader.loadAsync(STADIUM_URL);
+  const gltf = await loader.loadAsync(STADIUM_URL, (e) => {
+    if (e.lengthComputable) onProgress?.(e.loaded / e.total);
+  });
 
   // The model's goal line is at z = -21 (GOAL_Frame's origin). Gameplay puts the
   // goal line at z = 0, so the only mapping needed is a shift along z.

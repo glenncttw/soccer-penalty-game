@@ -23,6 +23,12 @@ toward where you point.
 After a goal, a save or a shot off the woodwork, a quick wipe brings up a 3.5-second slow-motion **replay** in a
 comic panel. After any other shot, the wipe just brings back the ball for the next one.
 
+While the game loads, a plain bar in the middle of the screen fills up. In the bottom left corner you see how the
+game is running: the FPS counter, three.js's Stats panel (click it to switch between frames per second,
+milliseconds per frame and memory) and a list of what was drawn in the last frame: draw calls, triangles,
+geometries, textures, shaders, and the screen size in pixels. Fewer draw calls and triangles mean an easier job for
+phones.
+
 ## The replay
 
 Every shot is recorded: where the ball and the keeper are in each frame (`src/gameplay/replayRecorder.ts`).

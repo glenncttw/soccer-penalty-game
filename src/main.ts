@@ -29,6 +29,8 @@ import { loadStadium } from './scene/stadiumAsset';
 import { COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
 import { FpsMeter } from './ui/fpsMeter';
+import { PerfStats } from './ui/perfStats';
+import { Preloader } from './ui/preloader';
 import { Wipe } from './ui/wipe';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
@@ -41,11 +43,13 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NoToneMapping;
 
 const scene = new THREE.Scene();
+// The loading bar (in index.html) fills as the files below arrive.
+const preloader = new Preloader();
 
 // The keeper's Blender model loads alongside the stadium.
 const keeperAsset = loadKeeperModel();
 // The Blender stadium is the whole environment: pitch, goal, stands, ball and sun.
-const stadium = await loadStadium();
+const stadium = await loadStadium((f) => preloader.file(f));
 const world = stadium.config;
 scene.add(stadium.environment);
 // The pitch's grass: stripes, texture, shading and painted lines; tweak it in src/scene/grassSettings.ts.
@@ -82,6 +86,8 @@ scene.add(ballMesh, trail.mesh, markers.group, effects.group, keeperModel.group)
 const physics = await createPhysicsWorld(world, { keeper: keeper.pose });
 const hud = new Hud(document.querySelector<HTMLElement>('#hud')!);
 const fps = new FpsMeter(document.querySelector<HTMLElement>('#hud')!);
+// Draw calls, triangles and other numbers that show how hard the game works, above the FPS.
+const perf = new PerfStats(document.querySelector<HTMLElement>('#hud')!, renderer);
 const input = new ShootInput(canvas);
 const finePointer = window.matchMedia('(pointer: fine)').matches; // a mouse, not a finger
 const power = createPowerMeter(window.matchMedia('(pointer: coarse)').matches);
@@ -246,7 +252,10 @@ let accumulator = 0;
 let gameTime = 0;
 const PREVIEW_POWER = (PERFECT_MIN + PERFECT_MAX) / 2; // the preview shows a well-struck shot
 
+preloader.done();
+
 renderer.setAnimationLoop((time) => {
+  perf.begin();
   timer.update(time);
   fps.tick(time);
   const realDt = Math.min(timer.getDelta(), 0.1);
@@ -332,4 +341,5 @@ renderer.setAnimationLoop((time) => {
   } else {
     renderer.render(scene, camera);
   }
+  perf.end(time);
 });
