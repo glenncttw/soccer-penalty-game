@@ -192,7 +192,7 @@ function endShot() {
   }, nextShot);
 }
 
-/** Leaves the replay (at its end, or when the player taps) behind another wipe. */
+/** Leaves the replay at its end, behind another wipe. */
 function endReplay() {
   if (phase !== 'replay' || wipe.running) return;
   wipe.run(() => {
@@ -217,11 +217,6 @@ function nextShot() {
   input.enabled = true;
   setPhase('aiming');
 }
-
-// A tap or click skips the replay.
-canvas.addEventListener('pointerdown', () => {
-  if (phase === 'replay') endReplay();
-});
 
 function resize() {
   const w = window.innerWidth;

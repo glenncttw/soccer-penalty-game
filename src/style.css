@@ -224,9 +224,6 @@ body {
   position: absolute;
   left: 16px;
   top: 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .replay-word {
@@ -241,14 +238,3 @@ body {
   box-shadow: 0 4px 0 #3b1f4f;
 }
 
-.replay-skip {
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #e5186f;
-  font-weight: 800;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15);
-}

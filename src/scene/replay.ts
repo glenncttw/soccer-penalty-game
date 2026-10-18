@@ -9,9 +9,11 @@ import type { BallFade } from './ballFade';
 import type { KeeperModel } from './keeper';
 import { REPLAY_SETTINGS, type ReplaySettings } from './replaySettings';
 
-const SHADOW = 0x3b1f4f; // the panels' drop shadow: a deep purple
-const POP_TIME = 0.4; // seconds a panel takes to pop in
-const POP_DELAY = 0.12; // the second panel pops in this much later
+const SHADOW = 0x3b1f4f; // the panel's drop shadow: a deep purple
+const POP_TIME = 0.4; // seconds the panel takes to pop in
+const TILT = THREE.MathUtils.degToRad(-1.5); // the panel leans a little, like a sticker
+const FOLLOW_DISTANCE = 2.4; // metres the replay camera rides behind the ball
+const STOP_DISTANCE = 4.2; // metres in front of the goal line where it stops
 const TAG_SPACE = 64; // CSS pixels kept free at the top for the "REPLAY" label
 
 export interface ReplayParts {
@@ -27,22 +29,11 @@ export interface ReplayParts {
   hide: THREE.Object3D[];
 }
 
-interface Panel {
-  camera: THREE.PerspectiveCamera;
-  target: THREE.WebGLRenderTarget;
-  group: THREE.Group;
-  picture: THREE.Mesh;
-  border: THREE.Mesh;
-  shadow: THREE.Mesh;
-  tilt: number;
-  /** Size and centre on screen, in CSS pixels. */
-  rect: { x: number; y: number; w: number; h: number };
-}
-
 /**
- * Records every shot and, after a big moment, plays it back slowly in two comic-style
- * panels, each from its own camera: one following the ball from behind, one low by the goal.
- * Both look toward the goal, the part of the stadium that is built.
+ * Records every shot and, after a big moment, plays it back slowly in one comic-style panel in
+ * the middle of the screen, from a low camera beside the goal that creeps in and follows the
+ * ball, so the ball, the keeper and the net are all in the picture. It looks toward the goal,
+ * the part of the stadium that is built.
  */
 export class Replay {
   readonly recorder = new ReplayRecorder();
@@ -52,7 +43,14 @@ export class Replay {
   private readonly overlay = new THREE.Scene();
   private readonly screen = new THREE.OrthographicCamera(0, 1, 1, 0, -10, 10);
   private readonly backdrop: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
-  private readonly panels: Panel[];
+  private readonly camera = new THREE.PerspectiveCamera(50, 1, 0.05, 400);
+  private readonly target = new THREE.WebGLRenderTarget(1, 1, { samples: 4 });
+  private readonly panel = new THREE.Group();
+  private readonly picture: THREE.Mesh;
+  private readonly border: THREE.Mesh;
+  private readonly shadow: THREE.Mesh;
+  /** The panel's size and centre on screen, in CSS pixels. */
+  private rect = { x: 0, y: 0, w: 1, h: 1 };
   private window = { start: 0, end: 0, rate: 1, length: 0 };
   private elapsed = 0;
   private trailStop: number | null = null;
@@ -72,38 +70,30 @@ export class Replay {
 
     this.backdrop = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), backdropMaterial());
     this.overlay.add(this.backdrop);
-    this.panels = [-2.2, 1.8].map((deg) => {
-      const target = new THREE.WebGLRenderTarget(1, 1, { samples: 4 });
-      target.texture.colorSpace = THREE.SRGBColorSpace;
-      const plane = new THREE.PlaneGeometry(1, 1);
-      const flat = (color: number) => new THREE.MeshBasicMaterial({ color, toneMapped: false });
-      const shadow = new THREE.Mesh(plane, flat(SHADOW));
-      const border = new THREE.Mesh(plane, flat(palette.white));
-      const picture = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({ map: target.texture, toneMapped: false }));
-      shadow.position.z = 0.1;
-      border.position.z = 0.2;
-      picture.position.z = 0.3;
-      const group = new THREE.Group();
-      group.add(shadow, border, picture);
-      this.overlay.add(group);
-      const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 400);
-      return { camera, target, group, picture, border, shadow, tilt: THREE.MathUtils.degToRad(deg), rect: { x: 0, y: 0, w: 1, h: 1 } };
-    });
+    this.target.texture.colorSpace = THREE.SRGBColorSpace;
+    const plane = new THREE.PlaneGeometry(1, 1);
+    const flat = (color: number) => new THREE.MeshBasicMaterial({ color, toneMapped: false });
+    this.shadow = new THREE.Mesh(plane, flat(SHADOW));
+    this.border = new THREE.Mesh(plane, flat(palette.white));
+    this.picture = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({ map: this.target.texture, toneMapped: false }));
+    this.shadow.position.z = 0.1;
+    this.border.position.z = 0.2;
+    this.picture.position.z = 0.3;
+    this.panel.add(this.shadow, this.border, this.picture);
+    this.overlay.add(this.panel);
   }
 
   /**
-   * Draws everything the replay uses once, out of sight (into the panels' own pictures), so the
+   * Draws everything the replay uses once, out of sight (into the panel's own picture), so the
    * browser sets up its shaders and pictures now and not at the start of the first replay.
    */
   warmUp(camera: THREE.PerspectiveCamera) {
     const { renderer, scene } = this.parts;
-    for (const p of this.panels) {
-      p.camera.position.copy(camera.position);
-      p.camera.quaternion.copy(camera.quaternion);
-      renderer.setRenderTarget(p.target);
-      renderer.render(scene, p.camera);
-    }
-    renderer.render(this.overlay, this.screen); // into the last panel's picture: never seen
+    this.camera.position.copy(camera.position);
+    this.camera.quaternion.copy(camera.quaternion);
+    renderer.setRenderTarget(this.target);
+    renderer.render(scene, this.camera);
+    renderer.render(this.overlay, this.screen); // into the panel's own picture: never seen
     renderer.setRenderTarget(null);
   }
 
@@ -140,8 +130,6 @@ export class Replay {
     this.active = true;
     for (const o of this.parts.hide) o.visible = false;
     this.parts.trail.mesh.visible = false;
-    // Every panel draws the same moment, so the sun's shadows are drawn once per frame, not per panel.
-    this.parts.renderer.shadowMap.autoUpdate = false;
     this.sample(0);
     this.look.copy(this.ballNow);
   }
@@ -154,7 +142,6 @@ export class Replay {
     this.trail.mesh.visible = false;
     for (const o of this.parts.hide) o.visible = true;
     this.parts.trail.mesh.visible = true;
-    this.parts.renderer.shadowMap.autoUpdate = true;
     this.parts.ballFade.reset();
   }
 
@@ -163,7 +150,7 @@ export class Replay {
     return this.elapsed >= this.window.length;
   }
 
-  /** Lays the panels out for a screen of `w` x `h` CSS pixels. */
+  /** Lays the panel out for a screen of `w` x `h` CSS pixels. */
   resize(w: number, h: number) {
     this.size = { w, h };
     this.screen.right = w;
@@ -172,22 +159,17 @@ export class Replay {
     this.backdrop.scale.set(w, h, 1);
     this.backdrop.position.set(w / 2, h / 2, 0);
     this.backdrop.material.uniforms.size.value.set(w, h);
-    const across = w >= h; // side by side on wide screens, one above the other on tall ones
     const gap = Math.min(w, h) * 0.06;
-    const top = TAG_SPACE; // room for the "REPLAY" label
-    const pw = across ? (w - 3 * gap) / 2 : w - 3 * gap;
-    const ph = across ? Math.min((h - top) * 0.7, pw * 0.72) : Math.min((h - top - 3 * gap) / 2, pw * 0.85);
-    const cy = (h - top) / 2; // the middle of the space under the label (y counts up from the bottom)
+    const room = { w: w - 2 * gap, h: h - TAG_SPACE - 2 * gap }; // the space under the "REPLAY" label
+    // A wide picture on wide screens; nearly square on phones held upright, so it isn't a thin strip.
+    const aspect = w >= h ? 16 / 10 : 1;
+    const pw = Math.min(room.w * (w >= h ? 0.82 : 1), room.h * aspect);
+    const ph = pw / aspect;
+    this.rect = { x: w / 2, y: gap + room.h / 2, w: pw, h: ph }; // y counts up from the bottom
+    this.camera.aspect = aspect;
+    this.camera.updateProjectionMatrix();
     const scale = this.parts.renderer.getPixelRatio() * this.settings.resolution;
-    this.panels.forEach((p, i) => {
-      const s = i === 0 ? -1 : 1;
-      p.rect = across
-        ? { x: w / 2 + (s * (pw + gap)) / 2, y: cy - s * h * 0.03, w: pw, h: ph }
-        : { x: w / 2 + s * w * 0.015, y: cy - (s * (ph + gap)) / 2, w: pw, h: ph };
-      p.camera.aspect = pw / ph;
-      p.camera.updateProjectionMatrix();
-      p.target.setSize(Math.max(1, Math.round(pw * scale)), Math.max(1, Math.round(ph * scale)));
-    });
+    this.target.setSize(Math.max(1, Math.round(pw * scale)), Math.max(1, Math.round(ph * scale)));
   }
 
   /** Moves the replay on by `realDt` seconds and draws it. */
@@ -207,26 +189,21 @@ export class Replay {
     if (this.trailStop !== null && t >= this.trailStop) this.trail.stop(this.trailStop);
 
     this.aim(realDt);
-    renderer.shadowMap.needsUpdate = true;
-    for (const p of this.panels) {
-      this.trail.update(t, p.camera.position);
-      renderer.setRenderTarget(p.target);
-      renderer.render(scene, p.camera);
-    }
+    this.trail.update(t, this.camera.position);
+    renderer.setRenderTarget(this.target);
+    renderer.render(scene, this.camera);
     renderer.setRenderTarget(null);
 
-    const border = Math.max(4, Math.min(this.size.w, this.size.h) * 0.014);
-    this.panels.forEach((p, i) => {
-      const k = popIn((this.elapsed - i * POP_DELAY) / POP_TIME);
-      const { x, y, w, h } = p.rect;
-      p.group.position.set(x, y, 0);
-      p.group.rotation.z = p.tilt * (2 - k); // swings in a little extra, then settles
-      p.group.scale.setScalar(Math.max(0.001, k));
-      p.picture.scale.set(w, h, 1);
-      p.border.scale.set(w + 2 * border, h + 2 * border, 1);
-      p.shadow.scale.copy(p.border.scale);
-      p.shadow.position.set(border * 1.2, -border * 1.2, 0.1);
-    });
+    const border = Math.max(5, Math.min(this.size.w, this.size.h) * 0.016);
+    const k = popIn(this.elapsed / POP_TIME);
+    const { x, y, w, h } = this.rect;
+    this.panel.position.set(x, y, 0);
+    this.panel.rotation.z = TILT * (2 - k); // swings in a little extra, then settles
+    this.panel.scale.setScalar(Math.max(0.001, k));
+    this.picture.scale.set(w, h, 1);
+    this.border.scale.set(w + 2 * border, h + 2 * border, 1);
+    this.shadow.scale.copy(this.border.scale);
+    this.shadow.position.set(border * 1.2, -border * 1.2, 0.1);
     renderer.render(this.overlay, this.screen);
   }
 
@@ -244,29 +221,31 @@ export class Replay {
     return t;
   }
 
-  /** Places the two replay cameras for this moment. */
+  /**
+   * Low and a little to the side, on the other side from where the ball went. It rides along
+   * a couple of metres behind the ball as it flies, then stops beside the goal and lets the
+   * ball go on into the keeper and the net. It looks between the ball and the spot where the
+   * shot ended, so the ball, the keeper and the goal stay in the picture.
+   */
   private aim(realDt: number) {
     const { world } = this.parts;
     const g = world.goal;
     const ground = world.groundY;
-    const start = world.ballStart;
-    const u = this.window.length > 0 ? this.elapsed / this.window.length : 1;
-
-    // 1: just behind the spot and a little to the side, a long lens following the ball to the goal.
-    const follow = this.panels[0].camera;
-    follow.position.set(-this.side * 0.7, ground + 0.6, start.z + 1.6);
-    this.look.lerp(this.ballNow, 1 - Math.exp(-6 * realDt));
-    follow.lookAt(this.look.x * 0.8, Math.max(ground + 0.5, this.look.y), Math.min(this.look.z, start.z - 2));
-    follow.fov = 24;
-    follow.updateProjectionMatrix();
-
-    // 2: low by the goal on the other side from the ball, creeping in, looking across at the keeper and the net.
-    const goal = this.panels[1].camera;
-    goal.position.set(-this.side * 1.1, ground + 0.32, g.lineZ + 5.2 - 0.8 * u);
-    goal.lookAt(this.end.x * 0.8, ground + 0.85, g.lineZ - 0.3);
-    goal.fov = 50;
-    goal.updateProjectionMatrix();
+    this.look.lerp(this.ballNow, 1 - Math.exp(-5 * realDt));
+    const cam = this.camera;
+    cam.position.set(-this.side * 1.1, ground + 0.4, Math.max(g.lineZ + STOP_DISTANCE, this.look.z + FOLLOW_DISTANCE));
+    cam.lookAt(
+      lerp(this.look.x, this.end.x * 0.8, 0.4),
+      lerp(Math.max(ground + 0.4, this.look.y), ground + 0.85, 0.4),
+      lerp(this.look.z, g.lineZ - 0.3, 0.4),
+    );
+    cam.fov = 48;
+    cam.updateProjectionMatrix();
   }
+}
+
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
 }
 
 /** 0 → 1 with a springy overshoot. */

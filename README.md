@@ -20,23 +20,25 @@ shots are easy saves. Its look is a placeholder made from simple shapes until th
 On your first visit, tips at the top walk you through your first shots. With a mouse, the view turns a little
 toward where you point.
 
-After a goal, a save or a shot off the woodwork, a quick wipe brings up a slow-motion **replay** in two comic
-panels; tap or click to skip it. After any other shot, the wipe just brings back the ball for the next one.
+After a goal, a save or a shot off the woodwork, a quick wipe brings up a 3.5-second slow-motion **replay** in a
+comic panel. After any other shot, the wipe just brings back the ball for the next one.
 
 ## The replay
 
 Every shot is recorded: where the ball and the keeper are in each frame (`src/gameplay/replayRecorder.ts`).
-After a big moment, `src/scene/replay.ts` plays the shot back slowly in two tilted panels on a striped purple
-background, each from its own camera:
+After a big moment, `src/scene/replay.ts` plays the shot back slowly in one tilted panel in the middle of a
+striped purple background. Its camera sits low beside the goal, on the other side from where the ball went, and
+creeps in while it follows the ball, so the ball flies into the picture and the keeper and the net are there
+when it arrives.
 
-- **left (or top on a phone held upright)**: just behind the spot, a long lens following the ball to the goal;
-- **right (or bottom)**: low beside the goal, on the other side from where the ball went, creeping in.
-
-Both cameras look toward the goal, because that's the part of the stadium that's built. Turning them around would
+The camera looks toward the goal, because that's the part of the stadium that's built. Turning it around would
 show the unbuilt side behind the player. The ball and the keeper go back to their spots while the wipe covers
-the screen, so the keeper never has to get up and walk back to the middle. Each panel is drawn at 75% of the
-screen's sharpness, and the normal game view isn't drawn during a replay, so a replay costs about as much as
-normal play.
+the screen, so the keeper never has to get up and walk back to the middle. The panel is drawn at 75% of the
+screen's sharpness, and the normal game view isn't drawn during a replay, so a replay costs less than normal
+play.
+
+The wipe is one smooth sweep: a slanted band, wider than the screen, slides across from left to right without
+stopping, and the game changes behind it at the moment it covers everything.
 
 Settings are in `REPLAY_SETTINGS` in `src/scene/replaySettings.ts`:
 
@@ -47,8 +49,8 @@ Settings are in `REPLAY_SETTINGS` in `src/scene/replaySettings.ts`:
 | `slowest`, `fastest` | replay speed limits (1 = real speed); quick shots play slower to fill the time |
 | `afterResult` | how long the replay keeps going after the ball went in or was saved |
 | `holdWithReplay`, `holdWithout` | how long the GOAL!/MISS! banner shows before the wipe |
-| `wipeTime`, `wipeHold` | seconds the wipe takes to slide over the screen (and again to slide off), and how long it rests in between |
-| `resolution` | how sharp the panels are drawn (1 = as sharp as the screen) |
+| `wipeTime` | seconds the wipe takes to sweep across the screen |
+| `resolution` | how sharp the panel is drawn (1 = as sharp as the screen) |
 
 ## The stadium
 
@@ -217,7 +219,7 @@ with `npm run dev`. Without `?edit` the game looks and loads exactly as before.
    `src/scene/grassSettings.ts` (or paste them in the project chat and Claude puts them in). Changes in the panel
    are gone when you reload the page, until they are in that file.
 
-The **Wipe** folder changes how long the wipe takes to slide over the screen and how long it rests there;
+The **Wipe** folder changes how long the wipe takes to sweep across the screen;
 **Play wipe** shows it straight away, and **Copy replay settings** copies them for `REPLAY_SETTINGS` in
 `src/scene/replaySettings.ts`.
 

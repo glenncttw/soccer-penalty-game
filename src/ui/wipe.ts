@@ -1,22 +1,19 @@
 /** How the wipe moves (see REPLAY_SETTINGS in src/scene/replaySettings.ts). */
 export interface WipeTiming {
-  /** Seconds the band takes to slide over the screen (and again to slide off). */
+  /** Seconds the band takes to sweep across the screen, from off the left edge to off the right. */
   wipeTime: number;
-  /** Seconds it rests over the screen in between, while the game changes behind it. */
-  wipeHold: number;
 }
 
 const SLANT = Math.tan((10 * Math.PI) / 180); // the band leans 10 degrees
-const EDGE = 8; // px of extra band on each side, so no sliver of screen shows while it covers
-const EASE_OUT = 'cubic-bezier(0.33, 1, 0.68, 1)'; // fast in, soft landing on "covered"
-const EASE_IN = 'cubic-bezier(0.32, 0, 0.67, 0)'; // soft start, fast exit
+const EXTRA = 0.8; // the band is this many screen widths wider than the screen: how long it stays fully covering
+const STEPS = 24; // points along the easing curve given to the browser
 
 /**
- * A comic-style wipe: a slanted band of colour with speed lines behind it slides over the
- * screen, rests a moment, and slides off. While it covers the screen, whatever is behind it
- * can change without anyone seeing. The browser moves the band itself (not the game loop),
- * so it stays smooth even if the game takes a moment longer to draw a frame.
- * Also shows the replay's labels ("REPLAY" and "Tap to skip").
+ * A comic-style wipe: a slanted band of colour with speed lines behind it sweeps across the
+ * screen in one smooth movement, never stopping. The band is wider than the screen, so for a
+ * moment in the middle it covers everything, and whatever is behind it changes then without
+ * anyone seeing. The browser moves the band itself (not the game loop), so it stays smooth
+ * even if the game takes a moment longer to draw a frame. Also shows the "REPLAY" label.
  */
 export class Wipe {
   private readonly band: HTMLElement;
@@ -29,7 +26,7 @@ export class Wipe {
   ) {
     root.insertAdjacentHTML(
       'beforeend',
-      `<div class="replay-tag" hidden><span class="replay-word">REPLAY</span><span class="replay-skip">Tap to skip</span></div>
+      `<div class="replay-tag" hidden><span class="replay-word">REPLAY</span></div>
        <div class="wipe"></div>`,
     );
     this.band = root.querySelector('.wipe')!;
@@ -44,34 +41,25 @@ export class Wipe {
     return this.busy;
   }
 
-  /** Slides in, calls `onCovered` once the screen is fully covered, slides off, then calls `onDone`. */
+  /** Sweeps across, calls `onCovered` while the screen is fully covered, then `onDone` once it's gone. */
   run(onCovered: () => void, onDone: () => void = () => {}) {
     if (this.busy) return;
     this.busy = true;
-    const { from, covered, to, width } = this.path();
+    const { from, to, middle, width } = this.path();
     this.band.style.width = `${width}px`;
-    this.band.style.transform = place(from);
+    const keyframes = Array.from({ length: STEPS + 1 }, (_, i) => ({
+      offset: i / STEPS,
+      transform: place(from + (to - from) * easeInOut(i / STEPS)),
+    }));
     const ms = this.timing.wipeTime * 1000;
-    const cover = this.band.animate([{ transform: place(from) }, { transform: place(covered) }], {
-      duration: ms,
-      easing: EASE_OUT,
-      fill: 'forwards',
-    });
-    cover.finished.then(() => {
-      onCovered(); // the game swaps what's behind the band now, while it rests
-      const leave = this.band.animate([{ transform: place(covered) }, { transform: place(to) }], {
-        duration: ms,
-        delay: this.timing.wipeHold * 1000,
-        easing: EASE_IN,
-        fill: 'both',
-      });
-      cover.cancel();
-      leave.finished.then(() => {
-        this.band.style.transform = place(this.path().from);
-        leave.cancel();
-        this.busy = false;
-        onDone();
-      });
+    const sweep = this.band.animate(keyframes, { duration: ms, fill: 'forwards' });
+    // The moment the band is centred over the screen: the middle of the time it covers everything.
+    setTimeout(onCovered, ms * easeInOutTime((middle - from) / (to - from)));
+    sweep.finished.then(() => {
+      this.band.style.transform = place(from);
+      sweep.cancel();
+      this.busy = false;
+      onDone();
     });
   }
 
@@ -79,16 +67,16 @@ export class Wipe {
     this.tag.hidden = !on;
   }
 
-  /** Where the band starts (off the left edge), covers the screen, and ends (off the right edge), in px. */
+  /** Where the band starts (off the left edge), is centred over the screen, and ends (off the right edge), in px. */
   private path() {
     const w = window.innerWidth;
     const lean = SLANT * window.innerHeight; // how far the top of an edge is from its bottom
     const streaks = w * 0.12; // the speed lines trailing behind it (see .wipe::before)
-    const width = w + lean + 2 * EDGE;
+    const width = w * (1 + EXTRA) + lean;
     return {
       width,
       from: -(width + lean / 2) - 2,
-      covered: -lean / 2 - EDGE,
+      middle: (w - width) / 2,
       to: w + lean / 2 + streaks + 2,
     };
   }
@@ -96,4 +84,14 @@ export class Wipe {
 
 function place(x: number) {
   return `translateX(${x.toFixed(1)}px) skewX(-10deg)`;
+}
+
+/** Gentle start, fastest in the middle, gentle stop. */
+function easeInOut(t: number) {
+  return (1 - Math.cos(Math.PI * t)) / 2;
+}
+
+/** The time (0..1) at which easeInOut reaches `p`. */
+function easeInOutTime(p: number) {
+  return Math.acos(1 - 2 * p) / Math.PI;
 }
