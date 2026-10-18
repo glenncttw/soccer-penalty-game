@@ -100,7 +100,7 @@ const replay = new Replay({
   trail,
   hide: [effects.group, markers.group],
 });
-const wipe = new Wipe(document.querySelector<HTMLElement>('#hud')!, REPLAY_SETTINGS.wipeTime);
+const wipe = new Wipe(document.querySelector<HTMLElement>('#hud')!, REPLAY_SETTINGS);
 connectFeedback(events, { world, camera: view, effects, hud, slowMotion });
 
 const BALL_START = world.ballStart;
@@ -233,11 +233,17 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 resize();
+replay.warmUp(camera); // sets up the replay's drawing now, so starting one later doesn't stutter
 
 // Add ?edit to the game's address to open the settings editor (see the README).
 if (new URLSearchParams(location.search).has('edit')) {
   const { openSettingsEditor } = await import('./ui/settingsEditor');
-  openSettingsEditor({ camera: view, blenderCamera: cameraSettingsFromBlender(world), grass });
+  openSettingsEditor({
+    camera: view,
+    blenderCamera: cameraSettingsFromBlender(world),
+    grass,
+    wipe: { play: () => wipe.run(() => {}) },
+  });
 }
 
 const timer = new THREE.Timer();
@@ -324,7 +330,6 @@ renderer.setAnimationLoop((time) => {
   ballFade.update(dt);
   stadiumMotion.update(dt);
   sky.update(gameTime);
-  wipe.update(realDt);
 
   if (replay.active) {
     replay.render(realDt);

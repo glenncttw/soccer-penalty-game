@@ -1,6 +1,7 @@
 import GUI from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import { CAMERA_SETTINGS, type CameraSettings } from '../scene/cameraSettings';
 import { GRASS_SETTINGS, type GrassSettings } from '../scene/grassSettings';
+import { REPLAY_SETTINGS, type ReplaySettings } from '../scene/replaySettings';
 import { settingsSnippet } from './settingsSnippet';
 
 /** A slider: [setting, label, min, max, step]. A colour: [setting, label]. */
@@ -43,11 +44,18 @@ const GRASS_ROWS: Record<string, Row<GrassSettings>[]> = {
   ],
 };
 
+const WIPE_ROWS: Row<ReplaySettings>[] = [
+  ['wipeTime', 'Slide time (s)', 0.1, 1.2, 0.01],
+  ['wipeHold', 'Rest time (s)', 0, 0.5, 0.01],
+];
+
 export interface EditorTargets {
   camera: { setSettings(settings: CameraSettings): void };
   /** The camera from the Blender scene, for "Use Blender camera". */
   blenderCamera: CameraSettings;
   grass: { update(settings: GrassSettings): void };
+  /** Plays the wipe once, to try its timing. */
+  wipe: { play(): void };
 }
 
 /**
@@ -81,6 +89,15 @@ export function openSettingsEditor(targets: EditorTargets) {
   }
   addCopyButton(grassFolder, 'Copy grass settings', () => settingsSnippet('GRASS_SETTINGS', 'GrassSettings', grass));
   grassFolder.add({ reset: () => grassFolder.reset() }, 'reset').name('Reset grass');
+
+  // The wipe reads its timing each time it plays, so these sliders change it straight away.
+  const wipeFolder = gui.addFolder('Wipe');
+  for (const row of WIPE_ROWS) addRow(wipeFolder, REPLAY_SETTINGS, row);
+  wipeFolder.add({ play: () => targets.wipe.play() }, 'play').name('Play wipe');
+  addCopyButton(wipeFolder, 'Copy replay settings', () =>
+    settingsSnippet('REPLAY_SETTINGS', 'ReplaySettings', REPLAY_SETTINGS),
+  );
+  wipeFolder.add({ reset: () => wipeFolder.reset() }, 'reset').name('Reset wipe');
   return gui;
 }
 

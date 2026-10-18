@@ -18,4 +18,14 @@ describe('settingsSnippet', () => {
         '};\n',
     );
   });
+
+  it('writes settings grouped in an object on one line', () => {
+    const text = settingsSnippet('REPLAY_SETTINGS', 'ReplaySettings', {
+      moments: { goal: true, save: false },
+      wipeTime: 0.4,
+    });
+    expect(text).toBe(
+      'export const REPLAY_SETTINGS: ReplaySettings = {\n  moments: { goal: true, save: false },\n  wipeTime: 0.4,\n};\n',
+    );
+  });
 });

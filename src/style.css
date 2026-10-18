@@ -185,18 +185,37 @@ body {
   letter-spacing: 0.04em;
 }
 
-/* The wipe before and after a replay: a slanted band, pink in front and purple behind. */
+/* The wipe before and after a replay: a slanted band, pink behind and purple in front, sliding right.
+   Its width and position are set in src/ui/wipe.ts. */
 .wipe {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -65vw;
-  width: 230vw;
-  background: linear-gradient(90deg, #ffffff 0 2%, #e5186f 2% 50%, #6c398b 50% 98%, #ffffff 98%);
+  left: 0;
+  background: linear-gradient(90deg, #ffffff 0 6px, #e5186f 6px 50%, #6c398b 50% calc(100% - 6px), #ffffff 0);
   will-change: transform;
 }
 
-.wipe[hidden],
+/* Speed lines trailing behind the band. */
+.wipe::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  width: 12vw;
+  background: linear-gradient(
+    90deg,
+    transparent 0 8%,
+    #e5186f 8% 14%,
+    transparent 14% 36%,
+    #e5186f 36% 48%,
+    transparent 48% 66%,
+    #e5186f 66% 86%,
+    transparent 86%
+  );
+}
+
 .replay-tag[hidden] {
   display: none;
 }
