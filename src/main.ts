@@ -230,6 +230,8 @@ renderer.setAnimationLoop((time) => {
   }
   for (const contact of physics.takeContacts()) {
     if (contact.surface === 'keeper') outcome.keeperTouched(contact.point.z);
+    // The trail belongs to the shot: it stops at the first touch of anything but the grass.
+    if (contact.surface !== 'ground') trail.stop(gameTime);
     events.emit('contact', contact);
   }
 
@@ -241,15 +243,16 @@ renderer.setAnimationLoop((time) => {
   if ((phase === 'flight' || phase === 'result') && boards.isBeyond(p)) {
     ballFade.start();
     outcome.wentOut();
+    trail.stop(gameTime);
   }
   if (phase === 'flight') {
-    if (!ballFade.fading) trail.push(p, gameTime);
+    trail.push(p, gameTime);
     effects.skim(p);
     if (lastQuality === 'perfect' && !ballFade.fading) effects.glitterTrail(p, dt);
     const v = physics.ball.linvel();
     if (outcome.update(p, Math.hypot(v.x, v.y, v.z), dt)) showResult();
   } else if (phase === 'result') {
-    if (!ballFade.fading) trail.push(p, gameTime);
+    trail.push(p, gameTime);
     if (phaseTime > 1.8) resetShot();
   }
 
