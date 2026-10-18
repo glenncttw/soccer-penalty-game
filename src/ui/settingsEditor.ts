@@ -1,5 +1,4 @@
 import GUI from 'three/examples/jsm/libs/lil-gui.module.min.js';
-import type { BallFadeSettings } from '../scene/ballFadeSettings';
 import { CAMERA_SETTINGS, type CameraSettings } from '../scene/cameraSettings';
 import { GRASS_SETTINGS, type GrassSettings } from '../scene/grassSettings';
 import { settingsSnippet } from './settingsSnippet';
@@ -44,23 +43,15 @@ const GRASS_ROWS: Record<string, Row<GrassSettings>[]> = {
   ],
 };
 
-const BALL_FADE_ROWS: Row<BallFadeSettings>[] = [
-  ['dotSize', 'Dot size (px)', 4, 30, 0.5],
-  ['dotsAcross', 'Dots across a far ball', 2, 12, 0.5],
-  ['duration', 'Duration (s)', 0.1, 1.5, 0.01],
-];
-
 export interface EditorTargets {
   camera: { setSettings(settings: CameraSettings): void };
   /** The camera from the Blender scene, for "Use Blender camera". */
   blenderCamera: CameraSettings;
   grass: { update(settings: GrassSettings): void };
-  /** The ball's halftone fade (when it flies over the boards). */
-  ballFade: { settings: BallFadeSettings; preview(): void };
 }
 
 /**
- * A panel for changing the camera, the grass and the ball's fade while the game runs. Open it by adding ?edit to
+ * A panel for changing the camera and the grass while the game runs. Open it by adding ?edit to
  * the game's address. Changes are only kept until you reload: "Copy settings"
  * copies them as code, to paste into the settings file.
  */
@@ -90,15 +81,6 @@ export function openSettingsEditor(targets: EditorTargets) {
   }
   addCopyButton(grassFolder, 'Copy grass settings', () => settingsSnippet('GRASS_SETTINGS', 'GrassSettings', grass));
   grassFolder.add({ reset: () => grassFolder.reset() }, 'reset').name('Reset grass');
-
-  const fade = targets.ballFade.settings;
-  const fadeFolder = gui.addFolder('Ball fade');
-  for (const row of BALL_FADE_ROWS) addRow(fadeFolder, fade, row);
-  fadeFolder.add({ play: () => targets.ballFade.preview() }, 'play').name('Play the fade');
-  addCopyButton(fadeFolder, 'Copy ball fade settings', () =>
-    settingsSnippet('BALL_FADE_SETTINGS', 'BallFadeSettings', fade),
-  );
-  fadeFolder.add({ reset: () => fadeFolder.reset() }, 'reset').name('Reset ball fade');
   return gui;
 }
 
