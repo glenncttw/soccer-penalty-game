@@ -6,25 +6,25 @@ The pitch uses two pictures that repeat over the grass:
 - a **normal map** (`grass_normal`): which way each bit of the grass surface faces, so the game's sun can light the
   bumps itself.
 
-## The textures in the game now: drawn V and Y tufts
+## The textures in the game now: upright tufts, seen from the camera's angle (v3)
 
-The current pictures are drawn by a script, `tools/make_grass_texture.py`, to match the reference picture's
-grass: small tufts of 2 or 3 thin, curved blades (V and Y shapes, some lying over in an arc) drawn as light
-strokes with a darker edge, on a mid-green base with soft patches, plus a few tiny light dots. The tufts are
-spread evenly (one per cell of a jittered grid) and the picture tiles seamlessly. The normal map comes from the
-same drawing, so the blades' edges catch the light.
+The current pictures come from small tufts of upright blades (16 to 26 mm tall, 8 to 13 mm wide, rounded tips,
+the edges curling forward a little so they catch the light) on a mid-green ground. Instead of baking them from
+straight above, they are rendered at the angle the game camera sees the grass from (35 degrees above the ground,
+looking toward the goal), so the blades show their sides. A soft light from the camera side gives lit tips and
+edges. The normal map comes from the same render, corrected so the pitch as a whole still faces straight up.
 
-To remake them: `python3 tools/make_grass_texture.py --out <folder>` (needs numpy and Pillow; options such as
-`--tufts`, `--length`, `--tip` change density, blade size and colours), then save `grass_albedo.png` as WebP
-(quality 90) and `grass_normal.png` as JPEG (quality 85, no chroma subsampling) into `public/assets/grass/`.
+The Blender file and the script that builds and renders it are on Glenn's PC in `Croky Cup\blender\grass_v3\`
+(the game-ready files are in `web\`). Change density, blade size or colours there and render again.
 
-The tufts are drawn as they should look on screen (square, with round dots), so the game stretches them 3.2
-times toward the goal (`textureStretch`) and one copy covers 1.1 m across (`textureTileSize`), which makes them
-about as big as in the reference.
+Because the camera's angle is already in these pictures, the game stretches them only 1.5 times toward the goal
+(`textureStretch`). At 3 the blades turn into long streaks. One copy covers 0.8 m across (`textureTileSize`),
+which makes the tufts about as big as in the reference picture.
 
-Two Blender versions were also rendered with upright tufts at the game camera's angle (`Croky Cup\blender\
-grass_v2\` and `grass_v3\` on Glenn's PC). They looked more like real or leafy grass than the reference's drawn
-strokes, so the game uses the drawn version.
+The render has much more contrast than the reference, so the game tones it down: `textureStrength` 0.38 and
+`normalStrength` 0.2 bring the light-to-dark spread and the darkest gaps to the reference's level (most of the
+heavy shadows came from the bumps), and `angleShading` 0.25 keeps the dark stripe near the camera from going too
+dark. The stripe colours were set by measuring the rendered stripes against the reference.
 
 ## The older method: curls baked from straight above
 
