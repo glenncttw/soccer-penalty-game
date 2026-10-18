@@ -55,7 +55,7 @@ If a node is missing or a measurement looks wrong, the game stops with an error 
 
 The goal opening is 5.64 x 2.05 m (6.0 x 2.23 m outside). `stadium_lighting.js` also finds the ad boards, corner
 flags, stands, trees and floodlights by name. Apart from the ad boards, the game itself doesn't use their positions or
-sizes: a ball that flies over the boards goes through the stands.
+sizes: a ball that flies over the boards fades out and counts as a miss (or a save, if the keeper touched it).
 
 Animations in the export (like the corner flags waving) play on a loop, slowed down with the game's slow motion.
 Nothing in the game refers to them by name, so a new export can add, change or drop them.

@@ -30,6 +30,11 @@ export class OutcomeTracker {
     this.keeperZ = z;
   }
 
+  /** Call when the ball flies over the boards into the stands: the shot is over. */
+  wentOut() {
+    this.result ??= this.hitKeeper ? 'saved' : 'miss';
+  }
+
   update(p: Vec3, speed: number, dt: number): ShotResult | null {
     if (this.result) return this.result;
     this.elapsed += dt;
