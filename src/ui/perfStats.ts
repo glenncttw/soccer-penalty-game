@@ -2,7 +2,7 @@ import type * as THREE from 'three';
 import Stats from 'three/addons/libs/stats.module.js';
 
 /**
- * Performance numbers in the bottom left corner, above the FPS counter: three.js's standard
+ * Performance numbers in the bottom left corner: three.js's standard
  * Stats panel (click it to switch between FPS, milliseconds per frame and memory) and a line of
  * what the renderer drew in the last frame, updated twice a second.
  */
@@ -19,7 +19,7 @@ export class PerfStats {
     renderer.info.autoReset = false;
     const panel = this.stats.dom;
     panel.style.top = 'auto';
-    panel.style.bottom = '44px';
+    panel.style.bottom = '12px';
     panel.style.left = '12px';
     document.body.appendChild(panel); // not in the HUD: the panel takes clicks
     this.text.className = 'perf';

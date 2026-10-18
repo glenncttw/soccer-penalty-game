@@ -171,20 +171,6 @@ body {
   }
 }
 
-.fps {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
-  color: #1f2a44;
-  font-weight: 800;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
-}
-
 /* The wipe before and after a replay: a slanted band, pink behind and purple in front, sliding right.
    Its width and position are set in src/ui/wipe.ts. */
 .wipe {
@@ -262,7 +248,7 @@ body {
 .perf {
   position: absolute;
   left: 12px;
-  bottom: 98px;
+  bottom: 66px;
   padding: 4px 6px;
   background: rgba(0, 0, 0, 0.6);
   color: #ffffff;

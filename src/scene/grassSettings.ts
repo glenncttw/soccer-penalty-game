@@ -51,6 +51,10 @@ export interface GrassSettings {
    * blades, this stays visible on the far lines.
    */
   lineWobble: number;
+  /** 0..1: how much of the grass texture's light and dark shows through the paint. 0 = flat paint. */
+  lineTexture: number;
+  /** 0..1: how much of the grass's green shows through the paint. 0 = the paint's own colour. */
+  lineGrassTint: number;
 }
 
 /** The game's grass, tuned to the stylised reference picture. */
@@ -68,7 +72,9 @@ export const GRASS_SETTINGS: GrassSettings = {
   patchStrength: 0.05,
   patchSize: 1.5,
   angleShading: 0.25,
-  lineColor: '#fefbf6',
+  lineColor: '#ebe8de',
   lineRagged: 0.04,
   lineWobble: 0.05,
+  lineTexture: 0.6,
+  lineGrassTint: 0.1,
 };

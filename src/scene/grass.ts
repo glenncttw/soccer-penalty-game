@@ -213,6 +213,8 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     uLineColor: { value: new THREE.Color() },
     uLineRagged: { value: 0 },
     uLineWobble: { value: 0 },
+    uLineTexture: { value: 0 },
+    uLineGrassTint: { value: 0 },
   };
   // Settings only change uniforms, so they can change while the game runs (see the settings editor).
   function update(settings: GrassSettings) {
@@ -231,6 +233,8 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     uniforms.uLineColor.value.set(settings.lineColor);
     uniforms.uLineRagged.value = settings.lineRagged;
     uniforms.uLineWobble.value = settings.lineWobble;
+    uniforms.uLineTexture.value = settings.lineTexture;
+    uniforms.uLineGrassTint.value = settings.lineGrassTint;
   }
   update(s);
 
@@ -292,6 +296,8 @@ uniform vec2 uPaintSize;
 uniform vec3 uLineColor;
 uniform float uLineRagged;
 uniform float uLineWobble;
+uniform float uLineTexture;
+uniform float uLineGrassTint;
 
 // A random number per grid cell (no sin(), so it is the same on every phone).
 float grassHash(vec2 p) {
@@ -359,7 +365,6 @@ const GRASS_COLOR = /* glsl */ `
   // The texture's variation around its own average colour (its 1 x 1 mipmap).
   vec3 grassMean = textureLod(uAlbedo, vec2(0.5), 16.0).rgb;
   vec3 grassDetail = mix(vec3(1.0), grassAlbedo / max(grassMean, vec3(1e-3)), uTextureStrength);
-  float grassNibble = dot(grassDetail, vec3(0.333)) - 1.0; // + on blade tips, - in the gaps
 
   // Thin streaks, each about as wide as a blade and much longer toward the goal,
   // so on screen they stand up like blades. They break up the stripe and paint
@@ -421,7 +426,9 @@ const GRASS_COLOR = /* glsl */ `
   float pixelSize = max(length(dFdx(grassXZ)), length(dFdy(grassXZ)));
   float paintEdge = clamp(pixelSize / 0.08, 0.06, 0.5);
   float grassPaint = smoothstep(0.5 - paintEdge, 0.5 + paintEdge, paintCover);
-  grass = mix(grass, uLineColor * (1.0 + 0.4 * grassNibble), grassPaint);
+  // The paint is thin: the grass's light and dark shows through it, and a little of its green.
+  float paintShade = mix(1.0, dot(grassAlbedo / max(grassMean, vec3(1e-3)), vec3(0.333)), uLineTexture);
+  grass = mix(grass, mix(uLineColor, grass, uLineGrassTint) * paintShade, grassPaint);
 
   // 0 where you look across the grass, 1 where you look down onto it. Red fades
   // a little faster, so close grass looks deeper green; dark stripes lose a
