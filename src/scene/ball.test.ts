@@ -68,4 +68,14 @@ describe('ball trail', () => {
     fly(trail, 60, 25, 0.5, 2); // and follows the next shot again
     expect(trail.mesh.geometry.drawRange.count).toBeGreaterThan(0);
   });
+
+  it('fades in at its back end right after the kick', () => {
+    const trail = new BallTrail();
+    trail.setStyle(trailStyle(0.87, true));
+    fly(trail, 60, 25, 0.15); // a fresh trail: every point is still young
+    const alpha = trail.mesh.geometry.getAttribute('alpha');
+    const last = trail.mesh.geometry.drawRange.count / 6; // the oldest point, at the kick
+    expect(alpha.getX(last * 2)).toBe(0);
+    expect(alpha.getX(Math.floor(last / 2) * 2)).toBeGreaterThan(0.5);
+  });
 });
