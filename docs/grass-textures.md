@@ -2,12 +2,34 @@
 
 The pitch uses two pictures that repeat over the grass:
 
-- a **colour picture** (`grass_albedo`): what the grass looks like from straight above, with no light or shadow in it;
+- a **colour picture** (`grass_albedo`): what the grass looks like, with no sunlight or shadows from the sun in it;
 - a **normal map** (`grass_normal`): which way each bit of the grass surface faces, so the game's sun can light the
   bumps itself.
 
-The ones in the game now were made this way, from a patch of 5,200 small curly blades. Follow this guide to make
-new ones. You bake both pictures from a small patch of 3D grass onto a flat square.
+## The textures in the game now: upright tufts, seen from the camera's angle (v3)
+
+The current pictures come from small tufts of upright blades (16 to 26 mm tall, 8 to 13 mm wide, rounded tips,
+the edges curling forward a little so they catch the light) on a mid-green ground. Instead of baking them from
+straight above, they are rendered at the angle the game camera sees the grass from (35 degrees above the ground,
+looking toward the goal), so the blades show their sides. A soft light from the camera side gives lit tips and
+edges. The normal map comes from the same render, corrected so the pitch as a whole still faces straight up.
+
+The Blender file and the script that builds and renders it are on Glenn's PC in `Croky Cup\blender\grass_v3\`
+(the game-ready files are in `web\`). Change density, blade size or colours there and render again.
+
+Because the camera's angle is already in these pictures, the game stretches them only 1.5 times toward the goal
+(`textureStretch`). At 3 the blades turn into long streaks. One copy covers 0.8 m across (`textureTileSize`),
+which makes the tufts about as big as in the reference picture.
+
+The render has much more contrast than the reference, so the game tones it down: `textureStrength` 0.38 and
+`normalStrength` 0.2 bring the light-to-dark spread and the darkest gaps to the reference's level (most of the
+heavy shadows came from the bumps), and `angleShading` 0.25 keeps the dark stripe near the camera from going too
+dark. The stripe colours were set by measuring the rendered stripes against the reference.
+
+## The older method: curls baked from straight above
+
+The first textures (a patch of 5,200 small curly blades) were made the way the rest of this guide describes. You
+bake both pictures from a small patch of 3D grass onto a flat square.
 
 ## What the game needs
 
@@ -21,9 +43,9 @@ new ones. You bake both pictures from a small patch of 3D grass onto a flat squa
 | Normal map type | tangent space, OpenGL (Blender's default) |
 | Light | none: no shadows, no sun, no ambient occlusion in the colour picture |
 
-The game stretches the pictures 3 times longer toward the goal (`textureStretch` in `src/scene/grassSettings.ts`).
-You look at the grass from very low, which squashes it; the stretch makes round curls look round again. So make
-your curls round in Blender and let the game do the rest.
+With pictures baked from straight above, set `textureStretch` in `src/scene/grassSettings.ts` to 3. You look at
+the grass from very low, which squashes it; the stretch makes round curls look round again. So make your curls
+round in Blender and let the game do the rest.
 
 ## What the grass should look like
 
