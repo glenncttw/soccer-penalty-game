@@ -32,8 +32,18 @@ export interface CameraConfig {
   fov: number;
 }
 
+/** A solid shape as triangles, in gameplay coordinates. */
+export interface ColliderMesh {
+  /** x, y, z of each corner. */
+  vertices: Float32Array;
+  /** Three corner numbers per triangle. */
+  indices: Uint32Array;
+}
+
 export interface WorldConfig {
   goal: GoalConfig;
+  /** The ad boards around the pitch; the ball bounces off them. */
+  boards?: ColliderMesh[];
   ballStart: Vec3;
   ballRadius: number;
   groundY: number;

@@ -46,6 +46,7 @@ the new export. It relies on these node names:
 | `Football_Ball` | the ball's look, start position and radius (origin must be the ball's centre) |
 | `PITCH_Grass` | ground height, and where the stripes are: it needs two materials, and the darker one marks the dark stripes |
 | `STATIC_Markings` | where the white lines and penalty spot are: the game paints the grass white there and hides this mesh |
+| every node starting with `ADV_Panel_` | the ad boards: the ball bounces off their exact shape |
 | the first glTF camera | only for "Use Blender camera" in the settings editor; the game's view comes from `src/scene/cameraSettings.ts` (see [The camera](#the-camera)) |
 | the directional light (`SUN_Key`) | the sun: its direction, colour and strength are used as exported, because the baked light is lined up with it |
 
@@ -53,7 +54,8 @@ Coordinates: Y up, metres, shots travel toward -Z. The game shifts the model alo
 If a node is missing or a measurement looks wrong, the game stops with an error naming it.
 
 The goal opening is 5.64 x 2.05 m (6.0 x 2.23 m outside). `stadium_lighting.js` also finds the ad boards, corner
-flags, stands, trees and floodlights by name; the game itself doesn't use their positions or sizes.
+flags, stands, trees and floodlights by name. Apart from the ad boards, the game itself doesn't use their positions or
+sizes: a ball that flies over the boards goes through the stands.
 
 Animations in the export (like the corner flags waving) play on a loop, slowed down with the game's slow motion.
 Nothing in the game refers to them by name, so a new export can add, change or drop them.

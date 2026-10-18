@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { CameraConfig, GoalConfig, WorldConfig } from '../worldConfig';
+import type { CameraConfig, ColliderMesh, GoalConfig, WorldConfig } from '../worldConfig';
 import { validateWorldConfig } from '../worldConfig';
 
 /** Node names in the Blender export that gameplay depends on. */
@@ -9,6 +9,8 @@ export const STADIUM_NODES = {
   ball: 'Football_Ball',
   grass: 'PITCH_Grass',
   markings: 'STATIC_Markings',
+  /** Every node whose name starts with this is an ad board. */
+  boardPrefix: 'ADV_Panel_',
 } as const;
 
 function required(root: THREE.Object3D, name: string): THREE.Object3D {
@@ -85,6 +87,24 @@ export function measureGoal(frame: THREE.Object3D, net: THREE.Object3D): GoalCon
   };
 }
 
+/** The ad boards' exact shapes, so the ball bounces off what the player sees. */
+export function measureBoards(stadium: THREE.Object3D): ColliderMesh[] {
+  const boards: ColliderMesh[] = [];
+  stadium.traverse((o) => {
+    if (!(o instanceof THREE.Mesh) || !o.name.startsWith(STADIUM_NODES.boardPrefix)) return;
+    const pos = o.geometry.getAttribute('position');
+    const vertices = new Float32Array(pos.count * 3);
+    const v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).toArray(vertices, i * 3);
+    }
+    const index = o.geometry.getIndex();
+    const indices = index ? Uint32Array.from(index.array) : Uint32Array.from({ length: pos.count }, (_, i) => i);
+    boards.push({ vertices, indices });
+  });
+  return boards;
+}
+
 /** Reads every gameplay coordinate from the placed stadium. */
 export function measureWorld(stadium: THREE.Object3D, camera: THREE.Camera & { fov?: number }): WorldConfig {
   stadium.updateWorldMatrix(true, true);
@@ -107,6 +127,7 @@ export function measureWorld(stadium: THREE.Object3D, camera: THREE.Camera & { f
 
   return validateWorldConfig({
     goal,
+    boards: measureBoards(stadium),
     ballStart: { x: ballStart.x, y: ballStart.y, z: ballStart.z },
     ballRadius,
     groundY,
