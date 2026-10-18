@@ -28,7 +28,6 @@ import { SKY_SETTINGS } from './scene/skySettings';
 import { loadStadium } from './scene/stadiumAsset';
 import { COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
-import { FpsMeter } from './ui/fpsMeter';
 import { PerfStats } from './ui/perfStats';
 import { Preloader } from './ui/preloader';
 import { Wipe } from './ui/wipe';
@@ -85,7 +84,6 @@ scene.add(ballMesh, trail.mesh, markers.group, effects.group, keeperModel.group)
 
 const physics = await createPhysicsWorld(world, { keeper: keeper.pose });
 const hud = new Hud(document.querySelector<HTMLElement>('#hud')!);
-const fps = new FpsMeter(document.querySelector<HTMLElement>('#hud')!);
 // Draw calls, triangles and other numbers that show how hard the game works, above the FPS.
 const perf = new PerfStats(document.querySelector<HTMLElement>('#hud')!, renderer);
 const input = new ShootInput(canvas);
@@ -257,7 +255,6 @@ preloader.done();
 renderer.setAnimationLoop((time) => {
   perf.begin();
   timer.update(time);
-  fps.tick(time);
   const realDt = Math.min(timer.getDelta(), 0.1);
   const dt = slowMotion.update(realDt); // game time: slows down for a goal
   gameTime += dt;

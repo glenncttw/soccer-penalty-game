@@ -24,7 +24,7 @@ After a goal, a save or a shot off the woodwork, a quick wipe brings up a 3.5-se
 comic panel. After any other shot, the wipe just brings back the ball for the next one.
 
 While the game loads, a plain bar in the middle of the screen fills up. In the bottom left corner you see how the
-game is running: the FPS counter, three.js's Stats panel (click it to switch between frames per second,
+game is running: three.js's Stats panel (click it to switch between frames per second,
 milliseconds per frame and memory) and a list of what was drawn in the last frame: draw calls, triangles,
 geometries, textures, shaders, and the screen size in pixels. Fewer draw calls and triangles mean an easier job for
 phones.
@@ -209,6 +209,7 @@ To change the look, try the settings in the [settings editor](#the-settings-edit
 | `patchStrength`, `patchSize` | the soft lighter and darker patches |
 | `angleShading` | how much darker the grass in front of you is (0 = the same everywhere) |
 | `lineColor`, `lineRagged`, `lineWobble` | the colour of the painted lines and spot, how far blades poke out of their edges (only seen up close: far away they would flicker), and how far the edges wave in and out over 20 to 50 cm (seen on the far lines too) |
+| `lineTexture`, `lineGrassTint` | how much of the grass texture's light and dark, and how much of its green, shows through the paint, so the lines and spot look like paint on grass instead of flat white (keep `lineColor` a little below pure white, or the sun turns it flat white again) |
 
 To move or resize the stripes, lines or spot, change them in Blender and export again.
 
