@@ -47,7 +47,7 @@ Settings are in `REPLAY_SETTINGS` in `src/scene/replaySettings.ts`:
 | `slowest`, `fastest` | replay speed limits (1 = real speed); quick shots play slower to fill the time |
 | `afterResult` | how long the replay keeps going after the ball went in or was saved |
 | `holdWithReplay`, `holdWithout` | how long the GOAL!/MISS! banner shows before the wipe |
-| `wipeTime` | seconds the wipe takes to cover the screen (and again to uncover it) |
+| `wipeTime`, `wipeHold` | seconds the wipe takes to slide over the screen (and again to slide off), and how long it rests in between |
 | `resolution` | how sharp the panels are drawn (1 = as sharp as the screen) |
 
 ## The stadium
@@ -216,6 +216,10 @@ with `npm run dev`. Without `?edit` the game looks and loads exactly as before.
 3. Paste them over `CAMERA_SETTINGS` in `src/scene/cameraSettings.ts` or `GRASS_SETTINGS` in
    `src/scene/grassSettings.ts` (or paste them in the project chat and Claude puts them in). Changes in the panel
    are gone when you reload the page, until they are in that file.
+
+The **Wipe** folder changes how long the wipe takes to slide over the screen and how long it rests there;
+**Play wipe** shows it straight away, and **Copy replay settings** copies them for `REPLAY_SETTINGS` in
+`src/scene/replaySettings.ts`.
 
 **Reset camera** and **Reset grass** go back to the settings in the files, and **Use Blender camera** shows the
 camera from the Blender scene. On a phone the panel starts folded up; tap

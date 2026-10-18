@@ -91,6 +91,22 @@ export class Replay {
     });
   }
 
+  /**
+   * Draws everything the replay uses once, out of sight (into the panels' own pictures), so the
+   * browser sets up its shaders and pictures now and not at the start of the first replay.
+   */
+  warmUp(camera: THREE.PerspectiveCamera) {
+    const { renderer, scene } = this.parts;
+    for (const p of this.panels) {
+      p.camera.position.copy(camera.position);
+      p.camera.quaternion.copy(camera.quaternion);
+      renderer.setRenderTarget(p.target);
+      renderer.render(scene, p.camera);
+    }
+    renderer.render(this.overlay, this.screen); // into the last panel's picture: never seen
+    renderer.setRenderTarget(null);
+  }
+
   /** Call at the kick. */
   begin(gameTime: number) {
     this.recorder.start(gameTime);

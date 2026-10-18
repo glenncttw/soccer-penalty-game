@@ -16,8 +16,10 @@ export interface ReplaySettings {
   /** Seconds the result banner shows before the wipe, after a shot with a replay and after one without. */
   holdWithReplay: number;
   holdWithout: number;
-  /** Seconds the wipe takes to cover the screen (and again to uncover it). */
+  /** Seconds the wipe takes to slide over the screen (and again to slide off). */
   wipeTime: number;
+  /** Seconds the wipe rests over the screen in between, while the ball and keeper are put back. */
+  wipeHold: number;
   /** Share of the screen's sharpness the panels are drawn at (lower is faster on phones). */
   resolution: number;
 }
@@ -30,6 +32,7 @@ export const REPLAY_SETTINGS: ReplaySettings = {
   afterResult: 0.45,
   holdWithReplay: 1.2,
   holdWithout: 1.4,
-  wipeTime: 0.28,
+  wipeTime: 0.4,
+  wipeHold: 0.08,
   resolution: 0.75,
 };
