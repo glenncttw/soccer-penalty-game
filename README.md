@@ -11,7 +11,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the gameplay scope, tech stack and mileston
 
 1. **Aim**: move the mouse over the goal (on a phone, press where you want the ball to go). The target stays inside the goal frame.
 2. **Power up**: press and hold. The meter on the right (below the goal on a phone held upright) goes up and down. Let go in the **gold zone** for a perfect strike.
-3. **Curl**: while holding, drag left or right. The ball swings out to that side, then bends back onto your target. A dotted line shows the start of the curve.
+3. **Curl**: while holding, drag left or right. The ball swings out to that side, then bends back onto your target. A line of chunky dots shows the start of the curve.
 4. **Shoot**: let go.
 
 A goalkeeper tries to stop you. It watches which way the ball is heading, so a curled shot fools it, and soft

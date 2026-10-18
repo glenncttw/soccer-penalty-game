@@ -52,7 +52,7 @@ describe('ball trail', () => {
     expect(ribbonLength(trail)).toBeGreaterThan(35 * style.life * 0.95);
   });
 
-  it('stops growing at a touch and pulls itself in', () => {
+  it('stops growing at a touch and fades away from the front', () => {
     const trail = new BallTrail();
     trail.setStyle(trailStyle(0.87, true));
     const camera = new THREE.Vector3(0, 1, 20);
@@ -62,8 +62,11 @@ describe('ball trail', () => {
     trail.update(1.1, camera);
     const pos = trail.mesh.geometry.getAttribute('position');
     expect(pos.getZ(0)).toBeGreaterThan(-26);
-    trail.update(1.31, camera);
-    expect(trail.mesh.geometry.drawRange.count).toBe(0); // gone within 0.3 s
+    const alpha = trail.mesh.geometry.getAttribute('alpha');
+    trail.update(1.2, camera);
+    expect(alpha.getX(3 * 2)).toBeLessThan(0.5 * alpha.getX(25 * 2)); // the front fades first (a point per frame here)
+    trail.update(1.36, camera);
+    expect(trail.mesh.geometry.drawRange.count).toBe(0); // gone within 0.35 s
     trail.clear();
     fly(trail, 60, 25, 0.5, 2); // and follows the next shot again
     expect(trail.mesh.geometry.drawRange.count).toBeGreaterThan(0);

@@ -22,8 +22,8 @@ export function trailStyle(power: number, perfect: boolean): TrailStyle {
 // 512 points cover 30 m, more than the fastest shot travels in the longest trail's life.
 const MIN_STEP = 0.06;
 const MAX_SAMPLES = 512;
-/** Seconds the trail takes to pull itself in to the ball's first touch after the shot. */
-const PULL_IN = 0.3;
+/** Seconds the trail takes to fade away after the ball's first touch after the shot. */
+const FADE_OUT = 0.35;
 /** Metres over which the trail grows in from nothing at its front end. */
 const HEAD_TAPER = 0.3;
 /**
@@ -36,7 +36,7 @@ const TAIL_TAPER = 1.5;
  * A fading ribbon behind the ball that makes its curl visible. It always faces
  * the camera, and each point fades by age, so it looks the same at any frame rate.
  * Both ends taper off smoothly (also just after the kick), and once the ball touches something the trail stops
- * growing and pulls itself in to that spot.
+ * growing and fades away from its front end backwards, so it never ends in a hard cut where the ball hit.
  */
 export class BallTrail {
   readonly mesh: THREE.Mesh;
@@ -47,6 +47,8 @@ export class BallTrail {
   private style = trailStyle(0.5, false);
   /** Game time the trail stopped following the ball, or null while it follows. */
   private stoppedAt: number | null = null;
+  /** The trail's length (m) when it stopped, so its front fade moves back at a steady pace. */
+  private stopLength: number | null = null;
   private readonly tangent = new THREE.Vector3();
   private readonly toCamera = new THREE.Vector3();
   private readonly side = new THREE.Vector3();
@@ -123,7 +125,7 @@ export class BallTrail {
     return this.stoppedAt;
   }
 
-  /** Stops following the ball (at game time `time`): what's left pulls itself in and fades. */
+  /** Stops following the ball (at game time `time`): what's left fades away, front end first. */
   stop(time: number) {
     this.stoppedAt ??= time;
   }
@@ -131,26 +133,32 @@ export class BallTrail {
   clear() {
     this.samples.length = 0;
     this.stoppedAt = null;
+    this.stopLength = null;
     this.mesh.geometry.setDrawRange(0, 0);
   }
 
   /** Rebuilds the ribbon for game time `time`, facing `cameraPosition`. */
   update(time: number, cameraPosition: THREE.Vector3) {
     const { life, width } = this.style;
-    // After a stop, the trail ages faster so even its newest point is gone within PULL_IN.
-    const stopped = this.stoppedAt ?? time;
-    const age = (t: number) => (stopped - t) + (time - stopped) * Math.max(1, life / PULL_IN);
+    // After a stop, the soft front end grows back along the trail and everything fades,
+    // so it dissolves from the front instead of stopping dead where the ball hit.
+    const out = this.stoppedAt === null ? 0 : (time - this.stoppedAt) / FADE_OUT;
+    if (out >= 1) this.samples.length = 0;
+    const age = (t: number) => time - t;
     while (this.samples.length && age(this.samples[this.samples.length - 1].t) > life) this.samples.pop();
     const n = this.samples.length;
     let length = 0;
     for (let i = 1; i < n; i++) length += this.samples[i].p.distanceTo(this.samples[i - 1].p);
     const tailTaper = Math.min(TAIL_TAPER, 0.5 * length); // a short trail still shows its middle
+    if (this.stoppedAt !== null) this.stopLength ??= length;
+    const gone = smoothstep(out);
+    const headTaper = HEAD_TAPER + gone * 1.5 * (this.stopLength ?? 0);
     let along = 0; // metres from the front end
     for (let i = 0; i < n; i++) {
       const s = this.samples[i];
       if (i > 0) along += s.p.distanceTo(this.samples[i - 1].p);
       const fade = Math.max(0, 1 - age(s.t) / life);
-      const head = smoothstep(along / HEAD_TAPER) * smoothstep((length - along) / tailTaper);
+      const head = smoothstep(along / headTaper) * smoothstep((length - along) / tailTaper) * (1 - gone);
       this.tangent.subVectors(this.samples[Math.max(0, i - 1)].p, this.samples[Math.min(n - 1, i + 1)].p);
       this.toCamera.subVectors(cameraPosition, s.p);
       this.side.crossVectors(this.tangent, this.toCamera);
