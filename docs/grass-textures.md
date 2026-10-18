@@ -2,12 +2,30 @@
 
 The pitch uses two pictures that repeat over the grass:
 
-- a **colour picture** (`grass_albedo`): what the grass looks like from straight above, with no light or shadow in it;
+- a **colour picture** (`grass_albedo`): what the grass looks like, with no sunlight or shadows from the sun in it;
 - a **normal map** (`grass_normal`): which way each bit of the grass surface faces, so the game's sun can light the
   bumps itself.
 
-The ones in the game now were made this way, from a patch of 5,200 small curly blades. Follow this guide to make
-new ones. You bake both pictures from a small patch of 3D grass onto a flat square.
+## The textures in the game now: upright tufts, seen from the camera's angle
+
+The current pictures come from about 5,000 small tufts of 2 to 3 upright blades (9 to 17 mm tall, 3.5 to 6 mm
+wide, pointed, slightly bent) on a dark green ground. Instead of baking them from straight above, they are
+rendered at the angle the game camera sees the grass from (35 degrees above the ground, looking toward the goal),
+so the blades show their sides like in the reference picture. Depth is in the colour picture: the gaps and blade
+bottoms are darker, the tips lighter and a little yellower. The normal map comes from the same render, corrected
+so the pitch as a whole still faces straight up.
+
+The Blender file and the script that builds and renders it are on Glenn's PC in `Croky Cup\blender\grass_v2\`
+(`grass_tufts.blend`, `make_grass_tufts.py`; the game-ready files are in `web\`). Change density, blade length or
+colours there and render again.
+
+Because the camera's angle is already in these pictures, the game stretches them only 1.5 times toward the goal
+(`textureStretch`). At 3 the blades turn into long streaks.
+
+## The older method: curls baked from straight above
+
+The first textures (a patch of 5,200 small curly blades) were made the way the rest of this guide describes. You
+bake both pictures from a small patch of 3D grass onto a flat square.
 
 ## What the game needs
 
@@ -21,9 +39,9 @@ new ones. You bake both pictures from a small patch of 3D grass onto a flat squa
 | Normal map type | tangent space, OpenGL (Blender's default) |
 | Light | none: no shadows, no sun, no ambient occlusion in the colour picture |
 
-The game stretches the pictures 3 times longer toward the goal (`textureStretch` in `src/scene/grassSettings.ts`).
-You look at the grass from very low, which squashes it; the stretch makes round curls look round again. So make
-your curls round in Blender and let the game do the rest.
+With pictures baked from straight above, set `textureStretch` in `src/scene/grassSettings.ts` to 3. You look at
+the grass from very low, which squashes it; the stretch makes round curls look round again. So make your curls
+round in Blender and let the game do the rest.
 
 ## What the grass should look like
 

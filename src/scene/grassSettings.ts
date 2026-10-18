@@ -55,14 +55,14 @@ export interface GrassSettings {
 
 /** The game's grass, tuned to the stylised reference picture. */
 export const GRASS_SETTINGS: GrassSettings = {
-  colorLight: '#5f9b37',
-  colorDark: '#428530',
+  colorLight: '#6aae36',
+  colorDark: '#4a9c33',
   stripeSoftness: 0.03,
   stripeRagged: 0.03,
   crossStripeWidth: 1.9,
   crossStripeOpacity: 0.3,
   textureTileSize: 0.5,
-  textureStretch: 3,
+  textureStretch: 1.5,
   textureStrength: 1,
   normalStrength: 3,
   patchStrength: 0.05,
