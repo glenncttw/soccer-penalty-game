@@ -88,6 +88,16 @@ export class KeeperModel {
     }
   }
 
+  /**
+   * Shows a Blender model in place of the placeholder. It follows where the keeper
+   * stands and how it leans; its arms and crouch aren't posed yet.
+   */
+  useModel(model: THREE.Object3D) {
+    this.trunk.visible = false;
+    for (const { arm, glove, joint } of this.arms) arm.visible = glove.visible = joint.visible = false;
+    this.group.add(model);
+  }
+
   update(pose: KeeperPose, dt: number) {
     this.group.position.set(pose.pivot.x, pose.pivot.y, pose.pivot.z);
     this.group.rotation.set(0, 0, -pose.tilt);

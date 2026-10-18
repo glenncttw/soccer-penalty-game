@@ -60,6 +60,24 @@ sizes: a ball that flies over the boards fades out and counts as a miss (or a sa
 Animations in the export (like the corner flags waving) play on a loop, slowed down with the game's slow motion.
 Nothing in the game refers to them by name, so a new export can add, change or drop them.
 
+## The keeper
+
+The keeper is Glenn's parrot, a Blender export: `public/assets/keeper/Parrot_GK.glb`, loaded by
+`src/scene/keeperAsset.ts` at the size it was made in Blender (origin between the feet, facing the shooter). The
+game moves and leans it with the keeper's motion; its rig and animations are in the file but nothing plays them
+yet. The physics body that saves shots is still the placeholder's size (`src/physics/keeperBody.ts`).
+
+The export was made lighter for the web with [glTF Transform](https://gltf-transform.dev): pictures shrunk to
+1024 x 1024, colour and roughness as WebP, the normal map as JPEG (4:4:4, so it keeps its detail), and the mesh
+compressed with meshopt. To update the keeper, do the same with the new export:
+
+```sh
+npx @gltf-transform/cli resize in.glb a.glb --width 1024 --height 1024
+npx @gltf-transform/cli webp a.glb b.glb --slots "{baseColorTexture,metallicRoughnessTexture}" --quality 88
+python3 tools/glb_image_to_jpeg.py b.glb GAME_Parrot_normal 90 c.glb
+npx @gltf-transform/cli meshopt c.glb public/assets/keeper/Parrot_GK.glb
+```
+
 ## The lighting
 
 The light is baked in Blender (`src/scene/lighting.ts` sets it up, right after the grass):

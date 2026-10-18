@@ -19,6 +19,7 @@ import { Effects } from './scene/effects';
 import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera';
 import { applyGrass } from './scene/grass';
 import { KeeperModel } from './scene/keeper';
+import { loadKeeperModel } from './scene/keeperAsset';
 import { lightMovingObject, setUpLighting } from './scene/lighting';
 import { Sky } from './scene/sky';
 import { SKY_SETTINGS } from './scene/skySettings';
@@ -38,6 +39,8 @@ renderer.toneMapping = THREE.NoToneMapping;
 
 const scene = new THREE.Scene();
 
+// The keeper's Blender model loads alongside the stadium.
+const keeperAsset = loadKeeperModel();
 // The Blender stadium is the whole environment: pitch, goal, stands, ball and sun.
 const stadium = await loadStadium();
 const world = stadium.config;
@@ -68,6 +71,7 @@ const effects = new Effects();
 // The keeper stands just off its line, toward the ball.
 const keeper = new KeeperMotion({ x: 0, y: world.groundY, z: world.goal.lineZ + 0.35 }, KEEPER_SKILL);
 const keeperModel = new KeeperModel();
+keeperModel.useModel(await keeperAsset);
 lightMovingObject(ballMesh, envMap);
 lightMovingObject(keeperModel.group, envMap);
 scene.add(ballMesh, trail.mesh, markers.group, effects.group, keeperModel.group);
