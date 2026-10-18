@@ -105,3 +105,37 @@ describe('shots in the Blender stadium', () => {
     for (let i = 0; i < 10; i++) expect(play((i % 5) - 2, 0.5 + (i % 3) * 0.5).result).toBe('goal');
   });
 });
+
+describe('ad boards', () => {
+  // A 0.72 m high board along the right touchline, level with the ball, 0.32 m thick like the stadium's side boards.
+  const box = new Float32Array([
+    6, 0, 8, 6.32, 0, 8, 6.32, 0, 16, 6, 0, 16, 6, 0.72, 8, 6.32, 0.72, 8, 6.32, 0.72, 16, 6, 0.72, 16,
+  ]);
+  const faces = new Uint32Array([
+    0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 3, 7, 6, 3, 6, 2, 0, 4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5,
+  ]);
+
+  async function rollAtBoard(boards: WorldConfig['boards']) {
+    const p = await createPhysicsWorld({ ...world, boards });
+    p.kick({ x: 12, y: 1, z: 0 }, { x: 0, y: 0, z: 0 });
+    let maxX = -Infinity;
+    const contacts: Contact[] = [];
+    for (let i = 0; i < 2 / FIXED_STEP; i++) {
+      p.step();
+      contacts.push(...p.takeContacts());
+      maxX = Math.max(maxX, p.ball.translation().x);
+    }
+    return { maxX, finalX: p.ball.translation().x, contacts };
+  }
+
+  it('bounces the ball back off a board', async () => {
+    const r = await rollAtBoard([{ vertices: box, indices: faces }]);
+    expect(r.maxX).toBeLessThan(6);
+    expect(r.finalX).toBeLessThan(5.9);
+    expect(r.contacts.some((c) => c.surface === 'boards')).toBe(true);
+  });
+
+  it('lets the ball through where there is no board', async () => {
+    expect((await rollAtBoard(undefined)).maxX).toBeGreaterThan(7);
+  });
+});

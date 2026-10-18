@@ -3,6 +3,7 @@ import { KEEPER_SKILL, readShot } from './ai/keeper';
 import { KeeperMotion } from './ai/keeperMotion';
 import { connectFeedback } from './feedback';
 import { clampAimToGoal } from './gameplay/aim';
+import { BoardsBoundary } from './gameplay/boundary';
 import { GameEvents } from './gameplay/events';
 import { OutcomeTracker } from './gameplay/outcome';
 import { createPowerMeter, PERFECT_MAX, PERFECT_MIN, type StrikeQuality } from './gameplay/power';
@@ -13,6 +14,7 @@ import { FIXED_STEP, solveKick } from './physics/flight';
 import { createPhysicsWorld } from './physics/world';
 import { AimMarkers } from './scene/aimMarkers';
 import { BallTrail, trailStyle } from './scene/ball';
+import { BallFade } from './scene/ballFade';
 import { Effects } from './scene/effects';
 import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera';
 import { applyGrass } from './scene/grass';
@@ -56,6 +58,9 @@ const view = createGameCamera(world);
 const camera = view.camera;
 
 const ballMesh = stadium.ball;
+// A ball that flies over the ad boards fades out: it's gone into the stands.
+const ballFade = new BallFade(ballMesh);
+const boards = new BoardsBoundary(world.boards ?? []);
 const trail = new BallTrail();
 const markers = new AimMarkers();
 const effects = new Effects();
@@ -154,6 +159,7 @@ function showResult() {
 
 function resetShot() {
   physics.resetBall();
+  ballFade.reset();
   keeper.recover();
   trail.clear();
   hud.hideBanner();
@@ -232,14 +238,18 @@ renderer.setAnimationLoop((time) => {
   ballMesh.position.set(p.x, p.y, p.z);
   ballMesh.quaternion.set(q.x, q.y, q.z, q.w);
 
+  if ((phase === 'flight' || phase === 'result') && boards.isBeyond(p)) {
+    ballFade.start();
+    outcome.wentOut();
+  }
   if (phase === 'flight') {
-    trail.push(p, gameTime);
+    if (!ballFade.fading) trail.push(p, gameTime);
     effects.skim(p);
-    if (lastQuality === 'perfect') effects.glitterTrail(p, dt);
+    if (lastQuality === 'perfect' && !ballFade.fading) effects.glitterTrail(p, dt);
     const v = physics.ball.linvel();
     if (outcome.update(p, Math.hypot(v.x, v.y, v.z), dt)) showResult();
   } else if (phase === 'result') {
-    trail.push(p, gameTime);
+    if (!ballFade.fading) trail.push(p, gameTime);
     if (phaseTime > 1.8) resetShot();
   }
 
@@ -249,6 +259,7 @@ renderer.setAnimationLoop((time) => {
   trail.update(gameTime, camera.position);
   keeperModel.update(keeper.pose, dt);
   effects.update(dt);
+  ballFade.update(dt);
   stadiumMotion.update(dt);
   sky.update(gameTime);
 

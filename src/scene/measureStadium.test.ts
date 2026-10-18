@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { measureGoal, measureWorld } from './measureStadium';
+import { measureBoards, measureGoal, measureWorld } from './measureStadium';
 
 // A stand-in for the Blender goal built from boxes: square 0.18 m posts,
 // 6.0 m x 2.1 m outside, goal line at z = 0, and a net with a flat roof
@@ -38,6 +38,10 @@ function syntheticStadium() {
   ball.name = 'Football_Ball';
   const grass = box(13, 0.001, 24, 0, -0.0005, 6, root);
   grass.name = 'PITCH_Grass';
+  const board = box(2, 0.72, 0.32, 0, 0.36, 0, root);
+  board.name = 'ADV_Panel_E05';
+  board.position.set(6.2, 0.36, 2);
+  board.rotation.y = Math.PI / 2;
   return { root, frame, net };
 }
 
@@ -78,6 +82,20 @@ describe('measureWorld', () => {
     expect(w.ballRadius).toBeCloseTo(0.175);
     expect(w.groundY).toBeCloseTo(0, 2);
     expect(w.camera.fov).toBeCloseTo(32.8);
+  });
+
+  it('reads the ad boards in place, as triangles', () => {
+    const { root } = syntheticStadium();
+    root.updateWorldMatrix(true, true);
+    const [board, ...rest] = measureBoards(root);
+    expect(rest).toEqual([]);
+    expect(board.indices.length).toBe(36); // a box: 12 triangles
+    const xs = board.vertices.filter((_, i) => i % 3 === 0);
+    const zs = board.vertices.filter((_, i) => i % 3 === 2);
+    expect(Math.min(...xs)).toBeCloseTo(6.04, 2); // turned side on: 0.32 m thick across x
+    expect(Math.max(...xs)).toBeCloseTo(6.36, 2);
+    expect(Math.min(...zs)).toBeCloseTo(1, 2); // 2 m long along z
+    expect(Math.max(...zs)).toBeCloseTo(3, 2);
   });
 
   it('fails loudly when a node is missing', () => {

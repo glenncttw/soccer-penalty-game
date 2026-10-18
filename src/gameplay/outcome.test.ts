@@ -58,6 +58,23 @@ describe('OutcomeTracker', () => {
     expect(t.hitFrame).toBe(true);
   });
 
+  it('ends the shot when the ball flies into the stands', () => {
+    const t = tracker();
+    t.wentOut();
+    expect(t.update({ x: 6.6, y: 1, z: 3 }, 20, 0.01)).toBe('miss');
+    const tipped = tracker();
+    tipped.keeperTouched(0.6);
+    tipped.wentOut();
+    expect(tipped.result).toBe('saved');
+  });
+
+  it('keeps a goal a goal when the ball later flies out', () => {
+    const t = tracker();
+    t.update({ x: 0, y: 1, z: -0.4 }, 20, 0.01);
+    t.wentOut();
+    expect(t.result).toBe('goal');
+  });
+
   it('gives up when the ball stops short', () => {
     const t = tracker();
     t.update({ x: 0, y: R, z: 6 }, 5, 0.6);

@@ -6,7 +6,7 @@ import { BALL_SPIN_DAMPING, FIXED_STEP } from './flight';
 import { KEEPER_BODY, keeperParts, type KeeperPose, type Quat } from './keeperBody';
 
 /** What the ball can touch. */
-export type Surface = 'ground' | 'woodwork' | 'net' | 'keeper';
+export type Surface = 'ground' | 'woodwork' | 'net' | 'keeper' | 'boards';
 
 /** The ball starting to touch something. */
 export interface Contact {
@@ -114,6 +114,12 @@ export async function createPhysicsWorld(config: WorldConfig, options: WorldOpti
     }
     const desc = RAPIER.ColliderDesc.convexHull(new Float32Array(pts));
     if (desc) soft(desc);
+  }
+
+  // Ad boards, with their exact shape from the model. A dull bounce, so the ball drops along them
+  // rather than flying back across the pitch.
+  for (const board of config.boards ?? []) {
+    add(RAPIER.ColliderDesc.trimesh(board.vertices, board.indices).setRestitution(0.35).setFriction(0.8), 'boards');
   }
 
   // Ball
