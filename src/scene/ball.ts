@@ -26,11 +26,16 @@ const MAX_SAMPLES = 512;
 const PULL_IN = 0.3;
 /** Metres over which the trail grows in from nothing at its front end. */
 const HEAD_TAPER = 0.3;
+/**
+ * Metres over which the back end fades in. Without it, right after the kick the trail's
+ * oldest point is still young and bright, and the ribbon starts with a flat edge.
+ */
+const TAIL_TAPER = 1.5;
 
 /**
  * A fading ribbon behind the ball that makes its curl visible. It always faces
  * the camera, and each point fades by age, so it looks the same at any frame rate.
- * Both ends taper off smoothly, and once the ball touches something the trail stops
+ * Both ends taper off smoothly (also just after the kick), and once the ball touches something the trail stops
  * growing and pulls itself in to that spot.
  */
 export class BallTrail {
@@ -127,12 +132,15 @@ export class BallTrail {
     const age = (t: number) => (stopped - t) + (time - stopped) * Math.max(1, life / PULL_IN);
     while (this.samples.length && age(this.samples[this.samples.length - 1].t) > life) this.samples.pop();
     const n = this.samples.length;
+    let length = 0;
+    for (let i = 1; i < n; i++) length += this.samples[i].p.distanceTo(this.samples[i - 1].p);
+    const tailTaper = Math.min(TAIL_TAPER, 0.5 * length); // a short trail still shows its middle
     let along = 0; // metres from the front end
     for (let i = 0; i < n; i++) {
       const s = this.samples[i];
       if (i > 0) along += s.p.distanceTo(this.samples[i - 1].p);
       const fade = Math.max(0, 1 - age(s.t) / life);
-      const head = smoothstep(along / HEAD_TAPER);
+      const head = smoothstep(along / HEAD_TAPER) * smoothstep((length - along) / tailTaper);
       this.tangent.subVectors(this.samples[Math.max(0, i - 1)].p, this.samples[Math.min(n - 1, i + 1)].p);
       this.toCamera.subVectors(cameraPosition, s.p);
       this.side.crossVectors(this.tangent, this.toCamera);
