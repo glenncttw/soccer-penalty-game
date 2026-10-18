@@ -58,8 +58,8 @@ const view = createGameCamera(world);
 const camera = view.camera;
 
 const ballMesh = stadium.ball;
-// A ball that flies over the ad boards fades out: it's gone into the stands.
-const ballFade = new BallFade(ballMesh);
+// A ball that flies over the ad boards disappears in halftone dots: it's gone into the stands.
+const ballFade = new BallFade(ballMesh, renderer, camera);
 const boards = new BoardsBoundary(world.boards ?? []);
 const trail = new BallTrail();
 const markers = new AimMarkers();
@@ -180,7 +180,7 @@ resize();
 // Add ?edit to the game's address to open the settings editor (see the README).
 if (new URLSearchParams(location.search).has('edit')) {
   const { openSettingsEditor } = await import('./ui/settingsEditor');
-  openSettingsEditor({ camera: view, blenderCamera: cameraSettingsFromBlender(world), grass });
+  openSettingsEditor({ camera: view, blenderCamera: cameraSettingsFromBlender(world), grass, ballFade });
 }
 
 const timer = new THREE.Timer();
