@@ -45,8 +45,7 @@ const GRASS_ROWS: Record<string, Row<GrassSettings>[]> = {
 };
 
 const WIPE_ROWS: Row<ReplaySettings>[] = [
-  ['wipeTime', 'Slide time (s)', 0.1, 1.2, 0.01],
-  ['wipeHold', 'Rest time (s)', 0, 0.5, 0.01],
+  ['wipeTime', 'Sweep time (s)', 0.3, 2, 0.01],
 ];
 
 export interface EditorTargets {
