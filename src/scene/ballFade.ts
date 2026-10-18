@@ -28,6 +28,23 @@ export class BallFade {
     this.ball.visible = this.opacity > 0; // also takes its shadow away
   }
 
+  /** How solid the ball is now: 1 = solid, 0 = gone. */
+  get shown() {
+    return this.opacity;
+  }
+
+  /** Holds the ball at `opacity` (the replay uses this to show a recorded fade). */
+  showAt(opacity: number) {
+    const see = opacity < 1;
+    if (see !== this.fading) {
+      this.fading = see;
+      this.setTransparent(see);
+    }
+    this.opacity = opacity;
+    for (const m of this.materials) m.opacity = opacity;
+    this.ball.visible = opacity > 0;
+  }
+
   reset() {
     if (!this.fading) return;
     this.fading = false;
