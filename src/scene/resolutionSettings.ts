@@ -20,8 +20,9 @@ export type MobilePreset = 'high' | 'balanced' | 'performance';
 export const RESOLUTION_SETTINGS: ResolutionSettings = {
   desktopMax: 1.5,
   mobilePresets: { high: 1.5, balanced: 1.25, performance: 1.0 },
-  // Not measured yet on a real phone: pick from the ?bench results.
-  mobilePreset: 'high',
+  // Measured on an iPhone 12 mini held upright (?bench, 2026-10-19): 1.25 holds 60 FPS (1% low 53),
+  // 1.5 drops to 50 (1% low 42). The graphics chip filling pixels is the limit, not the game's code.
+  mobilePreset: 'balanced',
 };
 
 /** The pixel ratio to draw at: the setting for this kind of device, never more than the screen's own. */
