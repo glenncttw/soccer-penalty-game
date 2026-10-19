@@ -26,6 +26,7 @@ import { loadKeeperModel } from './scene/keeperAsset';
 import { lightMovingObject, setUpLighting } from './scene/lighting';
 import { Replay } from './scene/replay';
 import { REPLAY_SETTINGS } from './scene/replaySettings';
+import { clampPixelRatio, pickPixelRatio } from './scene/resolutionSettings';
 import { Sky } from './scene/sky';
 import { SKY_SETTINGS } from './scene/skySettings';
 import { loadStadium } from './scene/stadiumAsset';
@@ -37,7 +38,9 @@ import { Wipe } from './ui/wipe';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// How many pixels the picture is drawn with; set by resize(), tweak it in src/scene/resolutionSettings.ts.
+const touchScreen = window.matchMedia('(pointer: coarse)').matches;
+let testPixelRatio: number | null = null; // set by the ?bench panel
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 // The stadium was lit with Blender's "Standard" view transform: plain sRGB, no tone mapping.
@@ -102,7 +105,7 @@ const hud = new Hud(document.querySelector<HTMLElement>('#hud')!);
 const perf = new PerfStats(document.querySelector<HTMLElement>('#hud')!, renderer);
 const input = new ShootInput(canvas);
 const finePointer = window.matchMedia('(pointer: fine)').matches; // a mouse, not a finger
-const power = createPowerMeter(window.matchMedia('(pointer: coarse)').matches);
+const power = createPowerMeter(touchScreen);
 const outcome = new OutcomeTracker(world.goal, world.ballRadius);
 const events = new GameEvents();
 const slowMotion = new SlowMotion();
@@ -236,15 +239,24 @@ function nextShot() {
   setPhase('aiming');
 }
 
+// The canvas fills the page (see style.css); only the number of pixels behind it changes.
+let drawn = { w: 0, h: 0, ratio: 0 };
 function resize() {
   const w = window.innerWidth;
   const h = window.innerHeight;
-  renderer.setSize(w, h, false);
+  const screenRatio = window.devicePixelRatio;
+  const ratio = testPixelRatio === null ? pickPixelRatio(screenRatio, touchScreen) : clampPixelRatio(testPixelRatio, screenRatio);
+  // Resizing throws the old picture memory away, so only do it when something really changed.
+  if (w === drawn.w && h === drawn.h && ratio === drawn.ratio) return;
+  drawn = { w, h, ratio };
+  renderer.setDrawingBufferSize(w, h, ratio);
   view.fit(w / h);
   effects.setViewportHeight(renderer.domElement.height);
   replay.resize(w, h);
 }
 window.addEventListener('resize', resize);
+// Turning a phone: some browsers only know the new size a moment after the turn.
+screen.orientation?.addEventListener('change', () => requestAnimationFrame(resize));
 resize();
 replay.warmUp(camera); // sets up the replay's drawing now, so starting one later doesn't stutter
 
@@ -261,6 +273,19 @@ if (new URLSearchParams(location.search).has('edit')) {
   });
 }
 
+// Add ?bench to the game's address for the sharpness test panel (see the README).
+if (new URLSearchParams(location.search).has('bench')) {
+  const { openBenchmark } = await import('./ui/benchmark');
+  openBenchmark({
+    renderer,
+    perf,
+    setPixelRatio: (ratio) => {
+      testPixelRatio = ratio;
+      resize();
+    },
+  });
+}
+
 const timer = new THREE.Timer();
 let accumulator = 0;
 let gameTime = 0;
@@ -269,7 +294,7 @@ const PREVIEW_POWER = (PERFECT_MIN + PERFECT_MAX) / 2; // the preview shows a we
 preloader.done();
 
 renderer.setAnimationLoop((time) => {
-  perf.begin();
+  perf.begin(time);
   timer.update(time);
   const realDt = Math.min(timer.getDelta(), 0.1);
   const dt = slowMotion.update(realDt); // game time: slows down for a goal
