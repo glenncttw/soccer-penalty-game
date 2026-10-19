@@ -16,6 +16,7 @@ import { AimMarkers } from './scene/aimMarkers';
 import { BallTrail, trailStyle } from './scene/ball';
 import { BallFade } from './scene/ballFade';
 import { Effects } from './scene/effects';
+import { FloodlightGlow } from './scene/floodlightGlow';
 import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera';
 import { applyGrass } from './scene/grass';
 import { KeeperModel } from './scene/keeper';
@@ -67,6 +68,9 @@ const view = createGameCamera(world);
 const camera = view.camera;
 // The grass texture's blades stand up as seen from where the camera usually is.
 grass.lookFrom(view.restPosition);
+// A soft glow around the floodlight lamps; tweak it in src/scene/floodlightSettings.ts.
+const floodlights = new FloodlightGlow(stadium.environment, view.restPosition);
+scene.add(floodlights.group);
 
 const ballMesh = stadium.ball;
 // A ball that flies over the ad boards fades out: it's gone into the stands.
@@ -246,6 +250,7 @@ if (new URLSearchParams(location.search).has('edit')) {
     blenderCamera: cameraSettingsFromBlender(world),
     grass,
     sky,
+    floodlights,
     wipe: { play: () => wipe.run(() => {}) },
   });
 }
