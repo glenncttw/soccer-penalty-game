@@ -54,14 +54,30 @@ describe('findCrowdSpots', () => {
   const body = { x0: -0.14, x1: 0.14, y0: 0, y1: 0.6, z0: -0.14, z1: 0.14 };
   const arms = { x0: -0.3, x1: 0.3, y0: 0.2, y1: 0.5, z0: -0.06, z1: 0.1 };
   const head = { x0: -0.2, x1: 0.2, y0: 0.5, y1: 0.98, z0: -0.2, z1: 0.2 };
-  const options = { rowHeights: [y], shape: [body, arms, head], spacing: 0.42, clearance: 0.02, sizeVariation: 0, turn: 0, random: () => 0.5 };
+  const options = {
+    rowHeights: [y],
+    shapes: {
+      cheer: [body, arms, head],
+      move: [body, arms, head],
+      calm: [body, arms, head],
+    },
+    cheerShare: 0,
+    spacing: 0.7,
+    spacingJitter: 0,
+    depthJitter: 0,
+    gaps: 0,
+    clearance: 0.02,
+    sizeVariation: 0,
+    turn: 0,
+    random: () => 0.5,
+  };
   const spots = findCrowdSpots(steps, [barrier], options);
   const need = body.x1 + options.clearance;
 
   it('fills the step all the way round', () => {
-    // About 4 sides of 5 m each, at 0.42 m apart, minus the stairs and the corners.
-    expect(spots.length).toBeGreaterThan(35);
-    expect(spots.length).toBeLessThan(52);
+    // About 4 sides of 5 m each, at 0.7 m apart, minus the stairs and the corners.
+    expect(spots.length).toBeGreaterThan(20);
+    expect(spots.length).toBeLessThan(31);
     for (const p of spots) {
       expect(p.y).toBe(y);
       expect(p.row).toBe(0);
@@ -100,6 +116,29 @@ describe('findCrowdSpots', () => {
     }
   });
 
+  it('keeps people apart however they are spread, spaced and turned', () => {
+    const random = mulberry(7);
+    const loose = findCrowdSpots(steps, [barrier], {
+      ...options,
+      spacing: 0.6,
+      spacingJitter: 0.4,
+      depthJitter: 0.3,
+      gaps: 0.2,
+      turn: 0.5,
+      random,
+    });
+    expect(loose.length).toBeGreaterThan(10);
+    // Their arms (the widest part, 60 cm across) never cross, so their middles are at least that far apart side to side.
+    for (const p of loose) {
+      for (const q of loose) {
+        if (p !== q) expect(Math.hypot(p.x - q.x, p.z - q.z)).toBeGreaterThan(body.z1 * 2);
+      }
+    }
+    // Not all at the same distance from the barrier.
+    const outs = loose.map((p) => Math.max(Math.abs(p.x), Math.abs(p.z)));
+    expect(Math.max(...outs) - Math.min(...outs)).toBeGreaterThan(0.03);
+  });
+
   it('says so when a row height has no step', () => {
     expect(() => findCrowdSpots(steps, [], { ...options, rowHeights: [1.2] })).toThrow(/No stand step/);
   });
@@ -118,3 +157,15 @@ describe('shapeOf', () => {
     expect(boxes[1].x1).toBeCloseTo(0.3);
   });
 });
+
+/** Seeded random numbers, so the test is the same every run. */
+function mulberry(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}

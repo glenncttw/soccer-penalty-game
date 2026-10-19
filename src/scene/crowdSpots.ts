@@ -23,9 +23,14 @@ export interface CrowdSpot {
   angle: number;
   /** Size of this person: 1 = as made. */
   size: number;
+  /** How much this person moves: as much as there's room for here. */
+  moves: Moves;
   /** Which row (0 = the lowest step in the list). */
   row: number;
 }
+
+/** How much a person moves: cheering (arms going up now and then), moving about, or calm (only bouncing a little). */
+export type Moves = 'cheer' | 'move' | 'calm';
 
 /** A box of a person's shape, in their own space: feet at y = 0, facing +z. Metres. */
 export interface PersonBox {
@@ -40,17 +45,25 @@ export interface PersonBox {
 export interface SpotOptions {
   /** Heights of the steps to fill, one row each. */
   rowHeights: number[];
-  /** The person's shape, at the size it was made. */
-  shape: PersonBox[];
-  /** Centre-to-centre distance along a row. */
+  /** The room the person takes up at the size it was made, for each way of moving. */
+  shapes: Record<Moves, PersonBox[]>;
+  /** 0..1: share of people who cheer, where there's room for it. */
+  cheerShare: number;
+  /** Centre-to-centre distance along a row, on average. */
   spacing: number;
+  /** 0..1: how much the distance to the next person differs from `spacing`, either way. */
+  spacingJitter: number;
+  /** How far back from the front of the step a person may like to stand, at most (if there's room). */
+  depthJitter: number;
+  /** 0..1: share of spots left empty. */
+  gaps: number;
   /** Space kept free around each person. */
   clearance: number;
   /** 0..1: how much bigger or smaller than made a person may be. */
   sizeVariation: number;
   /** Most a person is turned away from facing straight ahead, either way, in radians. */
   turn: number;
-  /** Random numbers from 0 to 1, for sizes and turns. */
+  /** Random numbers from 0 to 1, for spacing, depth, gaps, sizes and turns. */
   random: () => number;
 }
 
@@ -61,20 +74,37 @@ const STAIR_LEVEL = 0.05; // a flat level with less than this share of the bigge
 const STAIR_REACH = 0.5; // stair steps count when they are at most this far above or below a row
 const STAIR_GAP = 1; // stair steps closer than this belong to the same stairs
 const STEP_BACK = 0.5; // how far back from the front of the step a person may stand
-const NUDGE = 0.01; // steps in which a person is moved back to find room
+const NUDGE = 0.02; // steps in which a person is moved back to find room
 const SKIP = 0.1; // after a spot where nobody fits, the next try is this far along the row
 const ON_FLOOR = 0.05; // a box starting this low stands on the floor
+const CHEER_ROOM = 1.25; // how much more room along the row a cheering person wants
 
 /** Spots for every row, from the stand (`steps`: floors, risers and stairs) and everything else that is in the way. */
 export function findCrowdSpots(steps: Triangles, obstacles: Triangles[], o: SpotOptions): CrowdSpot[] {
   const spots: CrowdSpot[] = [];
   const stairs = new TriangleIndex(findStairs(steps, o.rowHeights));
-  const feet = o.shape.filter((b) => b.y0 < ON_FLOOR);
+  const all = [...o.shapes.cheer, ...o.shapes.move, ...o.shapes.calm];
+  const feet = o.shapes.calm.filter((b) => b.y0 < ON_FLOOR);
   if (feet.length === 0) throw new Error('The crowd person has no part standing on the floor');
   const biggest = 1 + o.sizeVariation;
   const smallest = 1 - o.sizeVariation;
-  const top = Math.max(...o.shape.map((b) => b.y1)) * biggest;
+  const top = Math.max(...all.map((b) => b.y1)) * biggest;
   const feetTop = Math.max(...feet.map((b) => b.y1)) * smallest;
+  // Everyone placed so far, as their boxes, and how far apart two people's middles can be and still touch.
+  const placed: {
+    x: number;
+    z: number;
+    boxes: { rect: Rect; lo: number; hi: number }[];
+  }[] = [];
+  const reach =
+    2 *
+      biggest *
+      Math.max(
+        ...all.map((b) =>
+          Math.max(Math.hypot(b.x0, b.z0), Math.hypot(b.x1, b.z0), Math.hypot(b.x0, b.z1), Math.hypot(b.x1, b.z1)),
+        ),
+      ) +
+    2 * o.clearance;
   o.rowHeights.forEach((y, row) => {
     const floor = trianglesWhere(steps, (t, i) => isFloorAt(t, y, i));
     if (floor.length === 0) throw new Error(`No stand step found at ${y} m for the crowd`);
@@ -82,7 +112,17 @@ export function findCrowdSpots(steps: Triangles, obstacles: Triangles[], o: Spot
     const onFloor = new Grid(box);
     for (let i = 0; i < floor.length; i += 9) onFloor.fill(floor, i, 1);
     // Only what is within a person's heights on this step can be in the way.
-    const near = new TriangleIndex(concat([steps, ...obstacles].map((list) => trianglesWhere(list, (t, i) => Math.max(t[i + 1], t[i + 4], t[i + 7]) > y + ABOVE && Math.min(t[i + 1], t[i + 4], t[i + 7]) < y + top))));
+    const near = new TriangleIndex(
+      concat(
+        [steps, ...obstacles].map((list) =>
+          trianglesWhere(
+            list,
+            (t, i) =>
+              Math.max(t[i + 1], t[i + 4], t[i + 7]) > y + ABOVE && Math.min(t[i + 1], t[i + 4], t[i + 7]) < y + top,
+          ),
+        ),
+      ),
+    );
 
     // The line runs where the smallest body has room to stand at all.
     const body = new Grid(box);
@@ -95,39 +135,98 @@ export function findCrowdSpots(steps: Triangles, obstacles: Triangles[], o: Spot
     const depth = Math.min(...feet.map((b) => Math.min(-b.z0, b.z1))) * smallest + o.clearance;
     const line = rowLine(body, body.roomAround(), depth);
 
-    const fits = (x: number, z: number, angle: number, size: number) =>
-      o.shape.every((b) => {
-        const rect = { x, z, angle, x0: b.x0 * size - o.clearance, x1: b.x1 * size + o.clearance, z0: b.z0 * size - o.clearance, z1: b.z1 * size + o.clearance };
-        const lo = y + Math.max(b.y0 * size, ABOVE);
-        const hi = y + b.y1 * size;
+    const fits = (x: number, z: number, angle: number, size: number, shape: PersonBox[]) => {
+      const boxes = shape.map((b) => ({
+        b,
+        rect: {
+          x,
+          z,
+          angle,
+          x0: b.x0 * size - o.clearance,
+          x1: b.x1 * size + o.clearance,
+          z0: b.z0 * size - o.clearance,
+          z1: b.z1 * size + o.clearance,
+        },
+        lo: y + b.y0 * size,
+        hi: y + b.y1 * size,
+      }));
+      const ok = boxes.every(({ b, rect, lo, hi }) => {
         if (b.y0 < ON_FLOOR && !onFloor.covers(rect)) return false;
-        return !near.touches(rect, lo, hi) && !stairs.touches(rect, -Infinity, Infinity);
+        return !near.touches(rect, Math.max(lo, y + ABOVE), hi) && !stairs.touches(rect, -Infinity, Infinity);
       });
+      // Nobody may touch anyone already placed, in this row or the one in front.
+      const others = placed.filter((q) => Math.hypot(q.x - x, q.z - z) < reach);
+      if (
+        !ok ||
+        others.some((q) =>
+          q.boxes.some((a) => boxes.some((c) => a.lo < c.hi && c.lo < a.hi && rectsOverlap(a.rect, c.rect))),
+        )
+      )
+        return undefined;
+      return boxes;
+    };
     const centre = { x: (box.x0 + box.x1) / 2, z: (box.z0 + box.z1) / 2 };
+    // People (and spots left empty on purpose), each with the room they want along the row.
+    const taken: { x: number; z: number; room: number }[] = [];
+    const crowded = (x: number, z: number, room: number) =>
+      taken.some((q) => Math.hypot(x - q.x, z - q.z) < (room + q.room) / 2);
     const kept: CrowdSpot[] = [];
     let failed: { x: number; z: number } | undefined;
     line.forEach((p, i) => {
-      if (kept.some((q) => Math.hypot(p.x - q.x, p.z - q.z) < o.spacing)) return;
+      // Cheering people swing their arms out to the sides, so they want a bit more room.
+      const cheers = o.random() < o.cheerShare;
+      const room = o.spacing * (1 + o.spacingJitter * (o.random() * 2 - 1)) * (cheers ? CHEER_ROOM : 1);
+      if (crowded(p.x, p.z, room)) return;
       if (failed && Math.hypot(p.x - failed.x, p.z - failed.z) < SKIP) return;
       failed = p;
+      if (o.random() < o.gaps) {
+        taken.push({ x: p.x, z: p.z, room });
+        failed = undefined;
+        return;
+      }
       const front = facing(line, i, centre);
       const straight = Math.atan2(front.x, front.z);
       const size = 1 + o.sizeVariation * (o.random() * 2 - 1);
       const angle = straight + o.turn * (o.random() * 2 - 1);
-      // Where it's tight, a person stands straight, or is a bit smaller, before stepping back.
-      const tries = [
-        { angle, size },
-        { angle: straight, size },
-        { angle: straight, size: smallest },
+      // Where it's tight, a person moves less, stands straight, or is a bit smaller, before going elsewhere on the step.
+      const tries: { angle: number; size: number; moves: Moves }[] = [
+        ...(cheers
+          ? [
+              { angle, size, moves: 'cheer' as const },
+              { angle: straight, size, moves: 'cheer' as const },
+            ]
+          : []),
+        { angle, size, moves: 'move' },
+        { angle: straight, size, moves: 'move' },
+        { angle, size, moves: 'calm' },
+        { angle: straight, size, moves: 'calm' },
+        { angle: straight, size: smallest, moves: 'calm' },
       ];
-      // The line is only as exact as its cells, so the first try is half a cell further forward.
-      for (let back = -CELL / 2; back <= STEP_BACK + 1e-9; back += NUDGE) {
-        const x = p.x - front.x * back;
-        const z = p.z - front.z * back;
-        if (kept.some((q) => Math.hypot(x - q.x, z - q.z) < o.spacing)) return;
-        const fit = tries.find((f) => fits(x, z, f.angle, f.size));
-        if (fit) {
-          kept.push({ x, y, z, angle: fit.angle, size: fit.size, row });
+      // Each person likes to stand a bit further back or not; the nearest spot to that with room wins. The line is
+      // only as exact as its cells, so the frontmost try is half a cell further forward.
+      const like = -CELL / 2 + o.depthJitter * o.random();
+      const backs: number[] = [];
+      for (let back = -CELL / 2; back <= STEP_BACK + 1e-9; back += NUDGE) backs.push(back);
+      backs.sort((a, b) => Math.abs(a - like) - Math.abs(b - like));
+      // A person would rather stand somewhere else on the step than move less.
+      for (const f of tries) {
+        for (const back of backs) {
+          const x = p.x - front.x * back;
+          const z = p.z - front.z * back;
+          if (crowded(x, z, room)) continue;
+          const boxes = fits(x, z, f.angle, f.size, o.shapes[f.moves]);
+          if (!boxes) continue;
+          kept.push({
+            x,
+            y,
+            z,
+            angle: f.angle,
+            size: f.size,
+            moves: f.moves,
+            row,
+          });
+          taken.push({ x, z, room });
+          placed.push({ x, z, boxes });
           failed = undefined;
           return;
         }
@@ -190,7 +289,12 @@ class TriangleIndex {
 
   /** Whether any triangle reaching into the heights lo..hi overlaps the box seen from above. */
   touches(r: Rect, lo: number, hi: number): boolean {
-    const reach = Math.max(Math.hypot(r.x0, r.z0), Math.hypot(r.x1, r.z0), Math.hypot(r.x0, r.z1), Math.hypot(r.x1, r.z1));
+    const reach = Math.max(
+      Math.hypot(r.x0, r.z0),
+      Math.hypot(r.x1, r.z0),
+      Math.hypot(r.x0, r.z1),
+      Math.hypot(r.x1, r.z1),
+    );
     const [i0, i1, j0, j1] = this.span(r.x - reach, r.x + reach, r.z - reach, r.z + reach);
     const seen = new Set<number>();
     const t = this.triangles;
@@ -206,6 +310,36 @@ class TriangleIndex {
     }
     return false;
   }
+}
+
+/** The corners of a turned box seen from above, in the world. */
+function corners(r: Rect): number[][] {
+  const cos = Math.cos(r.angle);
+  const sin = Math.sin(r.angle);
+  return [
+    [r.x0, r.z0],
+    [r.x1, r.z0],
+    [r.x1, r.z1],
+    [r.x0, r.z1],
+  ].map(([lx, lz]) => [r.x + lx * cos + lz * sin, r.z - lx * sin + lz * cos]);
+}
+
+/** Whether two turned boxes seen from above overlap (separating axis test). */
+function rectsOverlap(a: Rect, b: Rect): boolean {
+  const ca = corners(a);
+  const cb = corners(b);
+  for (const angle of [a.angle, b.angle]) {
+    // A box's own sides run along its x and z, turned by its angle.
+    for (const [ax, az] of [
+      [Math.cos(angle), -Math.sin(angle)],
+      [Math.sin(angle), Math.cos(angle)],
+    ]) {
+      const pa = ca.map((c) => c[0] * ax + c[1] * az);
+      const pb = cb.map((c) => c[0] * ax + c[1] * az);
+      if (Math.max(...pa) < Math.min(...pb) || Math.max(...pb) < Math.min(...pa)) return false;
+    }
+  }
+  return true;
 }
 
 /** Whether a triangle seen from above overlaps a turned box (separating axis test). */
@@ -241,7 +375,11 @@ function overlaps(r: Rect, t: Triangles, i: number): boolean {
 }
 
 /** Which way a person on the row line faces: across the line, toward the pitch (the middle of the step's outline). */
-function facing(line: { x: number; z: number }[], i: number, centre: { x: number; z: number }): { x: number; z: number } {
+function facing(
+  line: { x: number; z: number }[],
+  i: number,
+  centre: { x: number; z: number },
+): { x: number; z: number } {
   // The line's direction here, from its points a few cells either side (not across a gap, like the stairs).
   const reach = 4;
   let a = line[i];
@@ -285,7 +423,14 @@ export function shapeOf(part: Triangles, slice: number): PersonBox[] {
   const boxes: PersonBox[] = [];
   for (let y0 = bottom; y0 < top - 1e-6; y0 += slice) {
     const y1 = Math.min(y0 + slice, top);
-    const b = { x0: Infinity, x1: -Infinity, y0, y1, z0: Infinity, z1: -Infinity };
+    const b = {
+      x0: Infinity,
+      x1: -Infinity,
+      y0,
+      y1,
+      z0: Infinity,
+      z1: -Infinity,
+    };
     const add = (x: number, z: number) => {
       b.x0 = Math.min(b.x0, x);
       b.x1 = Math.max(b.x1, x);
@@ -325,7 +470,12 @@ function findStairs(steps: Triangles, rowHeights: number[]): Triangles {
   for (let i = 0; i < steps.length; i += 9) {
     const t = Array.from(steps.subarray(i, i + 9));
     const y = (t[1] + t[4] + t[7]) / 3;
-    if (isFloorAt(t, y)) flat.push({ t, y, area: Math.abs((t[3] - t[0]) * (t[8] - t[2]) - (t[6] - t[0]) * (t[5] - t[2])) / 2 });
+    if (isFloorAt(t, y))
+      flat.push({
+        t,
+        y,
+        area: Math.abs((t[3] - t[0]) * (t[8] - t[2]) - (t[6] - t[0]) * (t[5] - t[2])) / 2,
+      });
   }
   flat.sort((a, b) => a.y - b.y);
   const levels: (typeof flat)[] = [];
@@ -350,7 +500,8 @@ function findStairs(steps: Triangles, rowHeights: number[]): Triangles {
   const root = (k: number): number => (group[k] === k ? k : (group[k] = root(group[k])));
   for (let a = 0; a < corners.length; a++) {
     for (let b = a + 1; b < corners.length; b++) {
-      if (Math.hypot(corners[a][0] - corners[b][0], corners[a][1] - corners[b][1]) < STAIR_GAP) group[root(a)] = root(b);
+      if (Math.hypot(corners[a][0] - corners[b][0], corners[a][1] - corners[b][1]) < STAIR_GAP)
+        group[root(a)] = root(b);
     }
   }
   const groups = new Map<number, number[][]>();
@@ -417,7 +568,12 @@ function bounds(list: Triangles, margin: number): Box {
     b.z0 = Math.min(b.z0, list[i + 2]);
     b.z1 = Math.max(b.z1, list[i + 2]);
   }
-  return { x0: b.x0 - margin, z0: b.z0 - margin, x1: b.x1 + margin, z1: b.z1 + margin };
+  return {
+    x0: b.x0 - margin,
+    z0: b.z0 - margin,
+    x1: b.x1 + margin,
+    z1: b.z1 + margin,
+  };
 }
 
 /** Top-down cells over one step: 1 = free floor, 0 = not floor or blocked. */
@@ -442,7 +598,12 @@ class Grid {
 
   /** Sets every cell whose middle is inside the triangle (seen from above). */
   fill(list: Triangles, k: number, value: number) {
-    const ax = list[k], az = list[k + 2], bx = list[k + 3], bz = list[k + 5], cx = list[k + 6], cz = list[k + 8];
+    const ax = list[k],
+      az = list[k + 2],
+      bx = list[k + 3],
+      bz = list[k + 5],
+      cx = list[k + 6],
+      cz = list[k + 8];
     const area = (bx - ax) * (cz - az) - (cx - ax) * (bz - az);
     if (Math.abs(area) < 1e-9) return;
     const s = Math.sign(area);
@@ -469,7 +630,10 @@ class Grid {
     for (let e = 0; e < 3; e++) {
       const a = k + 3 * e;
       const b = k + 3 * ((e + 1) % 3);
-      const ax = list[a], az = list[a + 2], bx = list[b], bz = list[b + 2];
+      const ax = list[a],
+        az = list[a + 2],
+        bx = list[b],
+        bz = list[b + 2];
       const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / (0.5 * CELL)));
       for (let s = 0; s <= steps; s++) {
         const i = Math.floor((ax + ((bx - ax) * s) / steps - this.box.x0) / CELL);
@@ -483,7 +647,10 @@ class Grid {
   covers(r: Rect): boolean {
     const cos = Math.cos(r.angle);
     const sin = Math.sin(r.angle);
-    const x0 = r.x0 + CELL, x1 = r.x1 - CELL, z0 = r.z0 + CELL, z1 = r.z1 - CELL;
+    const x0 = r.x0 + CELL,
+      x1 = r.x1 - CELL,
+      z0 = r.z0 + CELL,
+      z1 = r.z1 - CELL;
     const nx = Math.max(1, Math.ceil((x1 - x0) / CELL));
     const nz = Math.max(1, Math.ceil((z1 - z0) / CELL));
     for (let a = 0; a <= nx; a++) {
@@ -549,7 +716,12 @@ function rowLine(grid: Grid, room: Float32Array, need: number): { x: number; z: 
       if (room[j * grid.w + i] < need) continue;
       const x = grid.x(i);
       const z = grid.z(j);
-      cells.push({ x, z, r: Math.hypot(x - cx, z - cz), a: Math.atan2(z - cz, x - cx) + Math.PI });
+      cells.push({
+        x,
+        z,
+        r: Math.hypot(x - cx, z - cz),
+        a: Math.atan2(z - cz, x - cx) + Math.PI,
+      });
     }
   }
   if (cells.length === 0) return [];
