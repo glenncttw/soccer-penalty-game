@@ -11,6 +11,9 @@ export interface BenchmarkParts {
   perf: PerfStats;
   /** A pixel ratio to test, or null for the normal setting. The game keeps it under the screen's own. */
   setPixelRatio: (ratio: number | null) => void;
+  /** What the automatic sharpness decided (src/scene/autoResolution.ts), and a way to make it start over. */
+  autoStatus: () => string;
+  forgetAuto: () => void;
 }
 
 /** The pixel ratios the test runs through; 2 was the game's old setting. */
@@ -162,7 +165,7 @@ export function resultsText(results: BenchResult[], screenRatio: number): string
   return lines.join('\n');
 }
 
-export function openBenchmark({ renderer, perf, setPixelRatio }: BenchmarkParts) {
+export function openBenchmark({ renderer, perf, setPixelRatio, autoStatus, forgetAuto }: BenchmarkParts) {
   const gpu = new GpuTimer(renderer);
   const canvas = renderer.domElement;
   const screenRatio = window.devicePixelRatio;
@@ -173,6 +176,8 @@ export function openBenchmark({ renderer, perf, setPixelRatio }: BenchmarkParts)
     <b>Sharpness test</b>
     <div class="bench-buttons"></div>
     <pre class="bench-live"></pre>
+    <pre class="bench-auto"></pre>
+    <button class="bench-forget">Forget auto choice</button>
     <button class="bench-run">Run test (about 1 minute)</button>
     <pre class="bench-results"></pre>
     <button class="bench-copy" hidden>Copy results</button>`;
@@ -183,6 +188,11 @@ export function openBenchmark({ renderer, perf, setPixelRatio }: BenchmarkParts)
   const out = panel.querySelector<HTMLElement>('.bench-results')!;
   const run = panel.querySelector<HTMLButtonElement>('.bench-run')!;
   const copy = panel.querySelector<HTMLButtonElement>('.bench-copy')!;
+  const auto = panel.querySelector<HTMLElement>('.bench-auto')!;
+  panel.querySelector('.bench-forget')!.addEventListener('click', () => {
+    forgetAuto();
+    auto.textContent = 'auto: forgotten, reload the page to measure from the start';
+  });
 
   let chosen: number | null = null;
   const buttons = new Map<number | null, HTMLButtonElement>();
@@ -225,6 +235,9 @@ export function openBenchmark({ renderer, perf, setPixelRatio }: BenchmarkParts)
       `${fmt(r.fps)} FPS, ${fmt(r.frameMs)} ms a frame, CPU ${fmt(r.cpuMs)} ms`,
       `GPU ${gpu.supported ? (r.gpuMs === null ? '...' : `${fmt(r.gpuMs)} ms`) : 'n/a in this browser'}`,
     ].join('\n');
+    if (!auto.textContent?.includes('forgotten')) {
+      auto.textContent = `${autoStatus()}${chosen === null ? '' : ' (paused while testing; tap Normal)'}`;
+    }
     second = [];
     secondGpu = [];
   };

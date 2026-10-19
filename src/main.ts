@@ -26,7 +26,8 @@ import { loadKeeperModel } from './scene/keeperAsset';
 import { lightMovingObject, setUpLighting } from './scene/lighting';
 import { Replay } from './scene/replay';
 import { REPLAY_SETTINGS } from './scene/replaySettings';
-import { clampPixelRatio, pickPixelRatio } from './scene/resolutionSettings';
+import { AutoResolution, type AutoMemory } from './scene/autoResolution';
+import { clampPixelRatio, pickPixelRatio, RESOLUTION_SETTINGS } from './scene/resolutionSettings';
 import { Sky } from './scene/sky';
 import { SKY_SETTINGS } from './scene/skySettings';
 import { loadStadium } from './scene/stadiumAsset';
@@ -41,6 +42,30 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 // How many pixels the picture is drawn with; set by resize(), tweak it in src/scene/resolutionSettings.ts.
 const touchScreen = window.matchMedia('(pointer: coarse)').matches;
 let testPixelRatio: number | null = null; // set by the ?bench panel
+// Measures this device while you aim and moves the sharpness a step up or down, remembered for next time.
+const SHARPNESS_KEY = 'soccer.sharpness';
+const autoSharpness = RESOLUTION_SETTINGS.auto
+  ? new AutoResolution(
+      RESOLUTION_SETTINGS.autoSettings,
+      pickPixelRatio(window.devicePixelRatio, touchScreen),
+      window.devicePixelRatio,
+      readSharpness(),
+      (memory) => {
+        try {
+          localStorage.setItem(SHARPNESS_KEY, JSON.stringify(memory));
+        } catch {
+          // private browsing: it just measures again next time
+        }
+      },
+    )
+  : null;
+function readSharpness(): AutoMemory | null {
+  try {
+    return JSON.parse(localStorage.getItem(SHARPNESS_KEY) ?? 'null') as AutoMemory | null;
+  } catch {
+    return null;
+  }
+}
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 // The stadium was lit with Blender's "Standard" view transform: plain sRGB, no tone mapping.
@@ -231,6 +256,7 @@ function resetShot() {
   physics.poseKeeper(keeper.pose);
   trail.clear();
   hud.hideBanner();
+  if (autoSharpness?.applyPending()) resize(); // a sharpness step, unseen behind the wipe
 }
 
 function nextShot() {
@@ -245,7 +271,8 @@ function resize() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   const screenRatio = window.devicePixelRatio;
-  const ratio = testPixelRatio === null ? pickPixelRatio(screenRatio, touchScreen) : clampPixelRatio(testPixelRatio, screenRatio);
+  const wanted = testPixelRatio ?? autoSharpness?.ratio ?? pickPixelRatio(screenRatio, touchScreen);
+  const ratio = clampPixelRatio(wanted, screenRatio);
   // Resizing throws the old picture memory away, so only do it when something really changed.
   if (w === drawn.w && h === drawn.h && ratio === drawn.ratio) return;
   drawn = { w, h, ratio };
@@ -279,6 +306,9 @@ if (new URLSearchParams(location.search).has('bench')) {
   openBenchmark({
     renderer,
     perf,
+    autoStatus: () =>
+      autoSharpness ? `auto: ${autoSharpness.ratio}x, ${autoSharpness.status}` : 'auto: off',
+    forgetAuto: () => localStorage.removeItem(SHARPNESS_KEY),
     setPixelRatio: (ratio) => {
       testPixelRatio = ratio;
       resize();
@@ -301,6 +331,7 @@ renderer.setAnimationLoop((time) => {
   gameTime += dt;
   phaseTime += realDt;
   markers.update(realDt);
+  if (testPixelRatio === null) autoSharpness?.frame(time, phase === 'aiming');
 
   if (phase === 'aiming') {
     if (input.hasPointer) {
