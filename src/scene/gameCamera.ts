@@ -121,7 +121,7 @@ export function createGameCamera(config: WorldConfig, settings: CameraSettings =
     }
   }
 
-  return { camera, fit, update, addTrauma, setSettings };
+  return { camera, restPosition, fit, update, addTrauma, setSettings };
 }
 
 /** The rest position, behind the ball, and the rotation that looks at the target on the goal line. */

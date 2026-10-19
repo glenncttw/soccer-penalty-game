@@ -203,7 +203,7 @@ To change the look, try the settings in the [settings editor](#the-settings-edit
 | `colorLight`, `colorDark` | the stripe colours |
 | `textureStrength` | how much of the colour picture's variation shows (0 = plain stripe colours) |
 | `normalStrength` | how strongly the bumps catch the light (0 = flat) |
-| `textureTileSize`, `textureStretch` | how much pitch one copy of the pictures covers, and how much longer it is toward the goal so the blades look upright |
+| `textureTileSize`, `textureStretch` | how much pitch one copy of the pictures covers, and how much longer it is along the view (away from the camera) so the blades look upright. Each copy is turned to face the camera's usual spot, so the blades stand up at the sides of the screen too |
 | `stripeSoftness`, `stripeRagged` | how soft and how ragged the stripe edges are |
 | `crossStripeWidth`, `crossStripeOpacity` | how wide the see-through stripes running left to right are (0 = none), and how dark they are (1 = as dark as a dark stripe) |
 | `patchStrength`, `patchSize` | the soft lighter and darker patches |

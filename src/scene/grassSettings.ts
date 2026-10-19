@@ -24,7 +24,7 @@ export interface GrassSettings {
   /** How much of the pitch one copy of the texture covers. Smaller = finer grass. */
   textureTileSize: number;
   /**
-   * How much longer the texture is toward the goal than across. You see the
+   * How much longer the texture is along the view (away from the camera) than across. You see the
    * grass from a low angle, which squashes it; stretching makes the blades look
    * like they stand up. 1 = no stretch.
    */
