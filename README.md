@@ -128,8 +128,8 @@ Animations in the export (like the corner flags waving) play on a loop, slowed d
 Nothing in the game refers to them by name, so a new export can add, change or drop them.
 
 **The crowd:** Glenn's crowd person (`public/assets/crowd/crowd_person.glb`, made in Blender: origin between the feet,
-facing +z) stands in the stands in 5 rows: the steps at 0.45, 0.86, 2.10, 2.50 and 2.90 m high. The wide walkway at
-1.70 m (where the corner stairs come down), the narrow top step at 3.30 m and the corner stairs stay empty. It is its own
+facing +z; its light version: 920 triangles, WebP texture, meshopt compression) stands in the stands in 5 rows: the
+steps at 0.45, 0.86, 2.10, 2.50 and 2.90 m high. The wide walkway at 1.70 m (where the corner stairs come down), the narrow top step at 3.30 m and the corner stairs stay empty. It is its own
 file, not part of the stadium: replace it to update the person (keep one material for all its parts). The game loads it
 once (`src/scene/crowdAsset.ts`) and draws a copy at every spot in one go (`src/scene/crowd.ts`), each a little bigger or
 smaller, turned, spaced and set back by its own random amount, close together so the stands look full, and with its
