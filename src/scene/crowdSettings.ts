@@ -1,5 +1,5 @@
 /**
- * The placeholder crowd: simple tubes standing in the stands until the real crowd is made.
+ * The crowd: copies of Glenn's crowd person standing in the stands.
  * Sizes are in metres; colours are CSS hex strings (sRGB, as a colour picker shows them).
  */
 export interface CrowdSettings {
@@ -12,18 +12,18 @@ export interface CrowdSettings {
    * at 3.30 m, which has no barrier.
    */
   rowHeights: number[];
-  /** Radius of a tube. */
-  radius: number;
-  /** Height of a tube, from its feet to the top of its round head. */
-  height: number;
-  /** 0..1: how much tube heights differ from each other. */
-  heightVariation: number;
-  /** Distance between neighbouring tubes in a row, centre to centre. */
+  /** Distance between neighbouring people in a row, centre to centre. */
   spacing: number;
-  /** Space kept free between a tube and anything of the stadium (barriers, walls, stairs, step edges). */
+  /** Space kept free between a person and anything of the stadium (barriers, walls, stairs, step edges). */
   clearance: number;
-  /** Shirt colours, picked at random for each tube. */
-  colors: string[];
+  /** 0..1: how much people's sizes differ from each other (0.05 = up to 5% bigger or smaller). */
+  sizeVariation: number;
+  /** Most a person is turned away from facing the pitch straight on, either way, in degrees. */
+  turn: number;
+  /** The shirt colour in the person's texture; every person gets a shirt colour from `shirtColors` in its place. */
+  shirtColor: string;
+  /** Shirt colours, picked at random for each person. Leave it empty to keep the texture's own shirt colour. */
+  shirtColors: string[];
   /** Any whole number. The same seed always gives the same crowd. */
   seed: number;
 }
@@ -31,11 +31,11 @@ export interface CrowdSettings {
 export const CROWD_SETTINGS: CrowdSettings = {
   crowd: true,
   rowHeights: [0.45, 0.86, 2.1, 2.5, 2.9],
-  radius: 0.14,
-  height: 0.85,
-  heightVariation: 0.15,
   spacing: 0.84,
   clearance: 0.02,
-  colors: ['#e63946', '#1d4ed8', '#f4c430', '#ffffff', '#2a9d8f', '#ff7f50', '#6c398b', '#ff4fa3', '#1f2a44', '#8ecae6'],
+  sizeVariation: 0.05,
+  turn: 8,
+  shirtColor: '#1123eb',
+  shirtColors: ['#1123eb', '#e63946', '#f4c430', '#ffffff', '#2a9d8f', '#ff7f50', '#6c398b', '#ff4fa3', '#1f2a44', '#8ecae6'],
   seed: 3,
 };
