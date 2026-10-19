@@ -69,10 +69,9 @@ const GLOW_ROWS: Row<FloodlightSettings>[] = [
 ];
 
 const DEPTH_ROWS: Row<DepthOfFieldSettings>[] = [
+  ['sharpBehindGoal', 'Sharp behind the goal (m)', 0, 20, 0.1],
+  ['fadeDistance', 'Fade distance (m)', 1, 80, 0.5],
   ['blur', 'Blur (share of height)', 0, 0.04, 0.0005],
-  ['nearBlur', 'Near people blur', 0, 1, 0.01],
-  ['nearDistance', 'Near (m)', 0, 40, 0.5],
-  ['farDistance', 'Far (m)', 0, 60, 0.5],
 ];
 
 const WIPE_ROWS: Row<ReplaySettings>[] = [

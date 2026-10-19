@@ -55,7 +55,12 @@ export class FloodlightGlow {
     const material = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      // Adds its light, but leaves the picture's alpha alone so the lamps stay sharp (see keepSharp).
+      blending: THREE.CustomBlending,
+      blendSrc: THREE.SrcAlphaFactor,
+      blendDst: THREE.OneFactor,
+      blendSrcAlpha: THREE.ZeroFactor,
+      blendDstAlpha: THREE.OneFactor,
       toneMapped: false,
       uniforms: this.uniforms,
       vertexShader: /* glsl */ `

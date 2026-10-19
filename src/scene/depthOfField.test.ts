@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { bokehPattern, crowdSoftness } from './depthOfField';
-import { DEPTH_OF_FIELD_SETTINGS } from './depthOfFieldSettings';
+import { bokehPattern, softnessAt } from './depthOfField';
 
 describe('depth of field', () => {
-  it('blurs near people less than far ones, changing smoothly in between', () => {
-    const s = { ...DEPTH_OF_FIELD_SETTINGS, nearBlur: 0.4, nearDistance: 10, farDistance: 20 };
-    expect(crowdSoftness(5, s)).toBeCloseTo(0.4);
-    expect(crowdSoftness(15, s)).toBeCloseTo(0.7);
-    expect(crowdSoftness(30, s)).toBeCloseTo(1);
+  it('keeps things sharp up to a distance, then softens them over the fade distance', () => {
+    expect(softnessAt(10, 15, 10)).toBe(0);
+    expect(softnessAt(20, 15, 10)).toBeCloseTo(0.5);
+    expect(softnessAt(40, 15, 10)).toBe(1);
   });
 
   it('reads spots spread over a round disc', () => {

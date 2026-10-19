@@ -5,10 +5,10 @@ import { DEPTH_OF_FIELD_SETTINGS, type DepthOfFieldSettings } from './depthOfFie
 export const BOKEH_SAMPLES = 24;
 
 /**
- * What a material writes as its alpha to be blurred (see markForBlur). Everything else draws with
- * alpha 1 and stays sharp.
+ * What the sky, trees and floodlights write as their alpha to stay sharp (see keepSharp).
+ * Everything else draws with alpha 1 and gets soft with distance.
  */
-const BLUR_MARK = 0;
+export const SHARP_MARK = 0;
 
 /**
  * Where the lens blur reads round a pixel: spread evenly over a disc of radius 1 (a sunflower
@@ -22,23 +22,40 @@ export function bokehPattern(count: number): THREE.Vector2[] {
   });
 }
 
-/** 0..1: how soft a person this many metres from the camera gets, as a share of the full blur. */
-export function crowdSoftness(distance: number, s: DepthOfFieldSettings): number {
-  const t = THREE.MathUtils.smoothstep(distance, s.nearDistance, Math.max(s.farDistance, s.nearDistance + 1e-3));
-  return THREE.MathUtils.lerp(s.nearBlur, 1, t);
+/** 0..1: how soft something this many metres from the camera gets (0 = sharp). */
+export function softnessAt(distance: number, sharpUntil: number, fadeDistance: number): number {
+  return THREE.MathUtils.clamp((distance - sharpUntil) / Math.max(fadeDistance, 1e-3), 0, 1);
 }
 
 /**
- * Makes a material's pixels get the lens blur: it writes BLUR_MARK as its alpha into the game's
- * picture (it must draw without blending, as solid things do). Things drawn over it later, like the
- * net, write their own alpha on top and stay sharp.
+ * Keeps the meshes under `root` whose name (or a parent's) starts with one of `prefixes` sharp,
+ * however far away they are: their materials get a copy that writes SHARP_MARK as its alpha into
+ * the game's picture (solid things draw without blending, so it lands as it is).
  */
-export function markForBlur(shader: THREE.WebGLProgramParametersWithUniforms) {
-  shader.fragmentShader = shader.fragmentShader.replace(
-    '#include <opaque_fragment>',
-    `#include <opaque_fragment>
-    gl_FragColor.a = ${BLUR_MARK.toFixed(1)};`,
-  );
+export function keepSharp(root: THREE.Object3D, prefixes: string[]) {
+  const named = (o: THREE.Object3D | null): boolean =>
+    !!o && (prefixes.some((p) => o.name.startsWith(p)) || named(o.parent));
+  const copies = new Map<THREE.Material, THREE.Material>();
+  const sharpCopy = (m: THREE.Material) => {
+    if (!copies.has(m)) {
+      const copy = m.clone();
+      copy.onBeforeCompile = (shader, renderer) => {
+        m.onBeforeCompile(shader, renderer);
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <opaque_fragment>',
+          `#include <opaque_fragment>
+          gl_FragColor.a = ${SHARP_MARK.toFixed(1)};`,
+        );
+      };
+      copy.customProgramCacheKey = () => `${m.customProgramCacheKey()}|keepSharp`;
+      copies.set(m, copy);
+    }
+    return copies.get(m)!;
+  };
+  root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh) || !named(o)) return;
+    o.material = Array.isArray(o.material) ? o.material.map(sharpCopy) : sharpCopy(o.material);
+  });
 }
 
 const FULL_SCREEN_VERTEX = /* glsl */ `
@@ -59,23 +76,22 @@ const DISTANCE = /* glsl */ `
   }
 `;
 
-// A half-size copy of the picture with how soft each pixel gets in alpha (the same as crowdSoftness).
+// A half-size copy of the picture with how soft each pixel gets in alpha (the same as softnessAt).
 const PREPARE_FRAGMENT = /* glsl */ `
   uniform sampler2D uPicture;
-  uniform float uNearBlur, uNearDistance, uFarDistance;
+  uniform float uSharpUntil, uFade;
   varying vec2 vUv;
   ${DISTANCE}
   void main() {
     vec4 picture = texture2D(uPicture, vUv);
-    float marked = 1.0 - picture.a; // the crowd wrote 0 as its alpha, everything else 1
-    float soft = mix(uNearBlur, 1.0, smoothstep(uNearDistance, uFarDistance, distanceAt(vUv)));
-    gl_FragColor = vec4(picture.rgb, marked * soft);
+    float soft = clamp((distanceAt(vUv) - uSharpUntil) / uFade, 0.0, 1.0);
+    gl_FragColor = vec4(picture.rgb, picture.a * soft); // the sky, trees and floodlights wrote 0 as their alpha
   }
 `;
 
-// The lens blur: each pixel gathers the spots round it whose own blur reaches it, so blurred
-// people spill softly onto what's round them, but never onto things in front of them (the goal,
-// the barriers), and sharp things never smear.
+// The lens blur: each pixel gathers the spots round it whose own blur reaches it, so soft things
+// spill softly onto what's round them, but never onto things in front of them (the goal, the
+// barriers), and sharp things never smear.
 const BOKEH_FRAGMENT = /* glsl */ `
   uniform sampler2D uPrepared;
   uniform vec2 uRadius; // the widest blur's radius, in the picture's 0..1 units across and up
@@ -99,7 +115,7 @@ const BOKEH_FRAGMENT = /* glsl */ `
     }
     float own = middle.a > 0.0 ? 1.0 : 1e-4;
     vec3 color = (middle.rgb * own + sum) / (own + weight);
-    // How much of the blurred copy to show: all of it on the crowd, less the further outside it.
+    // How much of the blurred copy to show: all of it where things are soft, less the further outside.
     float show = max(clamp(middle.a * uRadiusPixels, 0.0, 1.0), weight / ${BOKEH_SAMPLES.toFixed(1)});
     gl_FragColor = vec4(color, show);
   }
@@ -119,10 +135,10 @@ const MIX_FRAGMENT = /* glsl */ `
 `;
 
 /**
- * Draws the game with the crowd out of focus (see depthOfFieldSettings.ts): the picture and how
- * far away each pixel is are drawn first, with the crowd marked (see markForBlur); a half-size
- * copy of the marked part is blurred like a lens, and the two are mixed on screen. Everything that
- * isn't marked stays exactly as sharp as before.
+ * Draws the game like a camera focused on the goal (see depthOfFieldSettings.ts): the picture and
+ * how far away each pixel is are drawn first; a half-size copy is blurred like a lens, more the
+ * further behind the goal things are, and the two are mixed on screen. Everything up to just
+ * behind the goal, and the sky, trees and floodlights (see keepSharp), stays exactly as sharp as before.
  */
 export class DepthOfField {
   private readonly sharp = new THREE.WebGLRenderTarget(1, 1, { samples: 4 });
@@ -140,8 +156,10 @@ export class DepthOfField {
   };
   private settings: DepthOfFieldSettings;
 
+  /** `goal` is a point on the goal line: things start to get soft a bit behind it. */
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
+    private readonly goal: THREE.Vector3,
     s: DepthOfFieldSettings = DEPTH_OF_FIELD_SETTINGS,
   ) {
     this.sharp.texture.colorSpace = THREE.SRGBColorSpace;
@@ -161,9 +179,8 @@ export class DepthOfField {
     this.prepare = shader(PREPARE_FRAGMENT, {
       ...this.depth,
       uPicture: { value: this.sharp.texture },
-      uNearBlur: { value: 0 },
-      uNearDistance: { value: 0 },
-      uFarDistance: { value: 1 },
+      uSharpUntil: { value: 0 },
+      uFade: { value: 1 },
     });
     this.bokeh = shader(BOKEH_FRAGMENT, {
       ...this.depth,
@@ -185,10 +202,7 @@ export class DepthOfField {
 
   update(s: DepthOfFieldSettings) {
     this.settings = s;
-    const u = this.prepare.uniforms;
-    u.uNearBlur.value = s.nearBlur;
-    u.uNearDistance.value = s.nearDistance;
-    u.uFarDistance.value = Math.max(s.farDistance, s.nearDistance + 1e-3);
+    this.prepare.uniforms.uFade.value = Math.max(s.fadeDistance, 1e-3);
   }
 
   /** The picture the game is drawn into before it goes on screen. */
@@ -205,7 +219,7 @@ export class DepthOfField {
     this.soft.setSize(w, h);
   }
 
-  /** Draws the game and puts it on screen with the crowd out of focus. */
+  /** Draws the game and puts it on screen with what's far behind the goal out of focus. */
   render(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
     const { renderer, settings: s } = this;
     renderer.setRenderTarget(this.sharp);
@@ -214,6 +228,7 @@ export class DepthOfField {
 
     this.depth.uNear.value = camera.near;
     this.depth.uFar.value = camera.far;
+    this.prepare.uniforms.uSharpUntil.value = camera.position.distanceTo(this.goal) + s.sharpBehindGoal;
     // The widest blur's radius: half its width, in the half-size pictures' pixels and 0..1 units.
     const radiusPixels = (s.blur * this.soft.height) / 2;
     this.bokeh.uniforms.uRadius.value.set(radiusPixels / this.soft.width, radiusPixels / this.soft.height);

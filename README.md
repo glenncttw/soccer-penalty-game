@@ -193,16 +193,17 @@ so it costs one tiny draw instead of a full-screen bloom. Settings in `src/scene
 off), `glowSize` (how far the halo reaches, in lamp radii), `glowOpacity`, `glowColor` (the lamps) and `glowEdgeColor`
 (the halo); also in the `?edit` panel under **Floodlight glow**.
 
-**Depth of field:** like a camera focused on the goal, the crowd is a little out of focus, with round, soft blur like
-a real lens, while everything else (the goal, keeper, net, stands, rails, trees, floodlights, sky) stays exactly as
-sharp as before (`src/scene/depthOfField.ts`). The crowd's material marks its pixels by writing 0 as its alpha
-(`markForBlur`); things drawn over it later, like the net, write their own alpha and stay sharp. The game is drawn into
-a picture with its distances first (smoothed there, so the screen itself isn't), a half-size copy of the marked part
-is blurred, and the two are mixed on screen. Blurred people spill softly onto what's round them but never onto things
-in front of them, like the barriers and the goal. Settings in `src/scene/depthOfFieldSettings.ts`: `depthOfField` (on
-or off), `blur` (how soft the furthest people get, as a share of the screen's height), `nearBlur` (how soft the
-nearest people get, compared with that) and `nearDistance`/`farDistance` (in metres); also in the `?edit` panel under
-**Depth of field**. The replay panel is drawn without it.
+**Depth of field:** like a camera focused on the goal, things get softer the further behind the goal they are (so each
+row of the crowd behind it is a little softer than the one in front), with round, soft blur like a real lens. The goal,
+keeper, net and everything nearer stay exactly as sharp as before, and so do the sky, trees and floodlights however far
+away they are (`src/scene/depthOfField.ts`). Those mark their pixels by writing 0 as their alpha (`keepSharp` for the
+trees and floodlights, the sky's own shader for the sky; the floodlight glow adds its light without touching the
+alpha). The game is drawn into a picture with its distances first (smoothed there, so the screen itself isn't), a
+half-size copy is blurred, and the two are mixed on screen. Soft things spill softly onto what's round them but never
+onto things in front of them, like the barriers and the goal. Settings in `src/scene/depthOfFieldSettings.ts`:
+`depthOfField` (on or off), `sharpBehindGoal` (how far behind the goal line things start to get soft, in metres),
+`fadeDistance` (how many metres further they take to get fully soft) and `blur` (how soft that is, as a share of the
+screen's height); also in the `?edit` panel under **Depth of field**. The replay panel is drawn without it.
 
 The KTX2 pictures need a decoder, served from `public/basis/`. Those two files are copies of
 `node_modules/three/examples/jsm/libs/basis/`; copy them again after updating three.

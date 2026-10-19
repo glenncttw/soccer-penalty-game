@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MAX_CLOUDS, MAX_LOBES, createClouds, packClouds } from './clouds';
+import { SHARP_MARK } from './depthOfField';
 import { SKY_SETTINGS, type SkySettings } from './skySettings';
 
 const DEG = Math.PI / 180;
@@ -245,7 +246,7 @@ const SKY_FRAGMENT = /* glsl */ `
       color = mix(color, cloud.rgb, cloud.a * uOpacity * shown);
     }
 
-    gl_FragColor = vec4(toLinear(color), 1.0);
+    gl_FragColor = vec4(toLinear(color), ${SHARP_MARK.toFixed(1)}); // alpha: kept sharp by the depth of field
     #include <colorspace_fragment>
     #include <dithering_fragment>
   }`;
