@@ -1,5 +1,6 @@
 import GUI from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import { CAMERA_SETTINGS, type CameraSettings } from '../scene/cameraSettings';
+import { FLOODLIGHT_SETTINGS, type FloodlightSettings } from '../scene/floodlightSettings';
 import { GRASS_SETTINGS, type GrassSettings } from '../scene/grassSettings';
 import { REPLAY_SETTINGS, type ReplaySettings } from '../scene/replaySettings';
 import { SKY_SETTINGS, type SkySettings } from '../scene/skySettings';
@@ -59,6 +60,13 @@ const CLOUD_ROWS: Row<SkySettings>[] = [
   ['cloudColorBottom', 'Bottom colour'],
 ];
 
+const GLOW_ROWS: Row<FloodlightSettings>[] = [
+  ['glowSize', 'Halo size', 1, 4, 0.05],
+  ['glowOpacity', 'Brightness', 0, 1, 0.01],
+  ['glowColor', 'Lamp colour'],
+  ['glowEdgeColor', 'Halo colour'],
+];
+
 const WIPE_ROWS: Row<ReplaySettings>[] = [
   ['wipeTime', 'Sweep time (s)', 0.3, 2, 0.01],
 ];
@@ -69,12 +77,13 @@ export interface EditorTargets {
   blenderCamera: CameraSettings;
   grass: { update(settings: GrassSettings): void };
   sky: { configure(settings: SkySettings): void };
+  floodlights: { update(settings: FloodlightSettings): void };
   /** Plays the wipe once, to try its timing. */
   wipe: { play(): void };
 }
 
 /**
- * A panel for changing the camera, the grass and the clouds while the game runs. Open it by adding ?edit to
+ * A panel for changing the camera, the grass, the clouds and the floodlight glow while the game runs. Open it by adding ?edit to
  * the game's address. Changes are only kept until you reload: "Copy settings"
  * copies them as code, to paste into the settings file.
  */
@@ -110,6 +119,16 @@ export function openSettingsEditor(targets: EditorTargets) {
   for (const row of CLOUD_ROWS) addRow(cloudFolder, sky, row).onChange(() => targets.sky.configure(sky));
   addCopyButton(cloudFolder, 'Copy sky settings', () => settingsSnippet('SKY_SETTINGS', 'SkySettings', sky));
   cloudFolder.add({ reset: () => cloudFolder.reset() }, 'reset').name('Reset clouds');
+
+  const glow = { ...FLOODLIGHT_SETTINGS };
+  const glowFolder = gui.addFolder('Floodlight glow');
+  const applyGlow = () => targets.floodlights.update(glow);
+  glowFolder.add(glow, 'glow').name('Glow').onChange(applyGlow);
+  for (const row of GLOW_ROWS) addRow(glowFolder, glow, row).onChange(applyGlow);
+  addCopyButton(glowFolder, 'Copy glow settings', () =>
+    settingsSnippet('FLOODLIGHT_SETTINGS', 'FloodlightSettings', glow),
+  );
+  glowFolder.add({ reset: () => glowFolder.reset() }, 'reset').name('Reset glow');
 
   // The wipe reads its timing each time it plays, so these sliders change it straight away.
   const wipeFolder = gui.addFolder('Wipe');
