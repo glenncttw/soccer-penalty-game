@@ -174,6 +174,7 @@ handiest ones:
 | `cloudSeed` | any whole number gives a different set of clouds |
 | `cloudColorTop`, `cloudColorBottom`, `skyColorTop`, `skyColorBottom` | the colours |
 | `cloudSoftness`, `cloudShading`, `lightDirection`, `cloudLayerDepth` | edge softness, shading between puffs, where the light comes from, and how much smaller and hazier far clouds are |
+| `cloudBlur`, `cloudLift` | how blurred the clouds are (as if out of focus, so they stay in the background), and how far up (positive) or down (negative) they sit, in degrees; lower clouds hide their bottoms behind the trees. Also in the `?edit` panel under Clouds |
 
 ## The grass
 

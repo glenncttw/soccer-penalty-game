@@ -2,6 +2,7 @@ import GUI from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import { CAMERA_SETTINGS, type CameraSettings } from '../scene/cameraSettings';
 import { GRASS_SETTINGS, type GrassSettings } from '../scene/grassSettings';
 import { REPLAY_SETTINGS, type ReplaySettings } from '../scene/replaySettings';
+import { SKY_SETTINGS, type SkySettings } from '../scene/skySettings';
 import { settingsSnippet } from './settingsSnippet';
 
 /** A slider: [setting, label, min, max, step]. A colour: [setting, label]. */
@@ -48,6 +49,16 @@ const GRASS_ROWS: Record<string, Row<GrassSettings>[]> = {
   ],
 };
 
+const CLOUD_ROWS: Row<SkySettings>[] = [
+  ['cloudBlur', 'Blur', 0, 1, 0.01],
+  ['cloudLift', 'Height (°)', -6, 6, 0.1],
+  ['cloudScale', 'Size', 0.5, 2, 0.01],
+  ['cloudCount', 'How many', 0, 16, 1],
+  ['cloudShading', 'Shading', 0, 1, 0.01],
+  ['cloudColorTop', 'Top colour'],
+  ['cloudColorBottom', 'Bottom colour'],
+];
+
 const WIPE_ROWS: Row<ReplaySettings>[] = [
   ['wipeTime', 'Sweep time (s)', 0.3, 2, 0.01],
 ];
@@ -57,12 +68,13 @@ export interface EditorTargets {
   /** The camera from the Blender scene, for "Use Blender camera". */
   blenderCamera: CameraSettings;
   grass: { update(settings: GrassSettings): void };
+  sky: { configure(settings: SkySettings): void };
   /** Plays the wipe once, to try its timing. */
   wipe: { play(): void };
 }
 
 /**
- * A panel for changing the camera and the grass while the game runs. Open it by adding ?edit to
+ * A panel for changing the camera, the grass and the clouds while the game runs. Open it by adding ?edit to
  * the game's address. Changes are only kept until you reload: "Copy settings"
  * copies them as code, to paste into the settings file.
  */
@@ -92,6 +104,12 @@ export function openSettingsEditor(targets: EditorTargets) {
   }
   addCopyButton(grassFolder, 'Copy grass settings', () => settingsSnippet('GRASS_SETTINGS', 'GrassSettings', grass));
   grassFolder.add({ reset: () => grassFolder.reset() }, 'reset').name('Reset grass');
+
+  const sky = { ...SKY_SETTINGS };
+  const cloudFolder = gui.addFolder('Clouds');
+  for (const row of CLOUD_ROWS) addRow(cloudFolder, sky, row).onChange(() => targets.sky.configure(sky));
+  addCopyButton(cloudFolder, 'Copy sky settings', () => settingsSnippet('SKY_SETTINGS', 'SkySettings', sky));
+  cloudFolder.add({ reset: () => cloudFolder.reset() }, 'reset').name('Reset clouds');
 
   // The wipe reads its timing each time it plays, so these sliders change it straight away.
   const wipeFolder = gui.addFolder('Wipe');

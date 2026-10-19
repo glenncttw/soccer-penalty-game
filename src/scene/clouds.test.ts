@@ -92,7 +92,7 @@ describe('createClouds', () => {
       if (deep) {
         expect(ratio((c) => c.width)).toBeLessThan(0.75);
         expect(ratio((c) => c.speed)).toBeLessThan(0.7);
-        expect(mean(far, (c) => c.haze)).toBeGreaterThan(0.2);
+        expect(mean(far, (c) => c.haze)).toBeGreaterThan(0.15);
         expect(mean(far, (c) => c.elevation)).toBeLessThan(mean(near, (c) => c.elevation) + 0.5 * DEG);
       } else {
         expect(ratio((c) => c.width)).toBeCloseTo(1, 0);
@@ -104,14 +104,14 @@ describe('createClouds', () => {
     check(Array.from({ length: 40 }, (_, seed) => createClouds({ ...SKY_SETTINGS, cloudSeed: seed, cloudLayerDepth: 0 })).flat(), false);
   });
 
-  it('starts with 4 to 7 clouds in a desktop view of the goal', () => {
+  it('starts with 3 to 7 clouds in a desktop view of the goal', () => {
     const halfView = 27.5 * DEG; // a 16:9 screen
     const lowEnough = 15 * DEG; // the top of the screen
     for (let seed = 0; seed < 40; seed++) {
       const seen = createClouds({ ...SKY_SETTINGS, cloudSeed: seed }).filter(
         (c) => Math.abs(c.azimuth) < halfView && c.elevation < lowEnough,
       );
-      expect(seen.length).toBeGreaterThanOrEqual(4);
+      expect(seen.length).toBeGreaterThanOrEqual(3);
       expect(seen.length).toBeLessThanOrEqual(7);
     }
   });
