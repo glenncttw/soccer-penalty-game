@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CROWD_SETTINGS, type CrowdSettings } from './crowdSettings';
 import { addMotion, limbAt, motionOf, motionUniforms, reachablePoses } from './crowdMotion';
+import { markForBlur } from './depthOfField';
 import { findCrowdSpots, shapeOf, type CrowdSpot, type Moves, type PersonBox, type Triangles } from './crowdSpots';
 
 /** The stand's concrete: its step floors, risers and stairs. */
@@ -162,14 +163,15 @@ function posed(triangles: Triangles, poses: THREE.Matrix4[]): Triangles {
 }
 
 /**
- * Adds the moves to the material, and swaps the texture's shirt colour for each person's own
- * colour (their instance colour); the rest stays as painted.
+ * Adds the moves and the blur mark to the material, and swaps the texture's shirt colour for each
+ * person's own colour (their instance colour); the rest stays as painted.
  */
 function dress(material: THREE.MeshStandardMaterial, s: CrowdSettings, motion: ReturnType<typeof motionUniforms>) {
   const shirt = new THREE.Color(s.shirtColor); // in the working (linear) colours, like the texture once read
   const shirts = s.shirtColors.length > 0;
   material.onBeforeCompile = (shader) => {
     addMotion(shader, motion);
+    markForBlur(shader); // the crowd is a little out of focus (see depthOfField.ts)
     if (!shirts) return;
     shader.uniforms.uShirt = { value: shirt };
     shader.fragmentShader = shader.fragmentShader

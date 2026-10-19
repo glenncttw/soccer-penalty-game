@@ -1,26 +1,26 @@
 /**
- * The depth of field: like a camera focused on the goal, everything up to just behind the goal
- * stays sharp, and things further away (the stands behind it, the trees, the sky) get softer the
- * further away they are, with round, soft blur like a real lens. Blur sizes are shares of the
- * screen's height, so it looks the same at every sharpness and on phones.
+ * The crowd's depth of field: like a camera focused on the goal, the people in the stands are a
+ * little out of focus, with round, soft blur like a real lens, while everything else (the goal,
+ * the keeper, the stands themselves, the trees, the floodlights, the sky) stays sharp. Blur sizes
+ * are shares of the screen's height, so it looks the same at every sharpness and on phones.
  */
 export interface DepthOfFieldSettings {
-  /** Soften the far away parts. */
+  /** Blur the crowd. */
   depthOfField: boolean;
-  /** How far behind the goal line things start to get soft, in metres (the net reaches about 2 m back). */
-  sharpBehindGoal: number;
-  /** How many metres further they take to get as soft as they get. */
-  fadeDistance: number;
-  /** How soft the softest parts get: the blur's width, as a share of the screen's height. */
+  /** How soft the furthest people get: the blur's width, as a share of the screen's height. */
   blur: number;
-  /** 0..1: how much bright spots (the floodlights) light up their blur, like a real lens. */
-  highlights: number;
+  /** 0..1: how soft the nearest people (the side stands close to the camera) get, compared with the furthest. */
+  nearBlur: number;
+  /** People this close to the camera, in metres, get `nearBlur`... */
+  nearDistance: number;
+  /** ...and people this far away get the full `blur`, with a smooth change in between. */
+  farDistance: number;
 }
 
 export const DEPTH_OF_FIELD_SETTINGS: DepthOfFieldSettings = {
   depthOfField: true,
-  sharpBehindGoal: 3,
-  fadeDistance: 18,
-  blur: 0.016,
-  highlights: 0.5,
+  blur: 0.012,
+  nearBlur: 0.5,
+  nearDistance: 8,
+  farDistance: 25,
 };

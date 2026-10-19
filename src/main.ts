@@ -138,8 +138,8 @@ const events = new GameEvents();
 const slowMotion = new SlowMotion();
 const coach = new Coach();
 // After a goal, save or woodwork: a slow replay in comic panels, between two wipes; see src/scene/replaySettings.ts.
-// Like a camera focused on the goal: sharp up to just behind it, softer further away.
-const depthOfField = new DepthOfField(renderer, new THREE.Vector3(0, world.groundY + 1, world.goal.lineZ));
+// Like a camera focused on the goal: the crowd is a little out of focus, everything else sharp.
+const depthOfField = new DepthOfField(renderer);
 const replay = new Replay({
   world,
   renderer,
