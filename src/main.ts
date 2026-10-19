@@ -245,6 +245,7 @@ if (new URLSearchParams(location.search).has('edit')) {
     camera: view,
     blenderCamera: cameraSettingsFromBlender(world),
     grass,
+    sky,
     wipe: { play: () => wipe.run(() => {}) },
   });
 }

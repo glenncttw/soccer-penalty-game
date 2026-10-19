@@ -23,6 +23,10 @@ export interface SkySettings {
   cloudOpacity: number;
   /** Width of the soft edge, as a share of a cloud's height. */
   cloudSoftness: number;
+  /** 0..1: blurs the clouds' outlines and the edges between their puffs, as if out of focus, so they read as background. */
+  cloudBlur: number;
+  /** Moves every cloud up (positive) or down (negative), in degrees. Lower clouds hide their bottoms behind the trees. */
+  cloudLift: number;
   /** Colour of the sunlit tops. */
   cloudColorTop: string;
   /** Colour of the shaded, flat bottoms. */
@@ -50,23 +54,25 @@ export interface SkySettings {
 /** The game's sky, tuned to the stylised reference picture: puffy white clouds with blue bottoms. */
 export const SKY_SETTINGS: SkySettings = {
   clouds: true,
-  cloudCount: 14,
-  cloudScale: 1,
+  cloudCount: 11,
+  cloudScale: 1.3,
   cloudWidthVariation: 0.5,
   cloudHeightVariation: 0.5,
   cloudSpeed: 0.2,
   cloudOpacity: 1,
   cloudSoftness: 0.025,
+  cloudBlur: 0.5,
+  cloudLift: -2.5,
   cloudColorTop: '#fbfbfe',
-  cloudColorBottom: '#93caf9',
+  cloudColorBottom: '#acd6fb',
   cloudWarmth: 0.5,
-  cloudShading: 0.6,
+  cloudShading: 0.35,
   // From the right, 35° up: the same side as the stadium's sun.
   lightDirection: [0.82, 0.57, 0],
-  skyColorTop: '#3399fb',
-  skyColorBottom: '#5fb6fd',
+  skyColorTop: '#369dfc',
+  skyColorBottom: '#7bcdfd',
   skyBottomElevation: 6,
-  skyTopElevation: 15,
+  skyTopElevation: 22,
   cloudSeed: 7,
   cloudCoverage: 1,
   cloudLayerDepth: 0.8,

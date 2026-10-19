@@ -97,7 +97,7 @@ export function createClouds(s: SkySettings): Cloud[] {
       clouds.push({
         layer: index,
         azimuth: wrapAngle(layer.phase * DEG + k * spacing + shift),
-        elevation: elevation * DEG,
+        elevation: (elevation + s.cloudLift) * DEG,
         width,
         height: shape.height,
         speed: s.cloudSpeed * DEG * (1 - 0.6 * far),
