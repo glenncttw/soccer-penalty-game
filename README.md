@@ -36,6 +36,15 @@ always fills the whole screen, but draws its picture with fewer pixels: at most 
 and on a phone the preset picked in `src/scene/resolutionSettings.ts` (`high` 1.5, `balanced` 1.25,
 `performance` 1.0). It never draws more pixels than the screen really has.
 
+That's only where it starts: the game then **measures the device itself** while you aim
+(`src/scene/autoResolution.ts`; browsers, iPhones above all, don't say which model they are). After about 5 seconds
+of aiming it decides: too slow (under 54 FPS), one step less sharp; smooth with room to spare, it tries one step
+sharper and keeps it only if it stays smooth. Steps are 1.0, 1.25 and 1.5, at most one per shot, and the change
+happens while the wipe covers the screen, so the picture never visibly jumps. The choice is remembered on the
+device and checked once more each visit; a step found too slow isn't tried again for 3 days. A frame rate held at
+exactly 30 (iPhone Low Power Mode) is left alone. Set `auto: false` in `src/scene/resolutionSettings.ts` to turn it
+off.
+
 Add `?bench` to the game's address to open the **sharpness test** panel (players never see it):
 
 - The buttons switch the sharpness live: **Normal** (the setting above), 1.0, 1.25, 1.5 and 2.0 (the old setting).
@@ -46,6 +55,8 @@ Add `?bench` to the game's address to open the **sharpness test** panel (players
   "1% low" FPS (the frame rate of the slowest 1% of frames), CPU and GPU time, draw calls and triangles. **Copy
   results** puts the table on the clipboard. Afterwards the sharpness goes back to what it was.
 - `?bench&dpr=1.25` starts at 1.25.
+- The **auto** line shows what the automatic sharpness decided (it pauses while you test a fixed sharpness; tap
+  **Normal** to let it carry on). **Forget auto choice** makes it start from scratch on the next load.
 
 ## The replay
 
