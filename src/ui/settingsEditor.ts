@@ -1,7 +1,7 @@
 import GUI from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import { CAMERA_SETTINGS, type CameraSettings } from '../scene/cameraSettings';
 import { FLOODLIGHT_SETTINGS, type FloodlightSettings } from '../scene/floodlightSettings';
-import { FOCUS_SETTINGS, type FocusSettings } from '../scene/focusSettings';
+import { DEPTH_OF_FIELD_SETTINGS, type DepthOfFieldSettings } from '../scene/depthOfFieldSettings';
 import { GRASS_SETTINGS, type GrassSettings } from '../scene/grassSettings';
 import { REPLAY_SETTINGS, type ReplaySettings } from '../scene/replaySettings';
 import { SKY_SETTINGS, type SkySettings } from '../scene/skySettings';
@@ -68,15 +68,11 @@ const GLOW_ROWS: Row<FloodlightSettings>[] = [
   ['glowEdgeColor', 'Halo colour'],
 ];
 
-const FOCUS_ROWS: Row<FocusSettings>[] = [
-  ['blur', 'Blur (share of height)', 0, 0.02, 0.0005],
-  ['strength', 'Strength', 0, 1, 0.01],
-  ['margin', 'Sharp area margin', -0.1, 0.3, 0.005],
-  ['roundness', 'Sharp area roundness', 0, 0.5, 0.005],
-  ['softness', 'Fade length', 0.01, 1, 0.01],
-  ['top', 'Above (stands, sky)', 0, 1, 0.01],
-  ['sides', 'Sides', 0, 1, 0.01],
-  ['bottom', 'Below (grass)', 0, 1, 0.01],
+const DEPTH_ROWS: Row<DepthOfFieldSettings>[] = [
+  ['sharpBehindGoal', 'Sharp behind the goal (m)', 0, 20, 0.1],
+  ['fadeDistance', 'Fade distance (m)', 1, 80, 0.5],
+  ['blur', 'Blur (share of height)', 0, 0.04, 0.0005],
+  ['highlights', 'Bright spots', 0, 1, 0.01],
 ];
 
 const WIPE_ROWS: Row<ReplaySettings>[] = [
@@ -90,13 +86,13 @@ export interface EditorTargets {
   grass: { update(settings: GrassSettings): void };
   sky: { configure(settings: SkySettings): void };
   floodlights: { update(settings: FloodlightSettings): void };
-  focus: { update(settings: FocusSettings): void };
+  depthOfField: { update(settings: DepthOfFieldSettings): void };
   /** Plays the wipe once, to try its timing. */
   wipe: { play(): void };
 }
 
 /**
- * A panel for changing the camera, the grass, the clouds, the floodlight glow and the soft focus while the game runs. Open it by adding ?edit to
+ * A panel for changing the camera, the grass, the clouds, the floodlight glow and the depth of field while the game runs. Open it by adding ?edit to
  * the game's address. Changes are only kept until you reload: "Copy settings"
  * copies them as code, to paste into the settings file.
  */
@@ -143,13 +139,15 @@ export function openSettingsEditor(targets: EditorTargets) {
   );
   glowFolder.add({ reset: () => glowFolder.reset() }, 'reset').name('Reset glow');
 
-  const focus = { ...FOCUS_SETTINGS };
-  const focusFolder = gui.addFolder('Soft focus');
-  const applyFocus = () => targets.focus.update(focus);
-  focusFolder.add(focus, 'softFocus').name('Soft focus').onChange(applyFocus);
-  for (const row of FOCUS_ROWS) addRow(focusFolder, focus, row).onChange(applyFocus);
-  addCopyButton(focusFolder, 'Copy focus settings', () => settingsSnippet('FOCUS_SETTINGS', 'FocusSettings', focus));
-  focusFolder.add({ reset: () => focusFolder.reset() }, 'reset').name('Reset focus');
+  const depth = { ...DEPTH_OF_FIELD_SETTINGS };
+  const depthFolder = gui.addFolder('Depth of field');
+  const applyDepth = () => targets.depthOfField.update(depth);
+  depthFolder.add(depth, 'depthOfField').name('Depth of field').onChange(applyDepth);
+  for (const row of DEPTH_ROWS) addRow(depthFolder, depth, row).onChange(applyDepth);
+  addCopyButton(depthFolder, 'Copy depth of field settings', () =>
+    settingsSnippet('DEPTH_OF_FIELD_SETTINGS', 'DepthOfFieldSettings', depth),
+  );
+  depthFolder.add({ reset: () => depthFolder.reset() }, 'reset').name('Reset depth of field');
 
   // The wipe reads its timing each time it plays, so these sliders change it straight away.
   const wipeFolder = gui.addFolder('Wipe');
