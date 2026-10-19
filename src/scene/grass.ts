@@ -163,6 +163,115 @@ export function paintMaskFromMarkings(renderer: THREE.WebGLRenderer, markings: T
   };
 }
 
+const CONTACT_PIXEL = 0.04; // metres per contact-shadow mask pixel
+const CONTACT_REACH = 0.35; // how high up (m) a part still darkens the grass under it
+const CONTACT_LEAN = [
+  [0, 0],
+  [1.5, 0],
+  [-1.5, 0],
+  [0, 1.5],
+  [0, -1.5],
+];
+
+/**
+ * A map, seen from straight above, of where things stand on the grass (the ad boards
+ * and the goal frame): bright where a part is right at the ground, fading to dark
+ * CONTACT_REACH up. Upright sides are invisible from straight above, so each part is
+ * drawn five times, leaned over a little in four directions, and the brightest wins.
+ * The grass shader reads it blurred (a smaller mipmap) for soft contact shadows.
+ */
+export function contactMask(
+  renderer: THREE.WebGLRenderer,
+  parts: THREE.Object3D[],
+  area: THREE.Box3,
+  groundY: number,
+  leaveOut?: THREE.Object3D,
+): PaintMask {
+  const size = new THREE.Vector2(area.max.x - area.min.x, area.max.z - area.min.z);
+  const width = Math.min(MASK_MAX, Math.ceil(size.x / CONTACT_PIXEL));
+  const height = Math.min(MASK_MAX, Math.ceil(size.y / CONTACT_PIXEL));
+  const centre = area.getCenter(new THREE.Vector3());
+  const camera = new THREE.OrthographicCamera(-size.x / 2, size.x / 2, size.y / 2, -size.y / 2, 0.1, 100);
+  camera.position.set(centre.x, groundY + 20, centre.z);
+  camera.up.set(0, 0, -1);
+  camera.lookAt(centre.x, groundY, centre.z);
+  camera.updateMatrixWorld();
+
+  const lean = { value: new THREE.Vector2() };
+  const material = new THREE.ShaderMaterial({
+    uniforms: { uLean: lean, uGround: { value: groundY }, uReach: { value: CONTACT_REACH } },
+    vertexShader: /* glsl */ `
+      uniform vec2 uLean;
+      uniform float uGround;
+      varying float vHeight;
+      void main() {
+        vec4 world = modelMatrix * vec4(position, 1.0);
+        vHeight = world.y - uGround;
+        world.xz += uLean * max(vHeight, 0.0);
+        gl_Position = projectionMatrix * viewMatrix * world;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uReach;
+      varying float vHeight;
+      void main() {
+        gl_FragColor = vec4(vec3(1.0 - smoothstep(0.0, uReach, vHeight)), 1.0);
+      }`,
+    side: THREE.DoubleSide,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.MaxEquation,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneFactor,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const scene = new THREE.Scene();
+  for (const part of parts) {
+    part.updateWorldMatrix(true, true);
+    part.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      let inside = false;
+      o.traverseAncestors((a) => (inside ||= a === leaveOut));
+      if (o === leaveOut || inside) return;
+      const copy = new THREE.Mesh(o.geometry, material);
+      copy.matrixAutoUpdate = false;
+      copy.matrix.copy(o.matrixWorld);
+      copy.frustumCulled = false;
+      scene.add(copy);
+    });
+  }
+
+  const target = new THREE.WebGLRenderTarget(width, height, {
+    format: THREE.RedFormat,
+    minFilter: THREE.LinearMipmapLinearFilter,
+    generateMipmaps: true,
+    samples: 4,
+    depthBuffer: false,
+  });
+  target.texture.name = 'PitchContact';
+  const before = renderer.getRenderTarget();
+  const clear = renderer.getClearColor(new THREE.Color());
+  const clearAlpha = renderer.getClearAlpha();
+  const autoClear = renderer.autoClear;
+  renderer.setRenderTarget(target);
+  renderer.setClearColor(0x000000, 1);
+  renderer.clear();
+  renderer.autoClear = false;
+  for (const [x, z] of CONTACT_LEAN) {
+    lean.value.set(x, z);
+    renderer.render(scene, camera);
+  }
+  renderer.autoClear = autoClear;
+  renderer.setRenderTarget(before);
+  renderer.setClearColor(clear, clearAlpha);
+  material.dispose();
+  return {
+    texture: target.texture,
+    corner: new THREE.Vector2(area.min.x, area.max.z),
+    size,
+    dispose: () => target.dispose(),
+  };
+}
+
 /**
  * Gives the pitch one grass material that draws, in a single pass:
  * - the mowing stripes from the model, with soft edges that wobble a little,
@@ -173,7 +282,10 @@ export function paintMaskFromMarkings(renderer: THREE.WebGLRenderer, markings: T
  * - viewing-angle shading: grass in front of you, which you look down onto, is
  *   darker than grass you look across, because you see the shady gaps between
  *   the blades instead of their sunlit sides,
- * - the white lines and penalty spot, painted onto the grass.
+ * - the white lines and penalty spot, painted onto the grass,
+ * - far grass a little lighter, as it catches the light on the sides of the blades,
+ * - soft contact shadows where the ad boards and goal frame stand, and under the
+ *   ball and the keeper (see `followContacts`).
  * Sunlight and shadows work as before.
  *
  * Returns the material and `update(settings)`, which applies new settings
@@ -187,6 +299,20 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
   const stripes = measureStripes(grass);
   const textures = await loadGrassTextures(renderer);
   const paint = paintMaskFromMarkings(renderer, markings);
+  const groundY = new THREE.Box3().setFromObject(grass, true).max.y;
+  // What stands on the grass: the goal frame (not its net) and the ad boards.
+  const standing: THREE.Object3D[] = [];
+  stadium.traverse((o) => {
+    if (o.name === STADIUM_NODES.goalFrame) standing.push(o);
+    else if (o.name.startsWith(STADIUM_NODES.boardPrefix) && !o.parent?.name.startsWith(STADIUM_NODES.boardPrefix)) standing.push(o);
+  });
+  const contact = contactMask(
+    renderer,
+    standing,
+    new THREE.Box3().setFromObject(grass, true).expandByScalar(0.5),
+    groundY,
+    stadium.getObjectByName(STADIUM_NODES.goalNet),
+  );
 
   const stripeData = new Float32Array(MAX_STRIPES * 2);
   stripeData.set(stripes.darkStripes.flat());
@@ -216,6 +342,13 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     uLineWobble: { value: 0 },
     uLineTexture: { value: 0 },
     uLineGrassTint: { value: 0 },
+    uFarLight: { value: 0 },
+    uContactShadow: { value: 0 },
+    uContact: { value: contact.texture },
+    uContactCorner: { value: contact.corner },
+    uContactSize: { value: contact.size },
+    uBall: { value: new THREE.Vector4(0, -100, 10, 0.1) },
+    uKeeper: { value: new THREE.Vector4(0, -100, 10, 0) },
   };
   // Settings only change uniforms, so they can change while the game runs (see the settings editor).
   function update(settings: GrassSettings) {
@@ -236,6 +369,8 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     uniforms.uLineWobble.value = settings.lineWobble;
     uniforms.uLineTexture.value = settings.lineTexture;
     uniforms.uLineGrassTint.value = settings.lineGrassTint;
+    uniforms.uFarLight.value = settings.farLight;
+    uniforms.uContactShadow.value = settings.contactShadow;
   }
   update(s);
 
@@ -263,6 +398,7 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     textures.albedo.dispose();
     textures.normal.dispose();
     paint.dispose();
+    contact.dispose();
   });
 
   for (const old of [stripes.light, stripes.dark]) {
@@ -270,11 +406,24 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     old.dispose();
   }
   for (const mesh of stripes.meshes) mesh.material = material;
+  /**
+   * Keeps the soft shadows under the ball and the keeper with them, read just before each
+   * time the grass is drawn (so the replay's positions count too). `keeper` is the keeper's
+   * group: its position is the point between its feet, its z rotation its lean.
+   */
+  function followContacts(ball: THREE.Object3D, ballRadius: number, keeper: THREE.Object3D) {
+    const follow = () => {
+      uniforms.uBall.value.set(ball.position.x, ball.position.z, ball.position.y - ballRadius - groundY, ballRadius);
+      uniforms.uKeeper.value.set(keeper.position.x, keeper.position.z, keeper.position.y - groundY, -keeper.rotation.z);
+    };
+    for (const mesh of stripes.meshes) mesh.onBeforeRender = follow;
+  }
+
   /** Turns the grass texture's blades to stand up as seen from `position` (kept up to date: pass the camera's rest spot). */
   function lookFrom(position: THREE.Vector3) {
     uniforms.uViewFrom.value = position;
   }
-  return { material, update, lookFrom };
+  return { material, update, lookFrom, followContacts };
 }
 
 const GRASS_PARS = /* glsl */ `
@@ -304,6 +453,13 @@ uniform float uLineRagged;
 uniform float uLineWobble;
 uniform float uLineTexture;
 uniform float uLineGrassTint;
+uniform float uFarLight;
+uniform float uContactShadow;
+uniform sampler2D uContact;
+uniform vec2 uContactCorner;
+uniform vec2 uContactSize;
+uniform vec4 uBall;   // x, z, how high its bottom is off the grass, radius
+uniform vec4 uKeeper; // x, z of the point between its feet, how high that is, its lean (radians, + toward +x)
 
 // A random number per grid cell (no sin(), so it is the same on every phone).
 float grassHash(vec2 p) {
@@ -465,6 +621,24 @@ const GRASS_COLOR = /* glsl */ `
   // little more, so the stripes stand out more in front of you.
   float down = smoothstep(0.0, 0.35, normalize(cameraPosition - vGrassWorld).y);
   grass *= pow(vec3(max(1.0 - uAngleShading * down, 0.0)), vec3(1.2, 1.0, 1.0) * (1.0 + 0.85 * (dark + grassCross) * (1.0 - grassPaint)));
+
+  // Far grass you look across catches more light on the sides of its blades: a little
+  // lighter and warmer toward the goal. The painted lines are white already.
+  float across = 1.0 - smoothstep(0.03, 0.2, normalize(cameraPosition - vGrassWorld).y);
+  grass *= 1.0 + uFarLight * across * (1.0 - grassPaint) * vec3(1.1, 1.0, 0.75);
+
+  // Soft contact shadows: where the boards and the goal frame stand on the grass
+  // (the map, read blurred), and right under the ball and the keeper, fading as they rise.
+  vec2 contactUv = vec2(grassXZ.x - uContactCorner.x, uContactCorner.y - grassXZ.y) / uContactSize;
+  float standing = min(1.0, 1.6 * textureLod(uContact, contactUv, 3.0).r);
+  float ballLift = max(uBall.z, 0.0);
+  float ballShade = (1.0 - smoothstep(0.2, 1.0, length(grassXZ - uBall.xy) / (uBall.w * (1.6 + 2.0 * ballLift))))
+    * (1.0 - smoothstep(0.0, 0.6, ballLift));
+  vec2 toKeeper = grassXZ - uKeeper.xy;
+  toKeeper.x -= 0.4 * sin(uKeeper.w); // a leaning keeper's body is over to that side
+  vec2 keeperSize = vec2(0.5 + 0.45 * abs(sin(uKeeper.w)), 0.4);
+  float keeperShade = (1.0 - smoothstep(0.2, 1.0, length(toKeeper / keeperSize))) * (1.0 - smoothstep(0.0, 0.8, uKeeper.z));
+  grass *= 1.0 - uContactShadow * max(max(0.8 * standing, ballShade), 0.8 * keeperShade);
 
   diffuseColor.rgb *= max(grass, vec3(0.0));
 `;

@@ -63,10 +63,10 @@ export const SKY_SETTINGS: SkySettings = {
   cloudShading: 0.6,
   // From the right, 35° up: the same side as the stadium's sun.
   lightDirection: [0.82, 0.57, 0],
-  skyColorTop: '#369dfc',
-  skyColorBottom: '#7bcdfd',
+  skyColorTop: '#3399fb',
+  skyColorBottom: '#5fb6fd',
   skyBottomElevation: 6,
-  skyTopElevation: 22,
+  skyTopElevation: 15,
   cloudSeed: 7,
   cloudCoverage: 1,
   cloudLayerDepth: 0.8,

@@ -42,6 +42,10 @@ export interface GrassSettings {
    * of you) than where you look across it (near the goal). Real grass does this.
    */
   angleShading: number;
+  /** 0..1: how much lighter (and a touch warmer) the far grass is, where you look across the blades. */
+  farLight: number;
+  /** 0..1: how dark the soft shadows are where the boards and goal stand, and right under the ball and keeper. */
+  contactShadow: number;
   /** Colour of the painted lines and penalty spot. */
   lineColor: string;
   /** How far blades poke out of the edges of the painted lines and spot (only seen up close). */
@@ -72,6 +76,8 @@ export const GRASS_SETTINGS: GrassSettings = {
   patchStrength: 0.05,
   patchSize: 1.5,
   angleShading: 0.25,
+  farLight: 0.7,
+  contactShadow: 0.6,
   lineColor: '#ebe8de',
   lineRagged: 0.04,
   lineWobble: 0.05,

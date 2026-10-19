@@ -83,6 +83,8 @@ keeperModel.useModel(await keeperAsset);
 lightMovingObject(ballMesh, envMap);
 lightMovingObject(keeperModel.group, envMap);
 scene.add(ballMesh, trail.mesh, markers.group, effects.group, keeperModel.group);
+// Soft shadows on the grass right under the ball and the keeper.
+grass.followContacts(ballMesh, world.ballRadius, keeperModel.group);
 
 const physics = await createPhysicsWorld(world, { keeper: keeper.pose });
 const hud = new Hud(document.querySelector<HTMLElement>('#hud')!);
