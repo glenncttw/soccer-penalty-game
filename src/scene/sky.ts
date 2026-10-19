@@ -23,6 +23,7 @@ export class Sky {
     uLight: { value: new THREE.Vector3() },
     uOpacity: { value: 1 },
     uSoftness: { value: 0 },
+    uBlur: { value: 0 },
     uWarmth: { value: 0 },
     uShading: { value: 0 },
     uCoverage: { value: 1 },
@@ -62,6 +63,7 @@ export class Sky {
     u.uLight.value.set(...s.lightDirection).normalize();
     u.uOpacity.value = s.cloudOpacity;
     u.uSoftness.value = s.cloudSoftness;
+    u.uBlur.value = s.cloudBlur;
     u.uWarmth.value = s.cloudWarmth;
     u.uShading.value = s.cloudShading;
     u.uCoverage.value = s.cloudCoverage;
@@ -109,6 +111,7 @@ const SKY_FRAGMENT = /* glsl */ `
   uniform vec3 uLight;
   uniform float uOpacity;
   uniform float uSoftness;
+  uniform float uBlur;
   uniform float uWarmth;
   uniform float uShading;
   uniform float uCoverage;
@@ -139,8 +142,9 @@ const SKY_FRAGMENT = /* glsl */ `
   vec4 shadeCloud(vec2 p, int i, vec4 look, float px) {
     float height = look.z;
     vec4 base = uBase[i];
-    float soft = max(uSoftness * height, 0.7 * px);
-    float crease = max(CREASE * height, px);
+    float blur = 0.25 * uBlur * height;
+    float soft = max(uSoftness * height, 0.7 * px) + blur;
+    float crease = max(CREASE * height, px) + blur;
 
     // The base: a long capsule lying along the flat bottom, half of it below.
     vec2 qb = p - vec2(clamp(p.x, base.x, base.y), 0.0);
