@@ -15,6 +15,7 @@ import { createPhysicsWorld } from './physics/world';
 import { AimMarkers } from './scene/aimMarkers';
 import { BallTrail, trailStyle } from './scene/ball';
 import { BallFade } from './scene/ballFade';
+import { CrowdPlaceholder } from './scene/crowd';
 import { Effects } from './scene/effects';
 import { FloodlightGlow } from './scene/floodlightGlow';
 import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera';
@@ -71,6 +72,9 @@ grass.lookFrom(view.restPosition);
 // A soft glow around the floodlight lamps; tweak it in src/scene/floodlightSettings.ts.
 const floodlights = new FloodlightGlow(stadium.environment, view.restPosition);
 scene.add(floodlights.group);
+// Placeholder tubes for the crowd, in rows behind the stand barriers; tweak them in src/scene/crowdSettings.ts.
+const crowd = new CrowdPlaceholder(stadium.environment, envMap);
+scene.add(crowd.mesh);
 
 const ballMesh = stadium.ball;
 // A ball that flies over the ad boards fades out: it's gone into the stands.
