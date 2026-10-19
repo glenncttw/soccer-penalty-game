@@ -30,6 +30,7 @@ import { AutoResolution, type AutoMemory } from './scene/autoResolution';
 import { clampPixelRatio, pickPixelRatio, RESOLUTION_SETTINGS } from './scene/resolutionSettings';
 import { Sky } from './scene/sky';
 import { SKY_SETTINGS } from './scene/skySettings';
+import { SoftFocus } from './scene/softFocus';
 import { loadStadium } from './scene/stadiumAsset';
 import { COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
@@ -38,7 +39,8 @@ import { Preloader } from './ui/preloader';
 import { Wipe } from './ui/wipe';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+// No smoothing on the screen itself: the game is drawn into a smoothed picture first (see SoftFocus).
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 // How many pixels the picture is drawn with; set by resize(), tweak it in src/scene/resolutionSettings.ts.
 const touchScreen = window.matchMedia('(pointer: coarse)').matches;
 let testPixelRatio: number | null = null; // set by the ?bench panel
@@ -136,9 +138,20 @@ const events = new GameEvents();
 const slowMotion = new SlowMotion();
 const coach = new Coach();
 // After a goal, save or woodwork: a slow replay in comic panels, between two wipes; see src/scene/replaySettings.ts.
+// Sharp round the goal and where the ball lies, softer toward the screen's edges.
+const g = world.goal;
+const softFocus = new SoftFocus(renderer, [
+  new THREE.Vector3(-g.outerHalfWidth, world.groundY, g.lineZ),
+  new THREE.Vector3(g.outerHalfWidth, world.groundY, g.lineZ),
+  new THREE.Vector3(-g.outerHalfWidth, world.groundY + g.outerHeight, g.lineZ),
+  new THREE.Vector3(g.outerHalfWidth, world.groundY + g.outerHeight, g.lineZ),
+  new THREE.Vector3(world.ballStart.x, world.ballStart.y - world.ballRadius, world.ballStart.z),
+  new THREE.Vector3(world.ballStart.x, world.ballStart.y + world.ballRadius, world.ballStart.z),
+]);
 const replay = new Replay({
   world,
   renderer,
+  output: softFocus.picture,
   scene,
   ball: ballMesh,
   ballFade,
@@ -277,6 +290,7 @@ function resize() {
   if (w === drawn.w && h === drawn.h && ratio === drawn.ratio) return;
   drawn = { w, h, ratio };
   renderer.setDrawingBufferSize(w, h, ratio);
+  softFocus.setSize(renderer.domElement.width, renderer.domElement.height);
   view.fit(w / h);
   effects.setViewportHeight(renderer.domElement.height);
   replay.resize(w, h);
@@ -296,6 +310,7 @@ if (new URLSearchParams(location.search).has('edit')) {
     grass,
     sky,
     floodlights,
+    focus: softFocus,
     wipe: { play: () => wipe.run(() => {}) },
   });
 }
@@ -407,9 +422,10 @@ renderer.setAnimationLoop((time) => {
 
   if (replay.active) {
     replay.render(realDt);
+    softFocus.show(); // the replay is drawn into the picture; shown as it is, no soft focus
     if (replay.finished) endReplay();
   } else {
-    renderer.render(scene, camera);
+    softFocus.render(scene, camera);
   }
   perf.end(time);
 });

@@ -193,6 +193,15 @@ so it costs one tiny draw instead of a full-screen bloom. Settings in `src/scene
 off), `glowSize` (how far the halo reaches, in lamp radii), `glowOpacity`, `glowColor` (the lamps) and `glowEdgeColor`
 (the halo); also in the `?edit` panel under **Floodlight glow**.
 
+**Soft focus:** the picture stays sharp round the goal and where the ball lies and gets softer toward the edges of the
+screen (the stands, the sky, the sides), like a camera focused on the goal (`src/scene/softFocus.ts`). The game is
+drawn into a picture first (smoothed there, so the screen itself isn't), a blurred copy is made at half the size, and
+the two are mixed on screen. The sharp area is a rounded box round the goal's corners and the ball, worked out on
+screen every frame, so it fits wide screens and upright phones. Settings in `src/scene/focusSettings.ts`: `softFocus`
+(on or off), `blur` (how soft, as a share of the screen's height), `strength`, `margin`, `roundness` and `softness` (the
+sharp area and its fade) and `top`, `sides`, `bottom` (how soft each side gets); also in the `?edit` panel under
+**Soft focus**. The replay panel is drawn without it.
+
 The KTX2 pictures need a decoder, served from `public/basis/`. Those two files are copies of
 `node_modules/three/examples/jsm/libs/basis/`; copy them again after updating three.
 
@@ -288,7 +297,8 @@ with `npm run dev`. Without `?edit` the game looks and loads exactly as before.
    are gone when you reload the page, until they are in that file.
 
 The **Clouds** and **Floodlight glow** folders work the same way, with **Copy sky settings** for `SKY_SETTINGS` in
-`src/scene/skySettings.ts` and **Copy glow settings** for `FLOODLIGHT_SETTINGS` in `src/scene/floodlightSettings.ts`.
+`src/scene/skySettings.ts` and **Copy glow settings** for `FLOODLIGHT_SETTINGS` in `src/scene/floodlightSettings.ts`;
+so does **Soft focus**, with **Copy focus settings** for `FOCUS_SETTINGS` in `src/scene/focusSettings.ts`.
 
 The **Wipe** folder changes how long the wipe takes to sweep across the screen;
 **Play wipe** shows it straight away, and **Copy replay settings** copies them for `REPLAY_SETTINGS` in
