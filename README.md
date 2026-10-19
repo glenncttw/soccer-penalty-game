@@ -132,13 +132,22 @@ facing +z) stands in the stands in 5 rows: the steps at 0.45, 0.86, 2.10, 2.50 a
 1.70 m (where the corner stairs come down), the narrow top step at 3.30 m and the corner stairs stay empty. It is its own
 file, not part of the stadium: replace it to update the person (keep one material for all its parts). The game loads it
 once (`src/scene/crowdAsset.ts`) and draws a copy at every spot in one go (`src/scene/crowd.ts`), each a little bigger or
-smaller, turned a little, and with its own shirt colour: the texture's shirt colour is swapped for one from the list.
-The spots are worked out at load from the `STATIC_Concrete` mesh, everything else in the model and the person's own
-shape, measured in 10 cm layers (`src/scene/crowdSpots.ts`): each person stands right behind its step's barrier, facing
-the pitch, and never touches a barrier, rail, wall or the person next to them. The face's shape keys (expressions)
-are in the file but not used yet. Settings in `src/scene/crowdSettings.ts` (row heights, spacing, size and turn
-variation, shirt colours); a new stadium export that moves the steps needs new `rowHeights`, and the game stops with
-an error naming a height that has no step.
+smaller, turned, spaced and set back by its own random amount, with some spots left empty, and with its own shirt
+colour: the texture's shirt colour is swapped for one from the list.
+
+The crowd moves (`src/scene/crowdMotion.ts`), worked out on the graphics card so it costs next to nothing: everyone
+sways and looks around a little, and some people raise their arms now and then (up past their sides) and bounce while
+they do, each with their own timing, on game time (slow motion slows them too). Each part moves about its own origin as
+placed in Blender, and the kind of part is told by where that origin is: at the feet it's the body (stays put), off to
+a side it's an arm, in the middle higher up it's the head; parts inside another part (the hair) move with it.
+
+The spots are worked out at load from the `STATIC_Concrete` mesh, everything else in the model and the room the person
+needs while moving, measured in 10 cm layers (`src/scene/crowdSpots.ts`): nobody touches a barrier, rail, wall or
+another person, even with their arms up. Where there isn't room to cheer, a person only sways; where even that's too
+tight (the narrow side steps), they stand still apart from a small bounce. The face's shape keys (expressions) are in
+the file but not used yet. Settings in `src/scene/crowdSettings.ts` (row heights, spacing and its randomness, how they
+move); a new stadium export that moves the steps needs new `rowHeights`, and the game stops with an error naming a
+height that has no step.
 
 ## The keeper
 

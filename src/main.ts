@@ -402,6 +402,7 @@ renderer.setAnimationLoop((time) => {
   effects.update(dt);
   ballFade.update(dt);
   stadiumMotion.update(dt);
+  crowd.update(gameTime);
   sky.update(gameTime);
 
   if (replay.active) {
