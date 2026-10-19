@@ -32,10 +32,24 @@ function ringWall(d: number, y0: number, y1: number): number[] {
 
 describe('findCrowdSpots', () => {
   const y = 0.45;
-  // The step, with the step behind it rising at its back edge, and a stair block cutting through its north side.
-  const steps = new Float32Array([...ringFloor(y, 2.4, 3), ...ringWall(3, y, y + 0.4), ...floor(-0.3, -3, 0.3, -2.4, y + 0.2), ...wall(-0.3, -3, -0.3, -2.4, y, y + 0.2), ...wall(0.3, -3, 0.3, -2.4, y, y + 0.2)]);
-  // A barrier along the front edge of the step.
-  const barrier = new Float32Array(ringWall(2.42, y, y + 0.47));
+  // The step, with the step behind it rising at its back edge, and stairs going up through its north
+  // side in half steps: one in front of the step, one at its back, and in between a stair step that
+  // is level with the step itself.
+  const steps = new Float32Array([
+    ...ringFloor(y, 2.4, 3),
+    ...ringWall(3, y, y + 0.4),
+    ...floor(-0.3, -2.4, 0.3, -2.1, y - 0.2),
+    ...floor(-0.3, -3, 0.3, -2.85, y + 0.2),
+    ...wall(-0.3, -2.85, 0.3, -2.85, y, y + 0.2),
+  ]);
+  // A barrier along the front edge of the step, with a gap for the stairs.
+  const barrier = new Float32Array([
+    ...wall(-2.42, -2.42, -0.3, -2.42, y, y + 0.47),
+    ...wall(0.3, -2.42, 2.42, -2.42, y, y + 0.47),
+    ...wall(2.42, -2.42, 2.42, 2.42, y, y + 0.47),
+    ...wall(2.42, 2.42, -2.42, 2.42, y, y + 0.47),
+    ...wall(-2.42, 2.42, -2.42, -2.42, y, y + 0.47),
+  ]);
   const options = { rowHeights: [y], radius: 0.14, height: 0.98, spacing: 0.42, clearance: 0.02 };
   const spots = findCrowdSpots(steps, [barrier], options);
   const need = options.radius + options.clearance;
@@ -60,7 +74,7 @@ describe('findCrowdSpots', () => {
     }
   });
 
-  it('keeps the stairs free', () => {
+  it('keeps the stairs free, also where a stair step is level with the row', () => {
     for (const p of spots) {
       if (p.z < -2) expect(Math.abs(p.x)).toBeGreaterThanOrEqual(0.3 + need - 0.03);
     }

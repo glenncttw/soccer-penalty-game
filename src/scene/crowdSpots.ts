@@ -4,8 +4,9 @@
  * on the stairs or inside a barrier, wall or step edge.
  *
  * Works on a top-down grid of small cells. For each row: the cells of its step are marked, then
- * everything of the stadium a person standing there would bump into is blocked, and only cells
- * with room for a whole person around them are kept. Going round the stand, the cell nearest the
+ * everything of the stadium a person standing there would bump into is blocked, and so are the
+ * stairs from bottom to top (see findStairs). Only cells with room for a whole person around them
+ * are kept. Going round the stand, the cell nearest the
  * pitch in each direction gives the row's line, and spots are laid along it.
  */
 
@@ -35,10 +36,14 @@ export interface SpotOptions {
 const CELL = 0.05; // grid cell size, metres
 const LEVEL = 0.03; // a step triangle is within this of the row's height
 const ABOVE = 0.02; // anything from this far above the step's floor counts as in the way
+const STAIR_LEVEL = 0.05; // a flat level with less than this share of the biggest floor's area is a stair's step
+const STAIR_REACH = 0.5; // stair steps count when they are at most this far above or below a row
+const STAIR_GAP = 1; // stair steps closer than this belong to the same stairs
 
 /** Spots for every row, from the stand (`steps`: floors, risers and stairs) and everything else that is in the way. */
 export function findCrowdSpots(steps: Triangles, obstacles: Triangles[], o: SpotOptions): CrowdSpot[] {
   const spots: CrowdSpot[] = [];
+  const stairs = findStairs(steps, o.rowHeights);
   o.rowHeights.forEach((y, row) => {
     const floor = trianglesWhere(steps, (t) => isFloorAt(t, y));
     if (floor.length === 0) throw new Error(`No stand step found at ${y} m for the crowd`);
@@ -52,10 +57,84 @@ export function findCrowdSpots(steps: Triangles, obstacles: Triangles[], o: Spot
         if (hi > y + ABOVE && lo < top) grid.block(list, i);
       }
     }
+    for (let i = 0; i < stairs.length; i += 9) grid.block(stairs, i);
     const room = grid.roomAround();
     for (const p of rowLine(grid, room, o.radius + o.clearance)) spots.push({ ...p, y, row });
   });
   return thinOut(spots, o.spacing);
+}
+
+/**
+ * The whole width and length of every stairs, seen from above, as triangles. Stairs go up in half
+ * steps, so every other step of theirs is level with a row's floor and looks just like it; the
+ * small steps in between give them away. The outline round each stairs' small steps covers its
+ * steps at floor level too.
+ */
+function findStairs(steps: Triangles, rowHeights: number[]): Triangles {
+  // Flat triangles, grouped into levels by height.
+  const flat: { t: number[]; y: number; area: number }[] = [];
+  for (let i = 0; i < steps.length; i += 9) {
+    const t = Array.from(steps.subarray(i, i + 9));
+    const y = (t[1] + t[4] + t[7]) / 3;
+    if (isFloorAt(t, y)) flat.push({ t, y, area: Math.abs((t[3] - t[0]) * (t[8] - t[2]) - (t[6] - t[0]) * (t[5] - t[2])) / 2 });
+  }
+  flat.sort((a, b) => a.y - b.y);
+  const levels: (typeof flat)[] = [];
+  for (const f of flat) {
+    const level = levels[levels.length - 1];
+    if (level && f.y - level[level.length - 1].y <= LEVEL) level.push(f);
+    else levels.push([f]);
+  }
+  const areaOf = (level: typeof flat) => level.reduce((sum, f) => sum + f.area, 0);
+  const biggest = Math.max(0, ...levels.map(areaOf));
+  const lowest = Math.min(...rowHeights) - STAIR_REACH;
+  const highest = Math.max(...rowHeights) + STAIR_REACH;
+  const corners: number[][] = [];
+  for (const level of levels) {
+    const y = level[0].y;
+    if (y < lowest || y > highest || areaOf(level) >= STAIR_LEVEL * biggest) continue;
+    for (const f of level) for (let k = 0; k < 9; k += 3) corners.push([f.t[k], f.t[k + 2]]);
+  }
+
+  // Corners near each other belong to the same stairs.
+  const group = corners.map((_, k) => k);
+  const root = (k: number): number => (group[k] === k ? k : (group[k] = root(group[k])));
+  for (let a = 0; a < corners.length; a++) {
+    for (let b = a + 1; b < corners.length; b++) {
+      if (Math.hypot(corners[a][0] - corners[b][0], corners[a][1] - corners[b][1]) < STAIR_GAP) group[root(a)] = root(b);
+    }
+  }
+  const groups = new Map<number, number[][]>();
+  corners.forEach((c, k) => {
+    const g = groups.get(root(k)) ?? [];
+    g.push(c);
+    groups.set(root(k), g);
+  });
+
+  const out: number[] = [];
+  for (const g of groups.values()) {
+    const hull = outline(g);
+    for (let k = 1; k + 1 < hull.length; k++) {
+      for (const [x, z] of [hull[0], hull[k], hull[k + 1]]) out.push(x, 0, z);
+    }
+  }
+  return new Float32Array(out);
+}
+
+/** The outline round points seen from above (their convex hull), in order. */
+function outline(points: number[][]): number[][] {
+  const p = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const turn = (o: number[], a: number[], b: number[]) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = (list: number[][]) => {
+    const h: number[][] = [];
+    for (const q of list) {
+      while (h.length >= 2 && turn(h[h.length - 2], h[h.length - 1], q) <= 0) h.pop();
+      h.push(q);
+    }
+    h.pop();
+    return h;
+  };
+  return [...half(p), ...half(p.reverse())];
 }
 
 /** A triangle that lies flat at height y (a step's floor). */

@@ -7,8 +7,9 @@ export interface CrowdSettings {
   crowd: boolean;
   /**
    * Heights of the stand steps the rows stand on, measured in the stadium model. Each row stands
-   * on its step right behind the step's barrier. Left out: the wide walkway at 1.70 m, where the
-   * corner stairs come down, and the narrow top step at 3.30 m, which has no barrier.
+   * on its step right behind the step's barrier, and the corner stairs are kept free on every row.
+   * Left out: the wide walkway at 1.70 m, where the corner stairs come down, and the narrow top step
+   * at 3.30 m, which has no barrier.
    */
   rowHeights: number[];
   /** Radius of a tube. */
@@ -33,7 +34,7 @@ export const CROWD_SETTINGS: CrowdSettings = {
   radius: 0.14,
   height: 0.85,
   heightVariation: 0.15,
-  spacing: 0.42,
+  spacing: 0.84,
   clearance: 0.02,
   colors: ['#e63946', '#1d4ed8', '#f4c430', '#ffffff', '#2a9d8f', '#ff7f50', '#6c398b', '#ff4fa3', '#1f2a44', '#8ecae6'],
   seed: 3,
