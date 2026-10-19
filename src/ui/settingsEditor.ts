@@ -61,9 +61,10 @@ const CLOUD_ROWS: Row<SkySettings>[] = [
 ];
 
 const GLOW_ROWS: Row<FloodlightSettings>[] = [
-  ['glowSize', 'Size', 0.5, 5, 0.05],
+  ['glowSize', 'Halo size', 1, 4, 0.05],
   ['glowOpacity', 'Brightness', 0, 1, 0.01],
-  ['glowColor', 'Colour'],
+  ['glowColor', 'Lamp colour'],
+  ['glowEdgeColor', 'Halo colour'],
 ];
 
 const WIPE_ROWS: Row<ReplaySettings>[] = [

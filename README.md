@@ -135,11 +135,12 @@ There is no fill light: the bakes and the panorama hold all the soft light, so a
 The sun comes from the right, so the ball's shadow falls to the left. The ball and keeper cast their shadow from
 their sunlit side; with three's default the ground right under the ball showed a bright gap in the shadow.
 
-**Floodlight glow:** a soft warm halo around each floodlight's lamp panel (`src/scene/floodlightGlow.ts`). It is one
-camera-facing picture per floodlight, found from the `FLOOD_Light_*` nodes and their `M_Floodlight_Emissive` lamps,
-added on top of the sky and stands, so it costs two tiny draws instead of a full-screen bloom. Settings in
-`src/scene/floodlightSettings.ts`: `glow` (on or off), `glowSize` (as a share of the panel's width), `glowOpacity` and
-`glowColor`; also in the `?edit` panel under **Floodlight glow**.
+**Floodlight glow:** each floodlight lamp lights up bright white with a soft warm halo around it
+(`src/scene/floodlightGlow.ts`). The lamps are found in the model: every separate piece of the `M_Floodlight_Emissive`
+mesh in the `FLOOD_Light_*` nodes is one lamp (24 in all). They are drawn in one go, added on top of the sky and stands,
+so it costs one tiny draw instead of a full-screen bloom. Settings in `src/scene/floodlightSettings.ts`: `glow` (on or
+off), `glowSize` (how far the halo reaches, in lamp radii), `glowOpacity`, `glowColor` (the lamps) and `glowEdgeColor`
+(the halo); also in the `?edit` panel under **Floodlight glow**.
 
 The KTX2 pictures need a decoder, served from `public/basis/`. Those two files are copies of
 `node_modules/three/examples/jsm/libs/basis/`; copy them again after updating three.

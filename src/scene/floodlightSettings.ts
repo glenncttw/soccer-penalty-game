@@ -1,21 +1,24 @@
 /**
- * The soft glow around the floodlight lamps. Colours are CSS hex strings (sRGB, as a
- * colour picker shows them).
+ * The soft glow on the floodlight lamps. Colours are CSS hex strings (sRGB, as a colour picker
+ * shows them).
  */
 export interface FloodlightSettings {
   /** Draw the glow. */
   glow: boolean;
-  /** Size of the glow, as a share of the lamp panel's width (1 = as wide as the panel). */
+  /** How far each lamp's halo reaches, in lamp radii from its middle (1 = only the lamp itself). */
   glowSize: number;
   /** 0..1: how bright the glow is. */
   glowOpacity: number;
-  /** Colour in the middle of the glow; it fades out to nothing at the edge. */
+  /** Colour the lamps light up with. */
   glowColor: string;
+  /** Colour of the halo around each lamp; it fades out to nothing. */
+  glowEdgeColor: string;
 }
 
 export const FLOODLIGHT_SETTINGS: FloodlightSettings = {
   glow: true,
-  glowSize: 3,
-  glowOpacity: 0.45,
-  glowColor: '#fff6dc',
+  glowSize: 1.7,
+  glowOpacity: 0.7,
+  glowColor: '#ffffff',
+  glowEdgeColor: '#ffc89a',
 };
