@@ -29,6 +29,24 @@ milliseconds per frame and memory) and a list of what was drawn in the last fram
 geometries, textures, shaders, and the screen size in pixels. Fewer draw calls and triangles mean an easier job for
 phones.
 
+## Sharpness and phone speed
+
+A phone screen has 2 or 3 real pixels for every CSS pixel, and drawing all of them is a lot of work. The game
+always fills the whole screen, but draws its picture with fewer pixels: at most 1.5 per CSS pixel on a computer,
+and on a phone the preset picked in `src/scene/resolutionSettings.ts` (`high` 1.5, `balanced` 1.25,
+`performance` 1.0). It never draws more pixels than the screen really has.
+
+Add `?bench` to the game's address to open the **sharpness test** panel (players never see it):
+
+- The buttons switch the sharpness live: **Normal** (the setting above), 1.0, 1.25, 1.5 and 2.0 (the old setting).
+  Under them: the picture's size in pixels, frames per second, milliseconds per frame, the CPU time (the game's
+  own code) and the GPU time (the graphics chip; most phones, iPhones included, don't report it: "n/a").
+- **Run test** measures each sharpness for 10 seconds (after 3 seconds to settle) while you leave the phone alone
+  on the aiming view, then shows a table: average FPS, average frame time, the 99th-percentile frame time and the
+  "1% low" FPS (the frame rate of the slowest 1% of frames), CPU and GPU time, draw calls and triangles. **Copy
+  results** puts the table on the clipboard. Afterwards the sharpness goes back to what it was.
+- `?bench&dpr=1.25` starts at 1.25.
+
 ## The replay
 
 Every shot is recorded: where the ball and the keeper are in each frame (`src/gameplay/replayRecorder.ts`).
