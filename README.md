@@ -132,8 +132,8 @@ facing +z) stands in the stands in 5 rows: the steps at 0.45, 0.86, 2.10, 2.50 a
 1.70 m (where the corner stairs come down), the narrow top step at 3.30 m and the corner stairs stay empty. It is its own
 file, not part of the stadium: replace it to update the person (keep one material for all its parts). The game loads it
 once (`src/scene/crowdAsset.ts`) and draws a copy at every spot in one go (`src/scene/crowd.ts`), each a little bigger or
-smaller, turned, spaced and set back by its own random amount, with some spots left empty, and with its own shirt
-colour: the texture's shirt colour is swapped for one from the list.
+smaller, turned, spaced and set back by its own random amount, close together so the stands look full, and with its
+own shirt colour: the texture's shirt colour is swapped for one from the list.
 
 The crowd moves (`src/scene/crowdMotion.ts`), worked out on the graphics card so it costs next to nothing: everyone
 sways and looks around a little, and some people raise their arms now and then (up past their sides) and bounce while

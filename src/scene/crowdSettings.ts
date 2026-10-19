@@ -57,10 +57,10 @@ export interface CrowdSettings {
 export const CROWD_SETTINGS: CrowdSettings = {
   crowd: true,
   rowHeights: [0.45, 0.86, 2.1, 2.5, 2.9],
-  spacing: 0.84,
-  spacingJitter: 0.25,
+  spacing: 0.66,
+  spacingJitter: 0.05,
   depthJitter: 0.3,
-  gaps: 0.08,
+  gaps: 0,
   clearance: 0.02,
   sizeVariation: 0.05,
   turn: 20,
