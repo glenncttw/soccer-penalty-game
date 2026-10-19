@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findCrowdSpots } from './crowdSpots';
+import { findCrowdSpots, shapeOf } from './crowdSpots';
 
 /** Two triangles for a flat rectangle at height y. */
 function floor(x0: number, z0: number, x1: number, z1: number, y: number): number[] {
@@ -50,9 +50,13 @@ describe('findCrowdSpots', () => {
     ...wall(2.42, 2.42, -2.42, 2.42, y, y + 0.47),
     ...wall(-2.42, 2.42, -2.42, -2.42, y, y + 0.47),
   ]);
-  const options = { rowHeights: [y], radius: 0.14, height: 0.98, spacing: 0.42, clearance: 0.02 };
+  // A person: a body, arms sticking out sideways, and a head above the barrier's height.
+  const body = { x0: -0.14, x1: 0.14, y0: 0, y1: 0.6, z0: -0.14, z1: 0.14 };
+  const arms = { x0: -0.3, x1: 0.3, y0: 0.2, y1: 0.5, z0: -0.06, z1: 0.1 };
+  const head = { x0: -0.2, x1: 0.2, y0: 0.5, y1: 0.98, z0: -0.2, z1: 0.2 };
+  const options = { rowHeights: [y], shape: [body, arms, head], spacing: 0.42, clearance: 0.02, sizeVariation: 0, turn: 0, random: () => 0.5 };
   const spots = findCrowdSpots(steps, [barrier], options);
-  const need = options.radius + options.clearance;
+  const need = body.x1 + options.clearance;
 
   it('fills the step all the way round', () => {
     // About 4 sides of 5 m each, at 0.42 m apart, minus the stairs and the corners.
@@ -74,9 +78,17 @@ describe('findCrowdSpots', () => {
     }
   });
 
-  it('keeps the stairs free, also where a stair step is level with the row', () => {
+  it('keeps the stairs free, also where a stair step is level with the row, arms included', () => {
     for (const p of spots) {
-      if (p.z < -2) expect(Math.abs(p.x)).toBeGreaterThanOrEqual(0.3 + need - 0.03);
+      if (p.z < -2) expect(Math.abs(p.x)).toBeGreaterThanOrEqual(0.3 + arms.x1 + options.clearance - 0.03);
+    }
+  });
+
+  it('turns everyone to face the pitch', () => {
+    for (const p of spots) {
+      const toMiddle = Math.hypot(p.x, p.z);
+      const front = { x: Math.sin(p.angle), z: Math.cos(p.angle) };
+      expect(-(front.x * p.x + front.z * p.z) / toMiddle).toBeGreaterThan(0.7);
     }
   });
 
@@ -90,5 +102,19 @@ describe('findCrowdSpots', () => {
 
   it('says so when a row height has no step', () => {
     expect(() => findCrowdSpots(steps, [], { ...options, rowHeights: [1.2] })).toThrow(/No stand step/);
+  });
+});
+
+describe('shapeOf', () => {
+  it('measures a part layer by layer, so it is only as wide at each height as it really is', () => {
+    // An upright triangle: a point at the bottom, 60 cm wide at the top, 20 cm high.
+    const boxes = shapeOf(new Float32Array([0, 0, 0, -0.3, 0.2, 0, 0.3, 0.2, 0]), 0.1);
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0].y0).toBeCloseTo(0);
+    expect(boxes[0].y1).toBeCloseTo(0.1);
+    expect(boxes[0].x0).toBeCloseTo(-0.15);
+    expect(boxes[0].x1).toBeCloseTo(0.15);
+    expect(boxes[1].x0).toBeCloseTo(-0.3);
+    expect(boxes[1].x1).toBeCloseTo(0.3);
   });
 });

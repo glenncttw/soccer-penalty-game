@@ -15,7 +15,8 @@ import { createPhysicsWorld } from './physics/world';
 import { AimMarkers } from './scene/aimMarkers';
 import { BallTrail, trailStyle } from './scene/ball';
 import { BallFade } from './scene/ballFade';
-import { CrowdPlaceholder } from './scene/crowd';
+import { Crowd } from './scene/crowd';
+import { loadCrowdPerson } from './scene/crowdAsset';
 import { Effects } from './scene/effects';
 import { FloodlightGlow } from './scene/floodlightGlow';
 import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera';
@@ -47,8 +48,9 @@ const scene = new THREE.Scene();
 // The loading bar (in index.html) fills as the files below arrive.
 const preloader = new Preloader();
 
-// The keeper's Blender model loads alongside the stadium.
+// The keeper's and the crowd's Blender models load alongside the stadium.
 const keeperAsset = loadKeeperModel();
+const crowdPerson = loadCrowdPerson();
 // The Blender stadium is the whole environment: pitch, goal, stands, ball and sun.
 const stadium = await loadStadium((f) => preloader.file(f));
 const world = stadium.config;
@@ -72,8 +74,8 @@ grass.lookFrom(view.restPosition);
 // A soft glow around the floodlight lamps; tweak it in src/scene/floodlightSettings.ts.
 const floodlights = new FloodlightGlow(stadium.environment, view.restPosition);
 scene.add(floodlights.group);
-// Placeholder tubes for the crowd, in rows behind the stand barriers; tweak them in src/scene/crowdSettings.ts.
-const crowd = new CrowdPlaceholder(stadium.environment, envMap);
+// The crowd, in rows behind the stand barriers; tweak it in src/scene/crowdSettings.ts.
+const crowd = new Crowd(stadium.environment, await crowdPerson, envMap);
 scene.add(crowd.mesh);
 
 const ballMesh = stadium.ball;

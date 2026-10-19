@@ -1,13 +1,15 @@
 /**
  * Finds where the crowd can stand, from the stadium's own geometry: one row on each chosen stand
- * step, as close to the front of the step (right behind its barrier) as a person fits, and never
- * on the stairs or inside a barrier, wall or step edge.
+ * step, as close to the front of the step (right behind its barrier) as a person fits, facing the
+ * pitch, and never on the stairs or inside a barrier, wall or step edge.
  *
- * Works on a top-down grid of small cells. For each row: the cells of its step are marked, then
- * everything of the stadium a person standing there would bump into is blocked, and so are the
- * stairs from bottom to top (see findStairs). Only cells with room for a whole person around them
- * are kept. Going round the stand, the cell nearest the
- * pitch in each direction gives the row's line, and spots are laid along it.
+ * A person is a few boxes (body, arms, head...), each from its own height to its own height, so a
+ * head may reach over a barrier lower than it, but not into a rail at head height. For each row, a
+ * top-down grid of small cells over the step finds where the body has room to stand at all; going
+ * round the stand, the cell nearest the pitch in each direction gives the row's line. Along it, a
+ * person is put where none of their boxes, turned to face the pitch, touches anything of the
+ * stadium at the box's heights or the stairs (see findStairs), and the boxes they stand on are on
+ * the floor, a bit further back on the step if needed, keeping `spacing` between neighbours.
  */
 
 /** Triangles as a flat list of world positions: x, y, z of 3 corners each. */
@@ -17,20 +19,39 @@ export interface CrowdSpot {
   x: number;
   y: number;
   z: number;
+  /** Turn about the up axis, in radians: the person's front (+z) points to (sin, cos) of it. */
+  angle: number;
+  /** Size of this person: 1 = as made. */
+  size: number;
   /** Which row (0 = the lowest step in the list). */
   row: number;
+}
+
+/** A box of a person's shape, in their own space: feet at y = 0, facing +z. Metres. */
+export interface PersonBox {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+  z0: number;
+  z1: number;
 }
 
 export interface SpotOptions {
   /** Heights of the steps to fill, one row each. */
   rowHeights: number[];
-  /** Person radius and height (the tallest one), in metres. */
-  radius: number;
-  height: number;
+  /** The person's shape, at the size it was made. */
+  shape: PersonBox[];
   /** Centre-to-centre distance along a row. */
   spacing: number;
   /** Space kept free around each person. */
   clearance: number;
+  /** 0..1: how much bigger or smaller than made a person may be. */
+  sizeVariation: number;
+  /** Most a person is turned away from facing straight ahead, either way, in radians. */
+  turn: number;
+  /** Random numbers from 0 to 1, for sizes and turns. */
+  random: () => number;
 }
 
 const CELL = 0.05; // grid cell size, metres
@@ -39,29 +60,257 @@ const ABOVE = 0.02; // anything from this far above the step's floor counts as i
 const STAIR_LEVEL = 0.05; // a flat level with less than this share of the biggest floor's area is a stair's step
 const STAIR_REACH = 0.5; // stair steps count when they are at most this far above or below a row
 const STAIR_GAP = 1; // stair steps closer than this belong to the same stairs
+const STEP_BACK = 0.5; // how far back from the front of the step a person may stand
+const NUDGE = 0.01; // steps in which a person is moved back to find room
+const SKIP = 0.1; // after a spot where nobody fits, the next try is this far along the row
+const ON_FLOOR = 0.05; // a box starting this low stands on the floor
 
 /** Spots for every row, from the stand (`steps`: floors, risers and stairs) and everything else that is in the way. */
 export function findCrowdSpots(steps: Triangles, obstacles: Triangles[], o: SpotOptions): CrowdSpot[] {
   const spots: CrowdSpot[] = [];
-  const stairs = findStairs(steps, o.rowHeights);
+  const stairs = new TriangleIndex(findStairs(steps, o.rowHeights));
+  const feet = o.shape.filter((b) => b.y0 < ON_FLOOR);
+  if (feet.length === 0) throw new Error('The crowd person has no part standing on the floor');
+  const biggest = 1 + o.sizeVariation;
+  const smallest = 1 - o.sizeVariation;
+  const top = Math.max(...o.shape.map((b) => b.y1)) * biggest;
+  const feetTop = Math.max(...feet.map((b) => b.y1)) * smallest;
   o.rowHeights.forEach((y, row) => {
-    const floor = trianglesWhere(steps, (t) => isFloorAt(t, y));
+    const floor = trianglesWhere(steps, (t, i) => isFloorAt(t, y, i));
     if (floor.length === 0) throw new Error(`No stand step found at ${y} m for the crowd`);
-    const grid = new Grid(bounds(floor, 0.5));
-    for (let i = 0; i < floor.length; i += 9) grid.fill(floor, i, 1);
-    const top = y + o.height;
-    for (const list of [steps, ...obstacles]) {
-      for (let i = 0; i < list.length; i += 9) {
-        const lo = Math.min(list[i + 1], list[i + 4], list[i + 7]);
-        const hi = Math.max(list[i + 1], list[i + 4], list[i + 7]);
-        if (hi > y + ABOVE && lo < top) grid.block(list, i);
+    const box = bounds(floor, 0.5);
+    const onFloor = new Grid(box);
+    for (let i = 0; i < floor.length; i += 9) onFloor.fill(floor, i, 1);
+    // Only what is within a person's heights on this step can be in the way.
+    const near = new TriangleIndex(concat([steps, ...obstacles].map((list) => trianglesWhere(list, (t, i) => Math.max(t[i + 1], t[i + 4], t[i + 7]) > y + ABOVE && Math.min(t[i + 1], t[i + 4], t[i + 7]) < y + top))));
+
+    // The line runs where the smallest body has room to stand at all.
+    const body = new Grid(box);
+    body.cells.set(onFloor.cells);
+    const t = near.triangles;
+    for (let i = 0; i < t.length; i += 9) {
+      if (Math.min(t[i + 1], t[i + 4], t[i + 7]) < y + feetTop) body.block(t, i);
+    }
+    for (let i = 0; i < stairs.triangles.length; i += 9) body.block(stairs.triangles, i);
+    const depth = Math.min(...feet.map((b) => Math.min(-b.z0, b.z1))) * smallest + o.clearance;
+    const line = rowLine(body, body.roomAround(), depth);
+
+    const fits = (x: number, z: number, angle: number, size: number) =>
+      o.shape.every((b) => {
+        const rect = { x, z, angle, x0: b.x0 * size - o.clearance, x1: b.x1 * size + o.clearance, z0: b.z0 * size - o.clearance, z1: b.z1 * size + o.clearance };
+        const lo = y + Math.max(b.y0 * size, ABOVE);
+        const hi = y + b.y1 * size;
+        if (b.y0 < ON_FLOOR && !onFloor.covers(rect)) return false;
+        return !near.touches(rect, lo, hi) && !stairs.touches(rect, -Infinity, Infinity);
+      });
+    const centre = { x: (box.x0 + box.x1) / 2, z: (box.z0 + box.z1) / 2 };
+    const kept: CrowdSpot[] = [];
+    let failed: { x: number; z: number } | undefined;
+    line.forEach((p, i) => {
+      if (kept.some((q) => Math.hypot(p.x - q.x, p.z - q.z) < o.spacing)) return;
+      if (failed && Math.hypot(p.x - failed.x, p.z - failed.z) < SKIP) return;
+      failed = p;
+      const front = facing(line, i, centre);
+      const straight = Math.atan2(front.x, front.z);
+      const size = 1 + o.sizeVariation * (o.random() * 2 - 1);
+      const angle = straight + o.turn * (o.random() * 2 - 1);
+      // Where it's tight, a person stands straight, or is a bit smaller, before stepping back.
+      const tries = [
+        { angle, size },
+        { angle: straight, size },
+        { angle: straight, size: smallest },
+      ];
+      // The line is only as exact as its cells, so the first try is half a cell further forward.
+      for (let back = -CELL / 2; back <= STEP_BACK + 1e-9; back += NUDGE) {
+        const x = p.x - front.x * back;
+        const z = p.z - front.z * back;
+        if (kept.some((q) => Math.hypot(x - q.x, z - q.z) < o.spacing)) return;
+        const fit = tries.find((f) => fits(x, z, f.angle, f.size));
+        if (fit) {
+          kept.push({ x, y, z, angle: fit.angle, size: fit.size, row });
+          failed = undefined;
+          return;
+        }
+      }
+    });
+    spots.push(...kept);
+  });
+  return spots;
+}
+
+function concat(lists: Triangles[]): Triangles {
+  const out = new Float32Array(lists.reduce((n, l) => n + l.length, 0));
+  let k = 0;
+  for (const l of lists) {
+    out.set(l, k);
+    k += l.length;
+  }
+  return out;
+}
+
+/** A box seen from above: its own x and z ranges, turned by `angle` about its centre (x, z). */
+interface Rect {
+  x: number;
+  z: number;
+  angle: number;
+  x0: number;
+  x1: number;
+  z0: number;
+  z1: number;
+}
+
+/** Triangles sorted into a top-down grid of buckets, to find the ones near a spot quickly. */
+class TriangleIndex {
+  private static readonly SIZE = 0.5; // bucket size, metres
+  private readonly buckets = new Map<number, number[]>();
+
+  constructor(readonly triangles: Triangles) {
+    for (let i = 0; i < triangles.length; i += 9) {
+      const [i0, i1, j0, j1] = this.span(
+        Math.min(triangles[i], triangles[i + 3], triangles[i + 6]),
+        Math.max(triangles[i], triangles[i + 3], triangles[i + 6]),
+        Math.min(triangles[i + 2], triangles[i + 5], triangles[i + 8]),
+        Math.max(triangles[i + 2], triangles[i + 5], triangles[i + 8]),
+      );
+      for (let j = j0; j <= j1; j++) {
+        for (let k = i0; k <= i1; k++) {
+          const key = j * 100003 + k;
+          const list = this.buckets.get(key) ?? [];
+          list.push(i);
+          this.buckets.set(key, list);
+        }
       }
     }
-    for (let i = 0; i < stairs.length; i += 9) grid.block(stairs, i);
-    const room = grid.roomAround();
-    for (const p of rowLine(grid, room, o.radius + o.clearance)) spots.push({ ...p, y, row });
-  });
-  return thinOut(spots, o.spacing);
+  }
+
+  private span(x0: number, x1: number, z0: number, z1: number): [number, number, number, number] {
+    const s = TriangleIndex.SIZE;
+    return [Math.floor(x0 / s), Math.floor(x1 / s), Math.floor(z0 / s), Math.floor(z1 / s)];
+  }
+
+  /** Whether any triangle reaching into the heights lo..hi overlaps the box seen from above. */
+  touches(r: Rect, lo: number, hi: number): boolean {
+    const reach = Math.max(Math.hypot(r.x0, r.z0), Math.hypot(r.x1, r.z0), Math.hypot(r.x0, r.z1), Math.hypot(r.x1, r.z1));
+    const [i0, i1, j0, j1] = this.span(r.x - reach, r.x + reach, r.z - reach, r.z + reach);
+    const seen = new Set<number>();
+    const t = this.triangles;
+    for (let j = j0; j <= j1; j++) {
+      for (let k = i0; k <= i1; k++) {
+        for (const i of this.buckets.get(j * 100003 + k) ?? []) {
+          if (seen.has(i)) continue;
+          seen.add(i);
+          if (Math.max(t[i + 1], t[i + 4], t[i + 7]) <= lo || Math.min(t[i + 1], t[i + 4], t[i + 7]) >= hi) continue;
+          if (overlaps(r, t, i)) return true;
+        }
+      }
+    }
+    return false;
+  }
+}
+
+/** Whether a triangle seen from above overlaps a turned box (separating axis test). */
+function overlaps(r: Rect, t: Triangles, i: number): boolean {
+  const cos = Math.cos(r.angle);
+  const sin = Math.sin(r.angle);
+  // The triangle's corners in the box's own space.
+  const p: number[][] = [];
+  for (let k = 0; k < 9; k += 3) {
+    const dx = t[i + k] - r.x;
+    const dz = t[i + k + 2] - r.z;
+    p.push([dx * cos - dz * sin, dx * sin + dz * cos]);
+  }
+  if (Math.max(p[0][0], p[1][0], p[2][0]) < r.x0 || Math.min(p[0][0], p[1][0], p[2][0]) > r.x1) return false;
+  if (Math.max(p[0][1], p[1][1], p[2][1]) < r.z0 || Math.min(p[0][1], p[1][1], p[2][1]) > r.z1) return false;
+  const corners = [
+    [r.x0, r.z0],
+    [r.x1, r.z0],
+    [r.x1, r.z1],
+    [r.x0, r.z1],
+  ];
+  for (let e = 0; e < 3; e++) {
+    const a = p[e];
+    const b = p[(e + 1) % 3];
+    const nx = -(b[1] - a[1]);
+    const nz = b[0] - a[0];
+    if (Math.hypot(nx, nz) < 1e-9) continue;
+    const tri = p.map((q) => q[0] * nx + q[1] * nz);
+    const box = corners.map((q) => q[0] * nx + q[1] * nz);
+    if (Math.max(...tri) < Math.min(...box) || Math.min(...tri) > Math.max(...box)) return false;
+  }
+  return true;
+}
+
+/** Which way a person on the row line faces: across the line, toward the pitch (the middle of the step's outline). */
+function facing(line: { x: number; z: number }[], i: number, centre: { x: number; z: number }): { x: number; z: number } {
+  // The line's direction here, from its points a few cells either side (not across a gap, like the stairs).
+  const reach = 4;
+  let a = line[i];
+  let b = line[i];
+  for (let k = 1; k <= reach; k++) {
+    const p = line[(i - k + line.length) % line.length];
+    if (Math.hypot(p.x - a.x, p.z - a.z) > 3 * CELL) break;
+    a = p;
+  }
+  for (let k = 1; k <= reach; k++) {
+    const p = line[(i + k) % line.length];
+    if (Math.hypot(p.x - b.x, p.z - b.z) > 3 * CELL) break;
+    b = p;
+  }
+  let nx = -(b.z - a.z);
+  let nz = b.x - a.x;
+  const len = Math.hypot(nx, nz);
+  const toCentre = { x: centre.x - line[i].x, z: centre.z - line[i].z };
+  if (len < 1e-6) {
+    // A lone point: face the middle.
+    const d = Math.hypot(toCentre.x, toCentre.z) || 1;
+    return { x: toCentre.x / d, z: toCentre.z / d };
+  }
+  nx /= len;
+  nz /= len;
+  return nx * toCentre.x + nz * toCentre.z >= 0 ? { x: nx, z: nz } : { x: -nx, z: -nz };
+}
+
+/**
+ * A person's shape from the triangles of one of their parts: a box for each `slice`-high layer of
+ * it, so a part that is wide at one height and narrow at another (like hair) doesn't take up its
+ * widest room all the way down.
+ */
+export function shapeOf(part: Triangles, slice: number): PersonBox[] {
+  let bottom = Infinity;
+  let top = -Infinity;
+  for (let i = 1; i < part.length; i += 3) {
+    bottom = Math.min(bottom, part[i]);
+    top = Math.max(top, part[i]);
+  }
+  const boxes: PersonBox[] = [];
+  for (let y0 = bottom; y0 < top - 1e-6; y0 += slice) {
+    const y1 = Math.min(y0 + slice, top);
+    const b = { x0: Infinity, x1: -Infinity, y0, y1, z0: Infinity, z1: -Infinity };
+    const add = (x: number, z: number) => {
+      b.x0 = Math.min(b.x0, x);
+      b.x1 = Math.max(b.x1, x);
+      b.z0 = Math.min(b.z0, z);
+      b.z1 = Math.max(b.z1, z);
+    };
+    // The part of each triangle within this layer: its corners inside it, and where its edges cross the layer's top and bottom.
+    for (let i = 0; i < part.length; i += 9) {
+      for (let e = 0; e < 3; e++) {
+        const a = i + 3 * e;
+        const c = i + 3 * ((e + 1) % 3);
+        const ay = part[a + 1];
+        const cy = part[c + 1];
+        if (ay >= y0 && ay <= y1) add(part[a], part[a + 2]);
+        for (const h of [y0, y1]) {
+          if ((ay - h) * (cy - h) < 0) {
+            const f = (h - ay) / (cy - ay);
+            add(part[a] + (part[c] - part[a]) * f, part[a + 2] + (part[c + 2] - part[a + 2]) * f);
+          }
+        }
+      }
+    }
+    if (b.x0 <= b.x1) boxes.push(b);
+  }
+  return boxes;
 }
 
 /**
@@ -138,20 +387,19 @@ function outline(points: number[][]): number[][] {
 }
 
 /** A triangle that lies flat at height y (a step's floor). */
-function isFloorAt(t: number[], y: number): boolean {
-  const [ax, ay, az, bx, by, bz, cx, cy, cz] = t;
-  if (Math.max(Math.abs(ay - y), Math.abs(by - y), Math.abs(cy - y)) > LEVEL) return false;
-  const area = Math.abs((bx - ax) * (cz - az) - (cx - ax) * (bz - az));
+function isFloorAt(t: ArrayLike<number>, y: number, i = 0): boolean {
+  if (Math.max(Math.abs(t[i + 1] - y), Math.abs(t[i + 4] - y), Math.abs(t[i + 7] - y)) > LEVEL) return false;
+  const area = Math.abs((t[i + 3] - t[i]) * (t[i + 8] - t[i + 2]) - (t[i + 6] - t[i]) * (t[i + 5] - t[i + 2]));
   return area > 1e-6;
 }
 
-function trianglesWhere(list: Triangles, keep: (t: number[]) => boolean): Triangles {
-  const out: number[] = [];
-  for (let i = 0; i < list.length; i += 9) {
-    const t = Array.from(list.subarray(i, i + 9));
-    if (keep(t)) out.push(...t);
-  }
-  return new Float32Array(out);
+/** The triangles of a list (the one starting at index i) that `keep` says yes to. */
+function trianglesWhere(list: Triangles, keep: (list: Triangles, i: number) => boolean): Triangles {
+  const picked: number[] = [];
+  for (let i = 0; i < list.length; i += 9) if (keep(list, i)) picked.push(i);
+  const out = new Float32Array(picked.length * 9);
+  picked.forEach((i, k) => out.set(list.subarray(i, i + 9), k * 9));
+  return out;
 }
 
 interface Box {
@@ -231,6 +479,25 @@ class Grid {
     }
   }
 
+  /** Whether the box seen from above lies on set cells (shrunk by a cell, as cells only roughly follow edges). */
+  covers(r: Rect): boolean {
+    const cos = Math.cos(r.angle);
+    const sin = Math.sin(r.angle);
+    const x0 = r.x0 + CELL, x1 = r.x1 - CELL, z0 = r.z0 + CELL, z1 = r.z1 - CELL;
+    const nx = Math.max(1, Math.ceil((x1 - x0) / CELL));
+    const nz = Math.max(1, Math.ceil((z1 - z0) / CELL));
+    for (let a = 0; a <= nx; a++) {
+      const lx = x0 + ((x1 - x0) * a) / nx;
+      for (let c = 0; c <= nz; c++) {
+        const lz = z0 + ((z1 - z0) * c) / nz;
+        const i = Math.floor((r.x + lx * cos + lz * sin - this.box.x0) / CELL);
+        const j = Math.floor((r.z - lx * sin + lz * cos - this.box.z0) / CELL);
+        if (i < 0 || j < 0 || i >= this.w || j >= this.h || !this.cells[j * this.w + i]) return false;
+      }
+    }
+    return true;
+  }
+
   /** For each free cell, how far (metres) it is to the nearest cell that isn't free. */
   roomAround(): Float32Array {
     const { w, h } = this;
@@ -295,16 +562,4 @@ function rowLine(grid: Grid, room: Float32Array, need: number): { x: number; z: 
     if (!best[b] || c.r < best[b]!.r) best[b] = c;
   }
   return best.filter((p): p is { x: number; z: number; r: number } => !!p).map(({ x, z }) => ({ x, z }));
-}
-
-/** Keeps spots at least `spacing` apart in each row, so the tubes never touch. */
-function thinOut(spots: CrowdSpot[], spacing: number): CrowdSpot[] {
-  const out: CrowdSpot[] = [];
-  for (const p of spots) {
-    // Walking along the row line, the next spot is the first one far enough from every spot so far
-    // in its row; that also keeps the row's end apart from its start where the line goes all the way round.
-    const crowded = out.some((q) => q.row === p.row && Math.hypot(p.x - q.x, p.z - q.z) < spacing);
-    if (!crowded) out.push(p);
-  }
-  return out;
 }
