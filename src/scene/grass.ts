@@ -202,6 +202,7 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     uAlbedo: { value: textures.albedo },
     uNormal: { value: textures.normal },
     uTile: { value: new THREE.Vector2() },
+    uViewFrom: { value: new THREE.Vector3(0, 1, 16) },
     uTextureStrength: { value: 0 },
     uNormalStrength: { value: 0 },
     uPatchStrength: { value: 0 },
@@ -269,7 +270,11 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     old.dispose();
   }
   for (const mesh of stripes.meshes) mesh.material = material;
-  return { material, update };
+  /** Turns the grass texture's blades to stand up as seen from `position` (kept up to date: pass the camera's rest spot). */
+  function lookFrom(position: THREE.Vector3) {
+    uniforms.uViewFrom.value = position;
+  }
+  return { material, update, lookFrom };
 }
 
 const GRASS_PARS = /* glsl */ `
@@ -285,6 +290,7 @@ uniform float uCrossStripeOpacity;
 uniform sampler2D uAlbedo;
 uniform sampler2D uNormal;
 uniform vec2 uTile;
+uniform vec3 uViewFrom;
 uniform float uTextureStrength;
 uniform float uNormalStrength;
 uniform float uPatchStrength;
@@ -318,33 +324,57 @@ float grassNoise(vec2 p) {
   );
 }
 
-// One copy of the texture tile, shifted and maybe mirrored left to right. It is
-// never turned, so the blades keep leaning toward the goal. Gives its colour and
-// its slope (the normal map's tilt) in the pitch's directions. Passing the
-// original derivatives keeps the mipmaps seamless across the copies.
-void grassTile(vec2 uv, vec2 dx, vec2 dy, float copy, out vec3 albedo, out vec2 slope) {
-  vec2 flip = vec2(grassHash(vec2(copy, 3.0)) < 0.5 ? -1.0 : 1.0, 1.0);
-  vec2 shift = vec2(grassHash(vec2(copy, 7.0)), grassHash(vec2(copy, 13.0)));
-  vec2 st = flip * uv + shift;
-  albedo = textureGrad(uAlbedo, st, flip * dx, flip * dy).rgb;
-  vec3 n = textureGrad(uNormal, st, flip * dx, flip * dy).xyz * 2.0 - 1.0;
-  slope = flip * (n.xy / max(n.z, 0.25));
+// Copies of the texture tile sit on a grid of triangles (GRASS_CELL metres apart),
+// each turned so its blades stand up as seen from the camera's usual spot: the
+// texture was made for looking straight at it, so without turning, the blades at the
+// sides of the screen lean over and smear. A copy is also shifted and maybe mirrored
+// at random, which hides the repeat. Gives its colour and its slope (the normal
+// map's tilt) in the pitch's directions. Passing turned versions of the original
+// derivatives keeps the mipmaps seamless across the copies.
+const float GRASS_CELL = 1.2;
+
+void grassTile(vec2 xz, vec2 dx, vec2 dy, vec2 corner, out vec3 albedo, out vec2 slope, out float shade) {
+  vec2 at = vec2(corner.x + 0.5 * corner.y, 0.8660254 * corner.y) * GRASS_CELL;
+  vec2 away = at - uViewFrom.xz;
+  away = dot(away, away) > 1e-4 ? normalize(away) : vec2(0.0, -1.0);
+  vec2 across = vec2(-away.y, away.x);
+  mat2 turn = mat2(across.x, away.x, across.y, away.y); // pitch (x, z) to (across, away from the camera)
+  vec2 flip = vec2(grassHash(corner + 3.1) < 0.5 ? -1.0 : 1.0, 1.0);
+  vec2 shift = vec2(grassHash(corner + 7.7), grassHash(corner + 13.3));
+  vec2 scale = flip / uTile;
+  vec2 st = (turn * (xz - at)) * scale + shift;
+  vec2 sdx = (turn * dx) * scale;
+  vec2 sdy = (turn * dy) * scale;
+  albedo = textureGrad(uAlbedo, st, sdx, sdy).rgb;
+  vec3 n = textureGrad(uNormal, st, sdx, sdy).xyz * 2.0 - 1.0;
+  vec2 s = flip * (n.xy / max(n.z, 0.25));
+  s.y /= max(uTile.y / uTile.x, 1e-3); // undo the stretch away from the camera
+  vec2 g = across * s.x + away * s.y;  // turned back to the pitch's (x, z)
+  slope = vec2(g.x, -g.y);             // x to the right, y toward the goal
+  shade = dot(albedo, vec3(0.333));
 }
 
-// The texture with its repeat hidden: a smooth random map picks which shifted
-// copy of the tile shows where, and blends neighbouring copies.
-void grassTexture(vec2 uv, out vec3 albedo, out vec2 slope) {
-  vec2 dx = dFdx(uv);
-  vec2 dy = dFdy(uv);
-  float pick = grassNoise(uv * 0.6) * 8.0;
-  float copy = floor(pick);
-  vec3 a1, a2;
-  vec2 s1, s2;
-  grassTile(uv, dx, dy, copy, a1, s1);
-  grassTile(uv, dx, dy, copy + 1.0, a2, s2);
-  float w = smoothstep(0.25, 0.75, fract(pick) + 0.3 * (dot(a2 - a1, vec3(1.0)) / 3.0));
-  albedo = mix(a1, a2, w);
-  slope = mix(s1, s2, w);
+// The texture: the three copies around this point, blended. Where they overlap, the
+// brighter blades win, so the blend keeps the grass crisp instead of washing it out.
+void grassTexture(vec2 xz, out vec3 albedo, out vec2 slope) {
+  vec2 dx = dFdx(xz);
+  vec2 dy = dFdy(xz);
+  vec2 p = xz / GRASS_CELL;
+  vec2 skew = vec2(p.x - 0.57735027 * p.y, 1.15470054 * p.y); // triangle grid -> square grid
+  vec2 base = floor(skew);
+  vec2 f = fract(skew);
+  float upper = step(1.0, f.x + f.y);
+  vec3 w = upper > 0.5 ? vec3(f.x + f.y - 1.0, 1.0 - f.y, 1.0 - f.x) : vec3(1.0 - f.x - f.y, f.x, f.y);
+  vec3 a1, a2, a3;
+  vec2 s1, s2, s3;
+  float l1, l2, l3;
+  grassTile(xz, dx, dy, base + vec2(upper), a1, s1, l1);
+  grassTile(xz, dx, dy, base + vec2(1.0, 0.0), a2, s2, l2);
+  grassTile(xz, dx, dy, base + vec2(0.0, 1.0), a3, s3, l3);
+  w = pow(w * mix(vec3(1.0), vec3(l1, l2, l3), 0.6), vec3(7.0));
+  w /= max(w.x + w.y + w.z, 1e-6);
+  albedo = a1 * w.x + a2 * w.y + a3 * w.z;
+  slope = s1 * w.x + s2 * w.y + s3 * w.z;
 }
 `;
 
@@ -352,7 +382,7 @@ const GRASS_COLOR = /* glsl */ `
   vec2 grassUv = vec2(vGrassWorld.x, -vGrassWorld.z) / uTile; // u to the right, v toward the goal
   vec3 grassAlbedo;
   vec2 grassSlope;
-  grassTexture(grassUv, grassAlbedo, grassSlope);
+  grassTexture(vGrassWorld.xz, grassAlbedo, grassSlope);
 
   // How small the texture is on screen: 0 where a 256-pixel copy of the tile
   // would show one texture pixel per screen pixel, +1 for each halving. Where the
@@ -444,7 +474,6 @@ const GRASS_NORMAL = /* glsl */ `
   {
     // Paint fills the gaps between the blades a little, so painted grass is smoother.
     vec2 slope = grassSlope * uNormalStrength * grassNear * (1.0 - 0.7 * grassPaint);
-    slope.y /= max(uTile.y / uTile.x, 1e-3); // undo the stretch toward the goal
     vec3 bumpy = normalize(vec3(slope.x, 1.0, -slope.y)); // u is +x, v is -z, up is +y
     normal = normalize((viewMatrix * vec4(bumpy, 0.0)).xyz);
   }

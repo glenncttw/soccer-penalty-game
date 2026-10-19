@@ -65,6 +65,8 @@ scene.add(sky.mesh);
 // The gameplay camera: ball low in the foreground, goal centred; tweak it in src/scene/cameraSettings.ts.
 const view = createGameCamera(world);
 const camera = view.camera;
+// The grass texture's blades stand up as seen from where the camera usually is.
+grass.lookFrom(view.restPosition);
 
 const ballMesh = stadium.ball;
 // A ball that flies over the ad boards fades out: it's gone into the stands.

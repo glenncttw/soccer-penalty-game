@@ -17,8 +17,9 @@ edges. The normal map comes from the same render, corrected so the pitch as a wh
 The Blender file and the script that builds and renders it are on Glenn's PC in `Croky Cup\blender\grass_v3\`
 (the game-ready files are in `web\`). Change density, blade size or colours there and render again.
 
-Because the camera's angle is already in these pictures, the game stretches them only 1.5 times toward the goal
-(`textureStretch`). At 3 the blades turn into long streaks. One copy covers 0.8 m across (`textureTileSize`),
+Because the camera's angle is already in these pictures, the game stretches them only 1.5 times along the view
+(`textureStretch`). The game turns each copy of the pictures so its top points away from the camera's usual spot,
+so the blades look the same at the sides of the screen as straight ahead. At 3 the blades turn into long streaks. One copy covers 0.8 m across (`textureTileSize`),
 which makes the tufts about as big as in the reference picture.
 
 The render has much more contrast than the reference, so the game tones it down: `textureStrength` 0.38 and
@@ -39,7 +40,7 @@ bake both pictures from a small patch of 3D grass onto a flat square.
 | Size | 1024 x 1024 pixels, 8-bit PNG, no transparency |
 | Patch size in Blender | 0.5 x 0.5 m |
 | Seamless | the right edge must continue into the left edge, and the top into the bottom |
-| Which way is up | the top of the picture (Blender's +Y, the green axis) points toward the goal |
+| Which way is up | the top of the picture (Blender's +Y, the green axis) points away from the camera (the game turns each copy to match) |
 | Normal map type | tangent space, OpenGL (Blender's default) |
 | Light | none: no shadows, no sun, no ambient occlusion in the colour picture |
 
@@ -140,4 +141,4 @@ All in `GRASS_SETTINGS` in `src/scene/grassSettings.ts`:
 | `textureStrength` | how much of the colour picture's variation shows (0 = plain stripe colours) |
 | `normalStrength` | how strongly the bumps catch the light (0 = flat). Baked blades that lie low give gentle bumps, so the game turns them up (3 now) |
 | `textureTileSize` | how much pitch one picture covers across, in metres (0.5 matches this guide) |
-| `textureStretch` | how much longer it is toward the goal (1 = not stretched) |
+| `textureStretch` | how much longer it is along the view, away from the camera (1 = not stretched) |
