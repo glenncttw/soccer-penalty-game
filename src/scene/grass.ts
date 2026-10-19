@@ -646,8 +646,8 @@ const GRASS_COLOR = /* glsl */ `
 // The grass's bumps, from the normal map, as the light sees them.
 const GRASS_NORMAL = /* glsl */ `
   {
-    // Paint fills the gaps between the blades a little, so painted grass is smoother.
-    vec2 slope = grassSlope * uNormalStrength * grassNear * (1.0 - 0.7 * grassPaint);
+    // Paint fills the gaps between the blades, so painted grass is smooth.
+    vec2 slope = grassSlope * uNormalStrength * grassNear * (1.0 - grassPaint);
     vec3 bumpy = normalize(vec3(slope.x, 1.0, -slope.y)); // u is +x, v is -z, up is +y
     normal = normalize((viewMatrix * vec4(bumpy, 0.0)).xyz);
   }

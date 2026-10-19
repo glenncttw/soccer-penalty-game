@@ -81,6 +81,6 @@ export const GRASS_SETTINGS: GrassSettings = {
   lineColor: '#ebe8de',
   lineRagged: 0.04,
   lineWobble: 0.05,
-  lineTexture: 0.6,
+  lineTexture: 0.12,
   lineGrassTint: 0.1,
 };
