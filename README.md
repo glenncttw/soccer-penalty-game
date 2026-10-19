@@ -98,6 +98,14 @@ sizes: a ball that flies over the boards fades out and counts as a miss (or a sa
 Animations in the export (like the corner flags waving) play on a loop, slowed down with the game's slow motion.
 Nothing in the game refers to them by name, so a new export can add, change or drop them.
 
+**Placeholder crowd:** until the real crowd is made, coloured tubes stand in the stands (`src/scene/crowd.ts`), in 5
+rows: the steps at 0.45, 0.86, 2.10, 2.50 and 2.90 m high. The wide walkway at 1.70 m (where the corner stairs come
+down) and the narrow top step at 3.30 m are left empty. Spots are worked out at load from the `STATIC_Concrete` mesh
+and everything else in the model (`src/scene/crowdSpots.ts`): each tube stands right behind its step's barrier, with
+room around it, never on the stairs and never touching a barrier, wall or step edge. All tubes are one draw.
+Settings in `src/scene/crowdSettings.ts` (row heights, tube size, spacing, colours); a new stadium export that moves
+the steps needs new `rowHeights`, and the game stops with an error naming a height that has no step.
+
 ## The keeper
 
 The keeper is Glenn's parrot, a Blender export: `public/assets/keeper/Parrot_GK.glb`, loaded by
