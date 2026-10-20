@@ -2,7 +2,15 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CROWD_SETTINGS, type CrowdSettings } from './crowdSettings';
 import { addMotion, limbAt, motionOf, motionUniforms, reachablePoses } from './crowdMotion';
-import { findCrowdSpots, shapeOf, type CrowdSpot, type Moves, type PersonBox, type Triangles } from './crowdSpots';
+import {
+  concat,
+  findCrowdSpots,
+  shapeOf,
+  type CrowdSpot,
+  type Moves,
+  type PersonBox,
+  type Triangles,
+} from './crowdSpots';
 
 /** The stand's concrete: its step floors, risers and stairs. */
 const STAND_NODE = 'STATIC_Concrete';
@@ -24,6 +32,8 @@ const SHAPE_SLICE = 0.1;
 export class Crowd {
   readonly mesh: THREE.InstancedMesh;
   readonly spots: CrowdSpot[];
+  /** What the people's room was measured against: the stadium's triangles (stand included), and the person's shape for each way of moving. */
+  readonly room: { stadium: Triangles; shapes: Record<Moves, PersonBox[]> };
   private readonly motion: ReturnType<typeof motionUniforms>;
 
   constructor(
@@ -44,7 +54,9 @@ export class Crowd {
 
     const { geometry, material, shapes } = mergePerson(person, s);
     const random = seeded(s.seed);
-    this.spots = findCrowdSpots(worldTriangles(stand), obstacles, {
+    const steps = worldTriangles(stand);
+    this.room = { stadium: concat([steps, ...obstacles]), shapes };
+    this.spots = findCrowdSpots(steps, obstacles, {
       rowHeights: s.rowHeights,
       shapes,
       cheerShare: s.motion ? s.cheerShare : 0,
@@ -202,7 +214,7 @@ export function worldTriangles(root: THREE.Object3D): Triangles {
 }
 
 /** A small seeded random number generator (mulberry32), so the crowd looks the same every time. */
-function seeded(seed: number): () => number {
+export function seeded(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;

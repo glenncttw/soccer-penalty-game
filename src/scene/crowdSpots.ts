@@ -237,7 +237,8 @@ export function findCrowdSpots(steps: Triangles, obstacles: Triangles[], o: Spot
   return spots;
 }
 
-function concat(lists: Triangles[]): Triangles {
+/** Several lists of triangles as one. */
+export function concat(lists: Triangles[]): Triangles {
   const out = new Float32Array(lists.reduce((n, l) => n + l.length, 0));
   let k = 0;
   for (const l of lists) {
@@ -248,7 +249,7 @@ function concat(lists: Triangles[]): Triangles {
 }
 
 /** A box seen from above: its own x and z ranges, turned by `angle` about its centre (x, z). */
-interface Rect {
+export interface Rect {
   x: number;
   z: number;
   angle: number;
@@ -259,7 +260,7 @@ interface Rect {
 }
 
 /** Triangles sorted into a top-down grid of buckets, to find the ones near a spot quickly. */
-class TriangleIndex {
+export class TriangleIndex {
   private static readonly SIZE = 0.5; // bucket size, metres
   private readonly buckets = new Map<number, number[]>();
 
@@ -325,7 +326,7 @@ function corners(r: Rect): number[][] {
 }
 
 /** Whether two turned boxes seen from above overlap (separating axis test). */
-function rectsOverlap(a: Rect, b: Rect): boolean {
+export function rectsOverlap(a: Rect, b: Rect): boolean {
   const ca = corners(a);
   const cb = corners(b);
   for (const angle of [a.angle, b.angle]) {

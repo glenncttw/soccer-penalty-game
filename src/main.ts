@@ -17,6 +17,7 @@ import { BallTrail, trailStyle } from './scene/ball';
 import { BallFade } from './scene/ballFade';
 import { Crowd } from './scene/crowd';
 import { loadCrowdPerson } from './scene/crowdAsset';
+import { CrowdFlags } from './scene/crowdFlags';
 import { DepthOfField, keepSharp } from './scene/depthOfField';
 import { Effects } from './scene/effects';
 import { FloodlightGlow } from './scene/floodlightGlow';
@@ -109,6 +110,9 @@ scene.add(floodlights.group);
 // The crowd, in rows behind the stand barriers; tweak it in src/scene/crowdSettings.ts.
 const crowd = new Crowd(stadium.environment, await crowdPerson, envMap);
 scene.add(crowd.mesh);
+// Big flags waving in the crowd; tweak them in src/scene/crowdFlagSettings.ts.
+const crowdFlags = new CrowdFlags(crowd, envMap);
+scene.add(crowdFlags.mesh);
 
 const ballMesh = stadium.ball;
 // A ball that flies over the ad boards fades out: it's gone into the stands.
@@ -412,6 +416,7 @@ renderer.setAnimationLoop((time) => {
   ballFade.update(dt);
   stadiumMotion.update(dt);
   crowd.update(gameTime);
+  crowdFlags.update(gameTime);
   sky.update(gameTime);
 
   if (replay.active) {
