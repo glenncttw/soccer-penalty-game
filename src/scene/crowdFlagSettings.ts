@@ -1,6 +1,7 @@
 /**
- * Big flags waving in the crowd. Each flag is held by someone in the stands: its pole stands just
- * behind them, so its bottom is hidden by the people, and its cloth waves above their heads.
+ * Big flags waving in the crowd. Each flag is held by someone in the stands: its pole is in their
+ * raised hand, in front of their shoulder, and ends just below it, so its bottom is hidden by them
+ * and the people in front of them, and its cloth waves above their heads.
  * Sizes are in metres (the crowd's people are about 0.9 m tall); colours are CSS hex strings.
  */
 export interface CrowdFlagSettings {
@@ -19,15 +20,9 @@ export interface CrowdFlagSettings {
   height: number;
   /** How high the pole's top is, above the step the person holding it stands on. */
   poleHeight: number;
-  /**
-   * How high the flag is held: it swings about this point, above the step. The pole starts just
-   * below it, behind the head of the person holding it, so its bottom is hidden by them (and clears
-   * the barrier behind them).
-   */
-  holdHeight: number;
   /** How far each flag may be turned from pointing straight along its row (about the up axis), either way, in degrees. */
   turn: number;
-  /** How much higher than `holdHeight` a flag may be held, in metres (each flag its own amount, up to this). */
+  /** How much longer a flag's pole may be than `poleHeight`, in metres (each flag its own amount, up to this). */
   raise: number;
   /** How far a flag swings to each side, in degrees (each flag its own amount: see `variety`). */
   swing: number;
@@ -74,8 +69,7 @@ export const CROWD_FLAG_SETTINGS: CrowdFlagSettings = {
   ],
   width: 1.6,
   height: 1,
-  poleHeight: 2.95,
-  holdHeight: 0.95,
+  poleHeight: 2.75,
   turn: 8,
   raise: 0.2,
   swing: 12,

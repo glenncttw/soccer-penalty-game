@@ -1,4 +1,6 @@
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import type { Holding } from './crowd';
 import { CROWD_FLAG_SETTINGS } from './crowdFlagSettings';
 import { flagMotions, flagShape, placeFlags } from './crowdFlags';
 import type { CrowdSpot, PersonBox } from './crowdSpots';
@@ -11,6 +13,16 @@ function wall(x0: number, z0: number, x1: number, z1: number, y0: number, y1: nu
 // A person as one box: 0.6 m wide, 0.4 m deep, 1 m tall, the same in every way of moving.
 const person: PersonBox[] = [{ x0: -0.3, x1: 0.3, y0: 0, y1: 1, z0: -0.2, z1: 0.2 }];
 const shapes = [{ cheer: person, move: person, calm: person }];
+// Holding a pole up in front of a shoulder: the hand 0.2 m out to that side and 0.21 m in front; the arm up to it,
+// and the person's head and body (narrower than all of their room, which takes in their arms).
+const holding: Holding = {
+  hand: { 1: new THREE.Vector3(0.2, 0.56, 0.21), [-1]: new THREE.Vector3(-0.2, 0.56, 0.21) },
+  arm: {
+    1: [{ x0: 0.1, x1: 0.25, y0: 0.4, y1: 0.6, z0: -0.05, z1: 0.25 }],
+    [-1]: [{ x0: -0.25, x1: -0.1, y0: 0.4, y1: 0.6, z0: -0.05, z1: 0.25 }],
+  },
+  still: [[{ x0: -0.15, x1: 0.15, y0: 0, y1: 1, z0: -0.15, z1: 0.12 }]],
+};
 
 /** A row of people along x at z = 0, facing +z (the pitch), 0.7 m apart. */
 function row(count: number): CrowdSpot[] {
@@ -30,16 +42,18 @@ describe('crowd flags', () => {
   const s = { ...CROWD_FLAG_SETTINGS, places: [{ row: 0, along: 0.5 }] };
 
   it('takes up the room of the pole and the cloth at every swing', () => {
-    const shape = flagShape(s);
-    expect(Math.min(...shape.map((b) => b.y0))).toBeCloseTo(s.holdHeight - 0.05, 2); // the pole's hidden bottom
+    const shape = flagShape(s, 0.5);
+    expect(Math.min(...shape.map((b) => b.y0))).toBeCloseTo(0.5 - 0.01, 1); // the pole's bottom, in the hand
     expect(Math.max(...shape.map((b) => b.y1))).toBeGreaterThan(s.poleHeight); // swung up past its top
     expect(Math.max(...shape.map((b) => b.x1))).toBeGreaterThan(s.width * 0.95);
     expect(Math.max(...shape.map((b) => b.z1))).toBeCloseTo(s.ripple, 2); // the cloth's furthest ripple
   });
 
-  it('raises and lifts all of the flag but the hidden bottom of its pole, which stays put', () => {
-    const shape = flagShape(s, { raise: 0.2, swing: s.swing, lift: 0.1 });
-    expect(Math.min(...shape.map((b) => b.y0))).toBeCloseTo(s.holdHeight - 0.05, 2);
+  it('lifts all of the flag with the hand, and raises its top', () => {
+    const still = flagShape(s, 0.5, { raise: 0, swing: s.swing, lift: 0 });
+    const shape = flagShape(s, 0.5, { raise: 0.2, swing: s.swing, lift: 0.1 });
+    const lowest = (boxes: PersonBox[]) => Math.min(...boxes.map((b) => b.y0));
+    expect(lowest(shape)).toBeCloseTo(lowest(still), 5); // from where it's held at its lowest
     expect(Math.max(...shape.map((b) => b.y1))).toBeGreaterThan(s.poleHeight + 0.3);
   });
 
@@ -57,54 +71,54 @@ describe('crowd flags', () => {
     expect(new Set(motions.map((m) => m.swing.toFixed(3))).size).toBeGreaterThan(10);
   });
 
-  it('sends the cloth along the row, the flags taking turns which side, each turned a little', () => {
-    const flags = placeFlags(
-      row(21),
-      { stadium: new Float32Array(), shapes },
-      { ...s, places: [0.1, 0.5, 0.9].map((along) => ({ row: 0, along })) },
-    );
+  it('sends the cloth along the row to the side it is held on, the flags taking turns which side, each turned a little', () => {
+    const flags = placeFlags(row(21), { stadium: new Float32Array(), shapes }, holding, {
+      ...s,
+      places: [0.1, 0.5, 0.9].map((along) => ({ row: 0, along })),
+    });
     expect(flags).toHaveLength(3);
     const turn = (s.turn * Math.PI) / 180 + 1e-9;
     flags.forEach((f, n) => {
-      const side = n % 2 === 0 ? 0 : Math.PI; // nothing in the way here, so each gets the side it tries first
-      expect(Math.abs(f.angle - side)).toBeLessThanOrEqual(turn);
+      // Nothing in the way here, so each gets the side it tries first.
+      expect(f.side).toBe(n % 2 === 0 ? 1 : -1);
+      expect(Math.abs(f.angle - (n % 2 === 0 ? 0 : Math.PI))).toBeLessThanOrEqual(turn);
     });
   });
 
-  it('puts a flag behind the person nearest the place asked for, with nothing in the way', () => {
+  it('puts the pole in the hand of the person nearest the place asked for', () => {
     const spots = row(9);
-    const flags = placeFlags(spots, { stadium: new Float32Array(), shapes }, s);
+    const flags = placeFlags(spots, { stadium: new Float32Array(), shapes }, holding, s);
     expect(flags).toHaveLength(1);
     const f = flags[0];
-    expect(Math.abs(spots[f.holder].x)).toBeLessThan(0.71); // the middle person, or next to them
-    expect(f.z).toBeLessThan(-0.2); // behind them
+    const bearer = spots[f.holder];
+    expect(Math.abs(bearer.x)).toBeLessThan(0.71); // the middle person, or next to them
+    expect(f.x).toBeCloseTo(bearer.x + 0.2 * f.side, 5);
+    expect(f.z).toBeCloseTo(0.21, 5);
+    expect(f.hold).toBeCloseTo(0.56, 5);
   });
 
-  it('never stands a pole bare behind a barrier: only where people on the step behind hide it', () => {
-    // A barrier 0.8 m high just behind the people (below the poles, which start at 0.9 m).
-    const barrier = new Float32Array(wall(-10, -0.25, 10, -0.25, 0, 0.8));
-    expect(placeFlags(row(9), { stadium: barrier, shapes }, s)).toHaveLength(0);
-    // With a row standing on a higher step behind the barrier, the pole goes among them.
-    const behind = row(9).map((p) => ({ ...p, x: p.x + 0.35, y: 0.4, z: -0.9, row: 1 }));
-    const flags = placeFlags([...row(9), ...behind], { stadium: barrier, shapes }, s);
-    expect(flags).toHaveLength(1);
-    expect(flags[0].z).toBeLessThan(-0.25);
+  it('keeps the raised arm of the bearer out of the stadium', () => {
+    // A wall just in front of the pole, so only the arm reaching past it would touch.
+    const stadium = new Float32Array(wall(-10, 0.245, 10, 0.245, 0, 0.55));
+    expect(placeFlags(row(9), { stadium, shapes }, holding, s)).toHaveLength(0);
   });
 
-  it('finds no room where walls stand close behind each other right behind the people, up to over the cloth', () => {
-    const stadium = new Float32Array([-0.3, -0.5, -0.7, -0.9].flatMap((z) => wall(-10, z, 10, z, 0, 4)));
-    expect(placeFlags(row(9), { stadium, shapes }, s)).toHaveLength(0);
+  it('never puts the pole through the head or body of the bearer', () => {
+    const big = { ...holding, still: [[{ x0: -0.3, x1: 0.3, y0: 0, y1: 1, z0: -0.15, z1: 0.25 }]] };
+    expect(placeFlags(row(9), { stadium: new Float32Array(), shapes }, big, s)).toHaveLength(0);
   });
 
-  it('keeps the cloth off the people of the row behind', () => {
-    // A second row 0.5 m higher and 0.6 m back, so close the cloth would reach into their heads.
-    const behind = row(9).map((p) => ({ ...p, y: 0.5, z: -0.6, row: 1 }));
+  it('finds no room where a wall stands right in front of the people, up to over the cloth', () => {
+    const stadium = new Float32Array(wall(-10, 0.3, 10, 0.3, 0, 4));
+    expect(placeFlags(row(9), { stadium, shapes }, holding, s)).toHaveLength(0);
+  });
+
+  it('keeps the cloth off the people around', () => {
+    // A row of tall people just in front, whom only the cloth's ripples would reach.
+    const front = row(9).map((p) => ({ ...p, z: 0.5, row: 1 }));
     const tall: PersonBox[] = [{ x0: -0.3, x1: 0.3, y0: 0, y1: 2.5, z0: -0.2, z1: 0.2 }];
-    const flags = placeFlags(
-      [...row(9), ...behind],
-      { stadium: new Float32Array(), shapes: [{ cheer: tall, move: tall, calm: tall }] },
-      s,
-    );
-    expect(flags).toHaveLength(0);
+    const room = { stadium: new Float32Array(), shapes: [{ cheer: tall, move: tall, calm: tall }] };
+    expect(placeFlags([...row(9), ...front], room, holding, s)).toHaveLength(0);
+    expect(placeFlags(row(9), room, holding, s)).toHaveLength(1);
   });
 });
