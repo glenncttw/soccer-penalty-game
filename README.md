@@ -214,6 +214,9 @@ The light is baked in Blender (`src/scene/lighting.ts` sets it up, right after t
 - **Ball, keeper, net and corner flags** get soft light and reflections from a 360° panorama taken at the ball's
   spot, plus the live sun and shadows. Anything that moves and is made in code (like a crowd later) should get the
   same with `lightMovingObject` from `src/scene/lighting.ts`.
+- **Shine:** the ad boards, goal, stands, railings, trees, crowd and keeper get a toy-like gloss that reflects a soft
+  picture of the stadium and sky (`src/scene/shine.ts`). How shiny each one is: `src/scene/shineSettings.ts`, also in
+  the `?edit` panel under **Shine**. The baked colours stay as they are; the reflections go on top.
 
 There is no fill light: the bakes and the panorama hold all the soft light, so adding one would count it twice.
 The sun comes from the right, so the ball's shadow falls to the left. The ball and keeper cast their shadow from

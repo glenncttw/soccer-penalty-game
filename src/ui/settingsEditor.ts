@@ -3,6 +3,7 @@ import { CAMERA_SETTINGS, type CameraSettings } from '../scene/cameraSettings';
 import { FLOODLIGHT_SETTINGS, type FloodlightSettings } from '../scene/floodlightSettings';
 import { GRASS_SETTINGS, type GrassSettings } from '../scene/grassSettings';
 import { REPLAY_SETTINGS, type ReplaySettings } from '../scene/replaySettings';
+import { SHINE_SETTINGS, type ShineSettings } from '../scene/shineSettings';
 import { SKY_SETTINGS, type SkySettings } from '../scene/skySettings';
 import { settingsSnippet } from './settingsSnippet';
 
@@ -67,6 +68,21 @@ const GLOW_ROWS: Row<FloodlightSettings>[] = [
   ['glowEdgeColor', 'Halo colour'],
 ];
 
+const SHINE_ROWS: Row<ShineSettings>[] = [
+  ['boardRoughness', 'Boards: blur', 0, 1, 0.01],
+  ['boardReflection', 'Boards: reflection', 0, 2, 0.01],
+  ['goalRoughness', 'Goal: blur', 0, 1, 0.01],
+  ['goalReflection', 'Goal: reflection', 0, 2, 0.01],
+  ['standsRoughness', 'Stands: blur', 0, 1, 0.01],
+  ['standsReflection', 'Stands: reflection', 0, 2, 0.01],
+  ['railRoughness', 'Railings: blur', 0, 1, 0.01],
+  ['railReflection', 'Railings: reflection', 0, 2, 0.01],
+  ['treeRoughness', 'Trees: blur', 0, 1, 0.01],
+  ['treeReflection', 'Trees: reflection', 0, 2, 0.01],
+  ['crowdRoughness', 'Crowd: blur', 0, 1, 0.01],
+  ['keeperRoughness', 'Keeper: blur', 0, 1.5, 0.01],
+];
+
 const WIPE_ROWS: Row<ReplaySettings>[] = [
   ['wipeTime', 'Sweep time (s)', 0.3, 2, 0.01],
 ];
@@ -78,6 +94,7 @@ export interface EditorTargets {
   grass: { update(settings: GrassSettings): void };
   sky: { configure(settings: SkySettings): void };
   floodlights: { update(settings: FloodlightSettings): void };
+  shine: { update(settings: ShineSettings): void };
   /** Plays the wipe once, to try its timing. */
   wipe: { play(): void };
 }
@@ -129,6 +146,12 @@ export function openSettingsEditor(targets: EditorTargets) {
     settingsSnippet('FLOODLIGHT_SETTINGS', 'FloodlightSettings', glow),
   );
   glowFolder.add({ reset: () => glowFolder.reset() }, 'reset').name('Reset glow');
+
+  const shine = { ...SHINE_SETTINGS };
+  const shineFolder = gui.addFolder('Shine');
+  for (const row of SHINE_ROWS) addRow(shineFolder, shine, row).onChange(() => targets.shine.update(shine));
+  addCopyButton(shineFolder, 'Copy shine settings', () => settingsSnippet('SHINE_SETTINGS', 'ShineSettings', shine));
+  shineFolder.add({ reset: () => shineFolder.reset() }, 'reset').name('Reset shine');
 
   // The wipe reads its timing each time it plays, so these sliders change it straight away.
   const wipeFolder = gui.addFolder('Wipe');

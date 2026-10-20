@@ -32,6 +32,7 @@ import { AutoResolution, type AutoMemory } from './scene/autoResolution';
 import { clampPixelRatio, pickPixelRatio, RESOLUTION_SETTINGS } from './scene/resolutionSettings';
 import { Sky } from './scene/sky';
 import { SKY_SETTINGS } from './scene/skySettings';
+import { Shine } from './scene/shine';
 import { loadStadium } from './scene/stadiumAsset';
 import { COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
@@ -126,6 +127,8 @@ const keeperModel = new KeeperModel();
 keeperModel.useModel(await keeperAsset);
 lightMovingObject(ballMesh, envMap);
 lightMovingObject(keeperModel.group, envMap);
+// A toy-like gloss on the boards, goal, crowd and keeper; tweak it in src/scene/shineSettings.ts.
+const shine = new Shine(stadium.environment, crowd.group, keeperModel.group, envMap);
 scene.add(ballMesh, trail.mesh, markers.group, effects.group, keeperModel.group);
 // Soft shadows on the grass right under the ball and the keeper.
 grass.followContacts(ballMesh, world.ballRadius, keeperModel.group);
@@ -302,6 +305,7 @@ if (new URLSearchParams(location.search).has('edit')) {
     grass,
     sky,
     floodlights,
+    shine,
     wipe: { play: () => wipe.run(() => {}) },
   });
 }
