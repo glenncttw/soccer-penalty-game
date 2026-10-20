@@ -69,7 +69,7 @@ export const CROWD_FLAG_SETTINGS: CrowdFlagSettings = {
   ],
   width: 1.6,
   height: 1,
-  poleHeight: 2.95,
+  poleHeight: 2.75,
   turn: 8,
   raise: 0.2,
   swing: 12,

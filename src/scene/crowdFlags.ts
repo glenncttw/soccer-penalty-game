@@ -28,6 +28,8 @@ const SAG_FLUTTER = 0.3;
 const FOLD_SHADING = 2.5;
 /** Below this high up a bearer (size 1), they stand as everyone else does. */
 const BELOW_HEAD = 0.45;
+/** How much of its swing a flag tries waving with, in turn, before it's given to someone else. */
+const SWING_TRIES = [1, 0.6, 0.35];
 /** How many swing positions the flag's room is measured at, from one side to the other. */
 const SWEEP_STEPS = 9;
 
@@ -128,13 +130,15 @@ function ripplesReach(u: number): number {
 }
 
 /**
- * Picks a bearer for each flag: the person nearest to each place in `s.places` who can hold it up
- * in their hand beside them (see `Holding`), with room round it for the cloth to wave in, without
+ * Picks a bearer for each flag: someone in the row of each place in `s.places` who can hold it up
+ * in their hand beside them (see `Holding`), so that it waves as near as can be to where it would
+ * held by the person at that place, with room round it for the cloth to wave in, without
  * the flag or the bearer's raised arm touching the stadium, anyone else in the crowd (in any of
  * their moves) or another flag, and without the pole going through the bearer's own head or body.
- * The cloth goes out to the side the bearer holds it on, one side or the other, whichever has room
- * (the flags take turns which side they try first), turned a little by its own random amount (up
- * to the settings' `turn`). Places with no room near them get no flag.
+ * The cloth goes out to the side the bearer holds it on, one side or the other (the flags take
+ * turns which side they try first), turned a little by its own random amount (up to the settings'
+ * `turn`). Where there's no room for a flag's full swing, it swings less before it moves on to
+ * someone else. Places with no room near them get no flag.
  */
 export function placeFlags(
   spots: CrowdSpot[],
@@ -179,22 +183,35 @@ export function placeFlags(
   s.places.forEach((place, n) => {
     const row = rows.get(place.row);
     if (!row) return;
-    const target = Math.round(THREE.MathUtils.clamp(place.along, 0, 1) * (row.length - 1));
-    const order = row.map((_, k) => k).sort((a, b) => Math.abs(a - target) - Math.abs(b - target));
-    for (const k of order) {
-      const holder = row[k];
-      if (bearers.has(holder)) continue;
+    // Each person and side who could hold it: the pole in their hand, and the cloth out to that side.
+    const held = row.map((holder) => {
       const p = spots[holder];
-      for (const side of n % 2 === 0 ? ([1, -1] as const) : ([-1, 1] as const)) {
-        // The pole in their hand, and the cloth out to that side.
+      return ([1, -1] as const).map((side) => {
         const hand = holding.hand[side];
         const cos = Math.cos(p.angle);
         const sin = Math.sin(p.angle);
         const x = p.x + (hand.x * cos + hand.z * sin) * p.size;
         const z = p.z + (-hand.x * sin + hand.z * cos) * p.size;
-        const hold = hand.y * p.size;
         const angle = p.angle + (side > 0 ? 0 : Math.PI) + turns[n];
-        const shape = flagShape(s, hold, motions[n]);
+        const cloth = { x: x + (Math.cos(angle) * s.width) / 2, z: z - (Math.sin(angle) * s.width) / 2 };
+        return { holder, side, x, z, hold: hand.y * p.size, angle, cloth };
+      });
+    });
+    // Where the flag waves when the person at the place holds it on the side this flag tries first: the nearest
+    // to that goes first.
+    const first = n % 2 === 0 ? 0 : 1;
+    const wanted = held[Math.round(THREE.MathUtils.clamp(place.along, 0, 1) * (row.length - 1))][first].cloth;
+    const order = held
+      .flatMap((sides) => [sides[first], sides[1 - first]])
+      .map((h) => ({ ...h, off: Math.hypot(h.cloth.x - wanted.x, h.cloth.z - wanted.z) }))
+      .sort((a, b) => a.off - b.off);
+    for (const { holder, side, x, z, hold, angle } of order) {
+      if (bearers.has(holder)) continue;
+      const p = spots[holder];
+      // Waving less far to the sides if need be (the pole goes up between the bearer's head and their neighbour's).
+      for (const calmer of SWING_TRIES) {
+        const motion = { ...motions[n], swing: motions[n].swing * calmer };
+        const shape = flagShape(s, hold, motion);
         const reach = Math.max(...shape.map((b) => Math.hypot(Math.max(-b.x0, b.x1), Math.max(-b.z0, b.z1)))) + 1;
         const around = (margin: number) =>
           shape.map((b) => ({
@@ -205,8 +222,8 @@ export function placeFlags(
         const boxes = around(MARGIN);
         const still = onPerson(p, holding.still[p.look]);
         if (touch(around(OWN_MARGIN), still)) continue;
-        // The bearer's raised arm, and their head looking up (as they bob with the flag's lifting).
-        const lifted = (b: PlacedBox) => ({ ...b, hi: b.hi + motions[n].lift });
+        // The bearer's raised arm, and their head (as they bob with the flag's lifting).
+        const lifted = (b: PlacedBox) => ({ ...b, hi: b.hi + motion.lift });
         const bearer = [
           ...onPerson(p, holding.arm[side]).map(lifted),
           ...still.filter((b) => b.lo > p.y + BELOW_HEAD * p.size).map(lifted),
@@ -221,7 +238,7 @@ export function placeFlags(
         if (others || placed.some((f) => touch(f, boxes) || touch(f, bearer))) continue;
         placed.push([...boxes, ...bearer]);
         bearers.add(holder);
-        flags.push({ x, y: p.y, z, hold, side, angle, holder, motion: motions[n] });
+        flags.push({ x, y: p.y, z, hold, side, angle, holder, motion });
         return;
       }
     }

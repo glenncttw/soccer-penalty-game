@@ -165,7 +165,7 @@ from bobbing up and down with their flag. Each flag points along its row to the 
 turned a little its own way), has a longer or shorter pole, and swings side to side about the hand and is lifted up and
 down by its own amount and speed, while ripples run along the cloth and its free end sags a little, worked out on the
 graphics card, on game time. Where each flag goes is set by row and how far along it (`places`); at load, the person
-nearest that place who has room to hold it gets it, so the flag, the bearer's raised arm and head never touch the
+who holds it so it waves nearest to where it would at that place gets it (swinging less far if that keeps it there), so the flag, the bearer's raised arm and head never touch the
 stadium, anyone in the crowd (even with their arms up) or another flag at any point of its waving, and the pole never
 goes through the bearer's own head or body. A place with no room near it gets no flag. Settings in
 `src/scene/crowdFlagSettings.ts` (places, sizes, how they wave and how much each flag differs, colours, logo size).
