@@ -1,0 +1,192 @@
+{
+  "version": "modular_v008",
+  "units": "metres",
+  "up": "+Y",
+  "forward": "+Z (character faces +Z)",
+  "origin": "feet, character centre",
+  "attachment": {
+    "head_node": "Head",
+    "head_local_translation_gltf": [
+      0.0,
+      0.545,
+      0.02
+    ],
+    "rule": "pieceWorldMatrix = characterWorldMatrix * headLocalMatrix (incl. any head animation). Piece meshes are authored in Head-local space with identity node transforms: no per-piece offsets.",
+    "arm_pivots_gltf": {
+      "Arm.L": [
+        0.135,
+        0.478,
+        -0.012
+      ],
+      "Arm.R": [
+        -0.135,
+        0.478,
+        -0.012
+      ]
+    },
+    "head_morph_targets": [
+      "Surprised_O",
+      "Frown",
+      "Smile_Closed",
+      "Cheer_Open"
+    ]
+  },
+  "colour_slots": {
+    "attribute": "_REGION (float per vertex, integer values)",
+    "shading": "final = atlas.rgb * slotColour[region] / slotDefault[region]  (slot 0 FIXED: atlas unchanged). Tinting by ratio keeps the eye/mouth decal and any atlas detail intact.",
+    "slots": [
+      {
+        "index": 0,
+        "name": "FIXED",
+        "default": "atlas"
+      },
+      {
+        "index": 1,
+        "name": "SKIN",
+        "default": "#f6a464"
+      },
+      {
+        "index": 2,
+        "name": "SHIRT",
+        "default": "#1123eb"
+      },
+      {
+        "index": 3,
+        "name": "SHORTS",
+        "default": "#1123eb"
+      },
+      {
+        "index": 4,
+        "name": "SHOE",
+        "default": "#1123eb"
+      },
+      {
+        "index": 5,
+        "name": "SOLE_SOCK",
+        "default": "#ebebeb"
+      },
+      {
+        "index": 6,
+        "name": "HAIR",
+        "default": "#672a0f"
+      },
+      {
+        "index": 7,
+        "name": "HAT",
+        "default": "#1123eb"
+      },
+      {
+        "index": 8,
+        "name": "ACCENT",
+        "default": "#1123eb"
+      }
+    ]
+  },
+  "files": {
+    "base": {
+      "file": "crowd_base.glb",
+      "tris": 926,
+      "bytes": 38272
+    },
+    "HP_Hair_Short": {
+      "file": "hp_hair_short.glb",
+      "tris": 104,
+      "bytes": 5436
+    },
+    "HP_Cap": {
+      "file": "hp_cap.glb",
+      "tris": 306,
+      "bytes": 7000
+    },
+    "HP_Ponytail": {
+      "file": "hp_ponytail.glb",
+      "tris": 320,
+      "bytes": 7112
+    },
+    "HP_BucketHat": {
+      "file": "hp_buckethat.glb",
+      "tris": 317,
+      "bytes": 7236
+    },
+    "HP_Hair_Long": {
+      "file": "hp_hair_long.glb",
+      "tris": 330,
+      "bytes": 7172
+    }
+  },
+  "notes": [
+    "Head pieces are rigid with the head. Long hair: keep head yaw within about +-20 deg to avoid shoulder clipping.",
+    "Arm raises above ~110 deg bring the hands near hat brims (same as with the bare head).",
+    "All files reference the same material/atlas; load it once and share it across InstancedMeshes."
+  ],
+  "characters": [
+    {
+      "name": "short_hair",
+      "base": "crowd_base.glb",
+      "head_piece": "hp_hair_short.glb",
+      "slot_colours": {
+        "SKIN": "#f8a767",
+        "SHIRT": "#1223ec",
+        "SHORTS": "#1123eb",
+        "SHOE": "#1325ec",
+        "SOLE_SOCK": "#eeefee",
+        "HAIR": "#6f2e12"
+      }
+    },
+    {
+      "name": "cap",
+      "base": "crowd_base.glb",
+      "head_piece": "hp_cap.glb",
+      "slot_colours": {
+        "SKIN": "#fcbf85",
+        "SHIRT": "#104cf5",
+        "SHORTS": "#083ad6",
+        "SHOE": "#114ff7",
+        "SOLE_SOCK": "#f0efea",
+        "HAIR": "#5c322b",
+        "HAT": "#195afc"
+      }
+    },
+    {
+      "name": "ponytail",
+      "base": "crowd_base.glb",
+      "head_piece": "hp_ponytail.glb",
+      "slot_colours": {
+        "SKIN": "#feca92",
+        "SHIRT": "#164ef0",
+        "SHORTS": "#0e41dc",
+        "SHOE": "#1756f6",
+        "SOLE_SOCK": "#f4f8f3",
+        "HAIR": "#985435",
+        "ACCENT": "#6d3c26"
+      }
+    },
+    {
+      "name": "bucket_hat",
+      "base": "crowd_base.glb",
+      "head_piece": "hp_buckethat.glb",
+      "slot_colours": {
+        "SKIN": "#fbac6b",
+        "SHIRT": "#0b23ed",
+        "SHORTS": "#0a23eb",
+        "SHOE": "#0923ec",
+        "SOLE_SOCK": "#f4f4f1",
+        "HAIR": "#8a2e0e",
+        "HAT": "#0a24ed"
+      }
+    },
+    {
+      "name": "long_hair",
+      "base": "crowd_base.glb",
+      "head_piece": "hp_hair_long.glb",
+      "slot_colours": {
+        "SKIN": "#fdc58d",
+        "SHIRT": "#134ff6",
+        "SHORTS": "#0f44e5",
+        "SHOE": "#1157fb",
+        "SOLE_SOCK": "#f4f5f3",
+        "HAIR": "#925235"
+      }
+    }
+  ]
+}

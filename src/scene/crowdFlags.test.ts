@@ -10,7 +10,7 @@ function wall(x0: number, z0: number, x1: number, z1: number, y0: number, y1: nu
 
 // A person as one box: 0.6 m wide, 0.4 m deep, 1 m tall, the same in every way of moving.
 const person: PersonBox[] = [{ x0: -0.3, x1: 0.3, y0: 0, y1: 1, z0: -0.2, z1: 0.2 }];
-const shapes = { cheer: person, move: person, calm: person };
+const shapes = [{ cheer: person, move: person, calm: person }];
 
 /** A row of people along x at z = 0, facing +z (the pitch), 0.7 m apart. */
 function row(count: number): CrowdSpot[] {
@@ -22,6 +22,7 @@ function row(count: number): CrowdSpot[] {
     size: 1,
     moves: 'move' as const,
     row: 0,
+    look: 0,
   }));
 }
 
@@ -56,7 +57,7 @@ describe('crowd flags', () => {
     const tall: PersonBox[] = [{ x0: -0.3, x1: 0.3, y0: 0, y1: 2.5, z0: -0.2, z1: 0.2 }];
     const flags = placeFlags(
       [...row(9), ...behind],
-      { stadium: new Float32Array(), shapes: { cheer: tall, move: tall, calm: tall } },
+      { stadium: new Float32Array(), shapes: [{ cheer: tall, move: tall, calm: tall }] },
       s,
     );
     expect(flags).toHaveLength(0);

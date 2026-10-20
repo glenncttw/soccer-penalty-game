@@ -27,6 +27,8 @@ export interface CrowdSpot {
   moves: Moves;
   /** Which row (0 = the lowest step in the list). */
   row: number;
+  /** Which look (head piece) this person has: an index into `looks`. */
+  look: number;
 }
 
 /** How much a person moves: cheering (arms going up now and then), moving about, or calm (only bouncing a little). */
@@ -45,8 +47,11 @@ export interface PersonBox {
 export interface SpotOptions {
   /** Heights of the steps to fill, one row each. */
   rowHeights: number[];
-  /** The room the person takes up at the size it was made, for each way of moving. */
-  shapes: Record<Moves, PersonBox[]>;
+  /**
+   * The person's looks (one per head piece): the room each takes up at the size it was made, for
+   * each way of moving, and how often it's picked compared with the others.
+   */
+  looks: { shapes: Record<Moves, PersonBox[]>; share: number }[];
   /** 0..1: share of people who cheer, where there's room for it. */
   cheerShare: number;
   /** Centre-to-centre distance along a row, on average. */
@@ -80,17 +85,31 @@ const ON_FLOOR = 0.05; // a box starting this low stands on the floor
 const CHEER_ROOM = 1.25; // how much more room along the row a cheering person wants
 
 /** Spots for every row, from the stand (`steps`: floors, risers and stairs) and everything else that is in the way. */
+/** How far (in people) a look's turn may come early or late, so the looks don't repeat in a pattern. */
+const LOOK_JITTER = 3;
+
+/** A box's room at one place: where it is, or null if it has none. */
+type Fit = { rect: Rect; lo: number; hi: number } | null;
+/** One place a person tries: who's near enough to touch them there, and which of their boxes have room. */
+type Place = {
+  others?: { x: number; z: number; boxes: { rect: Rect; lo: number; hi: number }[] }[];
+  fits: Map<PersonBox, Fit>;
+};
+
 export function findCrowdSpots(steps: Triangles, obstacles: Triangles[], o: SpotOptions): CrowdSpot[] {
   const spots: CrowdSpot[] = [];
   const stairs = new TriangleIndex(findStairs(steps, o.rowHeights));
-  const all = [...o.shapes.cheer, ...o.shapes.move, ...o.shapes.calm];
-  const feet = o.shapes.calm.filter((b) => b.y0 < ON_FLOOR);
+  if (o.looks.length === 0) throw new Error('The crowd person has no looks');
+  const all = o.looks.flatMap(({ shapes }) => [...shapes.cheer, ...shapes.move, ...shapes.calm]);
+  const feet = o.looks.flatMap(({ shapes }) => shapes.calm.filter((b) => b.y0 < ON_FLOOR));
   if (feet.length === 0) throw new Error('The crowd person has no part standing on the floor');
   const biggest = 1 + o.sizeVariation;
   const smallest = 1 - o.sizeVariation;
   const top = Math.max(...all.map((b) => b.y1)) * biggest;
   const feetTop = Math.max(...feet.map((b) => b.y1)) * smallest;
   // Everyone placed so far, as their boxes, and how far apart two people's middles can be and still touch.
+  // How many people wear each look so far.
+  const worn = o.looks.map(() => 0);
   const placed: {
     x: number;
     z: number;
@@ -135,34 +154,45 @@ export function findCrowdSpots(steps: Triangles, obstacles: Triangles[], o: Spot
     const depth = Math.min(...feet.map((b) => Math.min(-b.z0, b.z1))) * smallest + o.clearance;
     const line = rowLine(body, body.roomAround(), depth);
 
-    const fits = (x: number, z: number, angle: number, size: number, shape: PersonBox[]) => {
-      const boxes = shape.map((b) => ({
-        b,
-        rect: {
-          x,
-          z,
-          angle,
-          x0: b.x0 * size - o.clearance,
-          x1: b.x1 * size + o.clearance,
-          z0: b.z0 * size - o.clearance,
-          z1: b.z1 * size + o.clearance,
-        },
-        lo: y + b.y0 * size,
-        hi: y + b.y1 * size,
-      }));
-      const ok = boxes.every(({ b, rect, lo, hi }) => {
-        if (b.y0 < ON_FLOOR && !onFloor.covers(rect)) return false;
-        return !near.touches(rect, Math.max(lo, y + ABOVE), hi) && !stairs.touches(rect, -Infinity, Infinity);
-      });
-      // Nobody may touch anyone already placed, in this row or the one in front.
-      const others = placed.filter((q) => Math.hypot(q.x - x, q.z - z) < reach);
-      if (
-        !ok ||
-        others.some((q) =>
-          q.boxes.some((a) => boxes.some((c) => a.lo < c.hi && c.lo < a.hi && rectsOverlap(a.rect, c.rect))),
-        )
-      )
+    // Whether one box has room, remembered per person for each place they try: the looks share most of their
+    // boxes (the same body under every head), so each is only checked once.
+    const boxFits = (
+      x: number,
+      z: number,
+      angle: number,
+      size: number,
+      b: PersonBox,
+      at: Place,
+    ): { rect: Rect; lo: number; hi: number } | undefined => {
+      const rect = {
+        x,
+        z,
+        angle,
+        x0: b.x0 * size - o.clearance,
+        x1: b.x1 * size + o.clearance,
+        z0: b.z0 * size - o.clearance,
+        z1: b.z1 * size + o.clearance,
+      };
+      const lo = y + b.y0 * size;
+      const hi = y + b.y1 * size;
+      if (b.y0 < ON_FLOOR && !onFloor.covers(rect)) return undefined;
+      if (near.touches(rect, Math.max(lo, y + ABOVE), hi) || stairs.touches(rect, -Infinity, Infinity))
         return undefined;
+      // Nobody may touch anyone already placed, in this row or the one in front.
+      at.others ??= placed.filter((q) => Math.hypot(q.x - x, q.z - z) < reach);
+      for (const q of at.others) {
+        if (q.boxes.some((a) => a.lo < hi && lo < a.hi && rectsOverlap(a.rect, rect))) return undefined;
+      }
+      return { rect, lo, hi };
+    };
+    const fits = (x: number, z: number, angle: number, size: number, shape: PersonBox[], at: Place) => {
+      const boxes: { rect: Rect; lo: number; hi: number }[] = [];
+      for (const b of shape) {
+        let fit = at.fits.get(b);
+        if (fit === undefined) at.fits.set(b, (fit = boxFits(x, z, angle, size, b, at) ?? null));
+        if (!fit) return undefined;
+        boxes.push(fit);
+      }
       return boxes;
     };
     const centre = { x: (box.x0 + box.x1) / 2, z: (box.z0 + box.z1) / 2 };
@@ -172,6 +202,20 @@ export function findCrowdSpots(steps: Triangles, obstacles: Triangles[], o: Spot
       taken.some((q) => Math.hypot(x - q.x, z - q.z) < (room + q.room) / 2);
     const kept: CrowdSpot[] = [];
     let failed: { x: number; z: number } | undefined;
+    // The looks in the order a person tries them: the look furthest behind its share so far first (a wide
+    // look doesn't fit everywhere, so it gets tried again soon), give or take a little so the looks don't
+    // repeat in a pattern; but not the look the person before has first (if there's another), so neighbours differ.
+    const lookOrder = () => {
+      const before = kept.length > 0 ? kept[kept.length - 1].look : -1;
+      const open = o.looks.map((l, i) => ({ i, share: Math.max(l.share, 0) })).filter((l) => l.share > 0);
+      if (open.length === 0) return [0];
+      const total = open.reduce((sum, l) => sum + l.share, 0);
+      const people = worn.reduce((sum, n) => sum + n, 0) + 1;
+      const behind = new Map(open.map((l) => [l.i, (people * l.share) / total - worn[l.i] + LOOK_JITTER * o.random()]));
+      const order = open.map((l) => l.i).sort((a, b) => behind.get(b)! - behind.get(a)!);
+      if (order.length > 1 && order[0] === before) [order[0], order[1]] = [order[1], order[0]];
+      return order;
+    };
     line.forEach((p, i) => {
       // Cheering people swing their arms out to the sides, so they want a bit more room.
       const cheers = o.random() < o.cheerShare;
@@ -184,6 +228,8 @@ export function findCrowdSpots(steps: Triangles, obstacles: Triangles[], o: Spot
         failed = undefined;
         return;
       }
+      // If their look has no room here, another one might (a hat's brim is wider than short hair).
+      const looks = lookOrder();
       const front = facing(line, i, centre);
       const straight = Math.atan2(front.x, front.z);
       const size = 1 + o.sizeVariation * (o.random() * 2 - 1);
@@ -208,27 +254,32 @@ export function findCrowdSpots(steps: Triangles, obstacles: Triangles[], o: Spot
       const backs: number[] = [];
       for (let back = -CELL / 2; back <= STEP_BACK + 1e-9; back += NUDGE) backs.push(back);
       backs.sort((a, b) => Math.abs(a - like) - Math.abs(b - like));
-      // A person would rather stand somewhere else on the step than move less.
+      // A person would rather stand somewhere else on the step, or have another look, than move less.
       for (const f of tries) {
-        for (const back of backs) {
-          const x = p.x - front.x * back;
-          const z = p.z - front.z * back;
-          if (crowded(x, z, room)) continue;
-          const boxes = fits(x, z, f.angle, f.size, o.shapes[f.moves]);
-          if (!boxes) continue;
-          kept.push({
-            x,
-            y,
-            z,
-            angle: f.angle,
-            size: f.size,
-            moves: f.moves,
-            row,
-          });
-          taken.push({ x, z, room });
-          placed.push({ x, z, boxes });
-          failed = undefined;
-          return;
+        const at = backs.map((): Place => ({ fits: new Map() }));
+        for (const l of looks) {
+          for (const [k, back] of backs.entries()) {
+            const x = p.x - front.x * back;
+            const z = p.z - front.z * back;
+            if (crowded(x, z, room)) continue;
+            const boxes = fits(x, z, f.angle, f.size, o.looks[l].shapes[f.moves], at[k]);
+            if (!boxes) continue;
+            kept.push({
+              x,
+              y,
+              z,
+              angle: f.angle,
+              size: f.size,
+              moves: f.moves,
+              row,
+              look: l,
+            });
+            taken.push({ x, z, room });
+            placed.push({ x, z, boxes });
+            worn[l]++;
+            failed = undefined;
+            return;
+          }
         }
       }
     });
@@ -327,6 +378,9 @@ function corners(r: Rect): number[][] {
 
 /** Whether two turned boxes seen from above overlap (separating axis test). */
 export function rectsOverlap(a: Rect, b: Rect): boolean {
+  // Too far apart for even their furthest corners to meet (the quick answer, most of the time).
+  const reach = (r: Rect) => Math.hypot(Math.max(-r.x0, r.x1), Math.max(-r.z0, r.z1));
+  if (Math.hypot(a.x - b.x, a.z - b.z) > reach(a) + reach(b)) return false;
   const ca = corners(a);
   const cb = corners(b);
   for (const angle of [a.angle, b.angle]) {

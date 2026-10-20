@@ -56,11 +56,16 @@ describe('findCrowdSpots', () => {
   const head = { x0: -0.2, x1: 0.2, y0: 0.5, y1: 0.98, z0: -0.2, z1: 0.2 };
   const options = {
     rowHeights: [y],
-    shapes: {
-      cheer: [body, arms, head],
-      move: [body, arms, head],
-      calm: [body, arms, head],
-    },
+    looks: [
+      {
+        shapes: {
+          cheer: [body, arms, head],
+          move: [body, arms, head],
+          calm: [body, arms, head],
+        },
+        share: 1,
+      },
+    ],
     cheerShare: 0,
     spacing: 0.7,
     spacingJitter: 0,
@@ -137,6 +142,32 @@ describe('findCrowdSpots', () => {
     // Not all at the same distance from the barrier.
     const outs = loose.map((p) => Math.max(Math.abs(p.x), Math.abs(p.z)));
     expect(Math.max(...outs) - Math.min(...outs)).toBeGreaterThan(0.03);
+  });
+
+  it('mixes the looks, with neighbours looking different and each look getting about its share', () => {
+    const look = { shapes: options.looks[0].shapes, share: 1 };
+    const mixed = findCrowdSpots(steps, [barrier], { ...options, looks: [look, look, look], random: mulberry(3) });
+    expect(mixed.length).toBe(spots.length);
+    for (let i = 1; i < mixed.length; i++) expect(mixed[i].look).not.toBe(mixed[i - 1].look);
+    for (const l of [0, 1, 2]) {
+      expect(mixed.filter((p) => p.look === l).length).toBeGreaterThanOrEqual(Math.floor(mixed.length / 3) - 2);
+    }
+  });
+
+  it('gives a look with no room here to someone else, a wider one only where it fits', () => {
+    const wide = [body, arms, { ...head, x0: -0.4, x1: 0.4 }];
+    const mixed = findCrowdSpots(steps, [barrier], {
+      ...options,
+      looks: [options.looks[0], { shapes: { cheer: wide, move: wide, calm: wide }, share: 1 }],
+    });
+    expect(mixed.length).toBe(spots.length);
+    // Two wide heads side by side would touch at this spacing, so they never stand next to each other.
+    for (const p of mixed) {
+      for (const q of mixed) {
+        if (p !== q && p.look === 1 && q.look === 1) expect(Math.hypot(p.x - q.x, p.z - q.z)).toBeGreaterThan(0.8);
+      }
+    }
+    expect(mixed.some((p) => p.look === 1)).toBe(true);
   });
 
   it('says so when a row height has no step', () => {
