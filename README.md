@@ -14,6 +14,18 @@ See [docs/PLAN.md](docs/PLAN.md) for the gameplay scope, tech stack and mileston
 3. **Curl**: while holding, drag left or right. The ball swings out to that side, then bends back onto your target. A line of glowing yellow dots shows the start of the curve.
 4. **Shoot**: let go.
 
+**With the keyboard** you can play the whole shot without the mouse, and switch back and forth at any time:
+
+| Key | What it does |
+|---|---|
+| Arrow keys or W A S D | Move the aim around the goal. A tap nudges it, holding moves it smoothly. Hold **Shift** to aim finer. |
+| **Space** (or **Enter**) | Hold to power up, let go to shoot. |
+| Left / right (or A / D) while holding Space | Curl. The curl stays where you leave it. |
+| **Esc** while holding Space | Put the ball back down without shooting. |
+
+The keys are the physical ones, so on an AZERTY keyboard W A S D are the keys in the same place (Z Q S D). The
+speeds are at the top of `src/input/shootInput.ts`.
+
 A goalkeeper tries to stop you. It watches which way the ball is heading, so a curled shot fools it, and soft
 shots are easy saves. Its look is a placeholder made from simple shapes until there's a Blender model.
 

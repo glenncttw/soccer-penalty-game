@@ -33,7 +33,7 @@ import { clampPixelRatio, pickPixelRatio, RESOLUTION_SETTINGS } from './scene/re
 import { Sky } from './scene/sky';
 import { SKY_SETTINGS } from './scene/skySettings';
 import { loadStadium } from './scene/stadiumAsset';
-import { COACH_TEXT, Coach } from './ui/coach';
+import { COACH_AIM_EITHER, COACH_KEY_TEXT, COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
 import { PerfStats } from './ui/perfStats';
 import { Preloader } from './ui/preloader';
@@ -162,12 +162,17 @@ let phaseTime = 0;
 const aim = new THREE.Vector3(0, 1.2, world.goal.lineZ);
 let lastQuality: StrikeQuality = 'good';
 
-// Pointer → point on the goal plane, kept inside the goal frame.
+// Pointer → point on the goal plane, kept inside the goal frame. The arrow keys move that point instead.
 const raycaster = new THREE.Raycaster();
 const goalPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -world.goal.lineZ);
-function updateAim() {
-  raycaster.setFromCamera(new THREE.Vector2(input.pointer.x, input.pointer.y), camera);
-  if (!raycaster.ray.intersectPlane(goalPlane, aim)) return;
+function updateAim(keyStep = { x: 0, y: 0 }) {
+  if (input.usingKeys) {
+    aim.x += keyStep.x * 2 * world.goal.innerHalfWidth;
+    aim.y += keyStep.y * (world.goal.crossbarY - world.groundY);
+  } else {
+    raycaster.setFromCamera(new THREE.Vector2(input.pointer.x, input.pointer.y), camera);
+    if (!raycaster.ray.intersectPlane(goalPlane, aim)) return;
+  }
   clampAimToGoal(aim, world.goal, world.groundY, world.ballRadius);
 }
 
@@ -199,6 +204,14 @@ input.onRelease = () => {
   coach.shotTaken();
   setPhase('flight');
   events.emit('kick', { power: power.value, quality: shot.quality });
+};
+
+// Esc during a keyboard charge: back to aiming, no shot.
+input.onCancel = () => {
+  if (phase !== 'charging') return;
+  hud.showPower(null);
+  markers.hide(); // the curl preview goes; the aim comes straight back next frame
+  setPhase('aiming');
 };
 
 function showResult() {
@@ -339,9 +352,10 @@ renderer.setAnimationLoop((time) => {
   markers.update(realDt);
   if (testPixelRatio === null) autoSharpness?.frame(time, phase === 'aiming');
 
+  const keyStep = input.keyStep(realDt); // held arrow keys: aim while aiming, curl while charging
   if (phase === 'aiming') {
     if (input.hasPointer) {
-      updateAim();
+      updateAim(keyStep);
       markers.showReticle(aim, { charging: false, power: 0, perfect: false }, realDt);
     } else {
       markers.hide();
@@ -357,7 +371,8 @@ renderer.setAnimationLoop((time) => {
     if (power.sweeps >= 2) input.forceRelease(); // don't let a charge last forever
   }
   const tip = coach.update(phase === 'wipe' || phase === 'replay' ? 'result' : phase, input.curl);
-  hud.showHint(tip ? COACH_TEXT[tip] : null);
+  const tipText = input.usingKeys ? COACH_KEY_TEXT : COACH_TEXT;
+  hud.showHint(tip === 'aim' && finePointer && !input.usingKeys ? COACH_AIM_EITHER : tip ? tipText[tip] : null);
 
   // The keeper edges toward where you aim while you line up the shot, and gets set while you charge.
   keeper.aimX = phase === 'charging' || (phase === 'aiming' && input.hasPointer) ? aim.x : null;
@@ -401,7 +416,7 @@ renderer.setAnimationLoop((time) => {
   if (phase === 'flight' || phase === 'result') replay.record(gameTime, p, q, keeper.pose);
 
   // Sway with the mouse while aiming (and hold it while charging), settle back otherwise.
-  const sway = finePointer && input.hasPointer && (phase === 'aiming' || phase === 'charging');
+  const sway = finePointer && input.hasPointer && !input.usingKeys && (phase === 'aiming' || phase === 'charging');
   view.update(realDt, { charging: phase === 'charging', swayTarget: sway ? input.pointer : null });
   trail.update(gameTime, camera.position);
   keeperModel.update(keeper.pose, dt);
