@@ -125,7 +125,8 @@ function ripplesReach(u: number): number {
  * for the pole (as near behind them as there's room: often just behind the next step's barrier),
  * and round it for the cloth to wave in, without touching the stadium, anyone in the crowd (in any
  * of their moves) or another flag. Every cloth goes out the same way: along `angle` (a turn about
- * the up axis, as the crowd's angles), give or take the settings' `turn`. Places with no room near
+ * the up axis, as the crowd's angles, for the settings' `towards`; the other way round for a place
+ * with its own `towards`), give or take the settings' `turn`. Places with no room near
  * them get no flag.
  */
 export function placeFlags(
@@ -136,7 +137,12 @@ export function placeFlags(
   random: () => number = seeded(s.seed),
 ): FlagSpot[] {
   const motions = flagMotions(s, random);
-  const turns = s.places.map(() => angle + THREE.MathUtils.degToRad(s.turn) * (random() * 2 - 1));
+  const turns = s.places.map(
+    (place) =>
+      angle +
+      ((place.towards ?? s.towards) === s.towards ? 0 : Math.PI) +
+      THREE.MathUtils.degToRad(s.turn) * (random() * 2 - 1),
+  );
   const stadium = new TriangleIndex(room.stadium);
   const peopleBoxes = spots.map((p) =>
     room.shapes[p.look][p.moves].map((b) => ({

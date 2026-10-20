@@ -68,6 +68,16 @@ describe('crowd flags', () => {
     for (const f of flags) expect(Math.abs(f.angle - 2)).toBeLessThanOrEqual((s.turn * Math.PI) / 180 + 1e-9);
   });
 
+  it('points a place with its own way the other way round', () => {
+    const [flag] = placeFlags(
+      row(9),
+      { stadium: new Float32Array(), shapes },
+      { ...s, turn: 0, places: [{ row: 0, along: 0.5, towards: s.towards === 'left' ? 'right' : 'left' }] },
+      2,
+    );
+    expect(flag.angle).toBeCloseTo(2 + Math.PI);
+  });
+
   it('puts a flag behind the person nearest the place asked for, with nothing in the way', () => {
     const spots = row(9);
     const flags = placeFlags(spots, { stadium: new Float32Array(), shapes }, s, 0);

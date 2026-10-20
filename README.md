@@ -160,7 +160,8 @@ height that has no step.
 cloth with Glenn's logo in the middle (`public/assets/crowd/flag_logo.svg`, drawn into a texture once at load: replace
 the SVG to change it; it reads the right way round from both sides of the cloth), all drawn in one go. Each is held by
 someone in the crowd: its pole stands just behind their head, so its bottom is hidden by them. Every cloth points the
-same way (to the left as seen from the shooter's spot, as in a wind), each flag turned a little its own way, held a bit
+same way (to the left as seen from the shooter's spot, as in a wind; a place can point the other way where there's no
+room, like the left side stand, where the cloth would go into the stand behind), each flag turned a little its own way, held a bit
 higher or lower, and swinging side to side and lifted up and down by its own amount and speed, while ripples run along
 the cloth and its free end sags a little, worked out on the graphics card, on game time. Where each flag goes is set by
 row and how far along it (`places`); at load, the person nearest that place with room behind them gets it, so the flag
