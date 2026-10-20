@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CrowdParts } from './crowdAsset';
 import { CROWD_SETTINGS, type CrowdSettings } from './crowdSettings';
-import { addMotion, limbAt, motionOf, motionUniforms, reachablePoses } from './crowdMotion';
+import { addMotion, holdingPose, Limb, limbAt, motionOf, motionUniforms, reachablePoses } from './crowdMotion';
 import {
   concat,
   findCrowdSpots,
@@ -57,7 +57,11 @@ export class Crowd {
    * each look's shape for each way of moving (by the spots' `look`).
    */
   readonly room: { stadium: Triangles; shapes: Record<Moves, PersonBox[]>[] };
+  /** How a person holds a flag (see `hold`), in their own space. */
+  readonly holding: Holding;
   private readonly motion: ReturnType<typeof motionUniforms>;
+  /** Where each person's flag-bearing numbers are: their look's `aHold` and their place in it. */
+  private readonly holds: { attribute: THREE.InstancedBufferAttribute; k: number }[] = [];
 
   constructor(
     stadium: THREE.Object3D,
@@ -83,6 +87,10 @@ export class Crowd {
     const random = seeded(s.seed);
     const steps = worldTriangles(stand);
     this.room = { stadium: concat([steps, ...obstacles]), shapes: looks.map((l) => l.shapes) };
+    this.holding = holdingOf(
+      looks[0].arms,
+      looks.map((l) => l.still),
+    );
     this.spots = findCrowdSpots(steps, obstacles, {
       rowHeights: s.rowHeights,
       looks: looks.map((l, i) => ({ shapes: l.shapes, share: s.heads[i]?.share ?? 1 })),
@@ -132,6 +140,9 @@ export class Crowd {
         own[i].shirt.toArray(colors.aShirt, k * 3);
       });
       geometry.setAttribute('aMotion', new THREE.InstancedBufferAttribute(motion, 4));
+      const hold = new THREE.InstancedBufferAttribute(new Float32Array(people.length * 4), 4);
+      geometry.setAttribute('aHold', hold);
+      people.forEach(({ i }, k) => (this.holds[i] = { attribute: hold, k }));
       for (const [name, values] of Object.entries(colors))
         geometry.setAttribute(name, new THREE.InstancedBufferAttribute(values, 3));
       const mesh = new THREE.InstancedMesh(geometry, material, people.length);
@@ -148,6 +159,18 @@ export class Crowd {
     this.group.visible = s.crowd;
   }
 
+  /**
+   * Makes someone a flag bearer: holding the pole up beside them on `side` (1: their left, -1: their right) in
+   * their hand (see `holding`), standing still but for lifting it up and down as the flag does: `lift` metres,
+   * `often` times a second, from `start` (0..1) in it.
+   */
+  hold(person: number, side: 1 | -1, lift: number, often: number, start: number) {
+    const h = this.holds[person];
+    if (!h) throw new Error(`Crowd: no person ${person} to hold a flag`);
+    h.attribute.setXYZW(h.k, side, lift, often, start);
+    h.attribute.needsUpdate = true;
+  }
+
   /** Moves the crowd along to the game's time (so slow motion slows them too). */
   update(time: number) {
     this.motion.uCrowdTime.value = time;
@@ -155,7 +178,54 @@ export class Crowd {
 }
 
 /** Parts already measured, by their mesh's geometry: every look has the same body, so it's only measured once. */
-type Measured = Map<THREE.BufferGeometry, { part: THREE.BufferGeometry; shapes: Record<Moves, PersonBox[]> }>;
+type Measured = Map<
+  THREE.BufferGeometry,
+  { part: THREE.BufferGeometry; shapes: Record<Moves, PersonBox[]>; still: PersonBox[]; arm?: Arm }
+>;
+
+/** An arm: where it turns (its shoulder) and its triangles, in the person's own space. */
+interface Arm {
+  pivot: THREE.Vector3;
+  triangles: Triangles;
+}
+
+/**
+ * How a person holds a flag, in their own space (size 1), for each side (1: their left, -1: their right): where
+ * the hand holding the pole is, and the room the raised arm takes. And each look's room standing still without
+ * the arms (the head, hair or hat and the body), which the pole mustn't go through.
+ */
+export interface Holding {
+  hand: Record<1 | -1, THREE.Vector3>;
+  arm: Record<1 | -1, PersonBox[]>;
+  still: PersonBox[][];
+}
+
+/** The hand is the arm's lowest part (hanging down), this far up from its bottom. */
+const HAND = 0.06;
+
+function holdingOf(arms: Arm[], still: PersonBox[][]): Holding {
+  const side = (s: 1 | -1) => {
+    const arm = arms.find((a) => Math.sign(a.pivot.x) === s);
+    if (!arm) throw new Error(`Crowd person has no ${s > 0 ? 'left' : 'right'} arm to hold a flag with`);
+    const t = arm.triangles;
+    let low = Infinity;
+    for (let i = 1; i < t.length; i += 3) low = Math.min(low, t[i]);
+    const hand = new THREE.Vector3();
+    let count = 0;
+    for (let i = 0; i < t.length; i += 3) {
+      if (t[i + 1] > low + HAND) continue;
+      hand.x += t[i];
+      hand.y += t[i + 1];
+      hand.z += t[i + 2];
+      count++;
+    }
+    const pose = holdingPose(arm.pivot);
+    return { hand: hand.divideScalar(count).applyMatrix4(pose), arm: shapeOf(posed(t, [pose]), SHAPE_SLICE) };
+  };
+  const left = side(1);
+  const right = side(-1);
+  return { hand: { 1: left.hand, [-1]: right.hand }, arm: { 1: left.arm, [-1]: right.arm }, still };
+}
 
 /**
  * One look's parts as one geometry (so each look is one draw), with each vertex marked with its
@@ -169,16 +239,22 @@ function mergePerson(
 ): {
   geometry: THREE.BufferGeometry;
   shapes: Record<Moves, PersonBox[]>;
+  still: PersonBox[];
+  arms: Arm[];
 } {
   person.updateMatrixWorld(true);
   const toPerson = person.matrixWorld.clone().invert();
   const parts: THREE.BufferGeometry[] = [];
   const shapes: Record<Moves, PersonBox[]> = { cheer: [], move: [], calm: [] };
+  const still: PersonBox[] = [];
+  const arms: Arm[] = [];
   person.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
     const known = measured.get(o.geometry);
     if (known) {
       for (const moves of ['cheer', 'move', 'calm'] as const) shapes[moves].push(...known.shapes[moves]);
+      still.push(...known.still);
+      if (known.arm) arms.push(known.arm);
       parts.push(known.part);
       return;
     }
@@ -205,7 +281,14 @@ function mergePerson(
     );
     g.setAttribute('aLimb', new THREE.Float32BufferAttribute(new Array<number>(count).fill(limb), 1));
     const triangles = worldTriangles(new THREE.Mesh(g));
-    const own = { part: g, shapes: { cheer: [], move: [], calm: [] } as Record<Moves, PersonBox[]> };
+    const own = {
+      part: g,
+      shapes: { cheer: [], move: [], calm: [] } as Record<Moves, PersonBox[]>,
+      still: limb === Limb.Arm ? [] : shapeOf(triangles, SHAPE_SLICE),
+      arm: limb === Limb.Arm ? { pivot, triangles } : undefined,
+    };
+    still.push(...own.still);
+    if (own.arm) arms.push(own.arm);
     for (const moves of ['cheer', 'move', 'calm'] as const) {
       own.shapes[moves] = shapeOf(posed(triangles, reachablePoses(limb, pivot, s, moves)), SHAPE_SLICE);
       shapes[moves].push(...own.shapes[moves]);
@@ -216,7 +299,7 @@ function mergePerson(
   if (parts.length === 0) throw new Error('Crowd person has no meshes');
   const geometry = mergeGeometries(parts);
   if (!geometry) throw new Error('Crowd person: its parts could not be put together');
-  return { geometry, shapes };
+  return { geometry, shapes, still, arms };
 }
 
 /** The body wearing a head piece: the piece sits on the head, as made in the head's own space (it moves with it). */

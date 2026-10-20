@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { seeded } from './crowd';
+import { seeded, type Holding } from './crowd';
 import { CROWD_FLAG_SETTINGS, type CrowdFlagSettings } from './crowdFlagSettings';
 import {
   TriangleIndex,
@@ -14,34 +14,36 @@ import {
 } from './crowdSpots';
 
 const POLE_RADIUS = 0.018;
-/** How far below where it's held the pole goes on, hidden behind the person holding it. */
-const POLE_BELOW_HOLD = 0.05;
-/** How far behind the person holding it the pole may stand: the nearest that has room. */
-const BEHIND = { nearest: 0.3, furthest: 0.75, step: 0.03 };
-/** Above this over the holder's step, the stadium between them and their pole is a barrier or a step up (not the floor). */
-const ABOVE_FEET = 0.3;
-/** A pole behind a barrier needs someone on the step behind it standing this near it (metres), to hide its bottom. */
-const HIDDEN_BY = 0.75;
+/** How far below the middle of the bearer's hand the pole ends: inside their fist. */
+const POLE_BELOW_HOLD = 0.01;
 /** The room a flag takes is measured in layers this high. */
 const SLICE = 0.1;
 /** Space kept free between a flag and anything else, on top of the people's own room. */
 const MARGIN = 0.03;
+/** The same between the pole and its bearer's own face (it's right in front of it). */
+const OWN_MARGIN = 0.01;
 /** 0..1: how much the cloth's sag changes as it ripples, either way (the same as the shader). */
 const SAG_FLUTTER = 0.3;
 /** How much stronger the ripples' shading is than their shape, so the cloth's folds show from afar. */
 const FOLD_SHADING = 2.5;
+/** Below this high up a bearer (size 1), they stand as everyone else does. */
+const BELOW_HEAD = 0.45;
 /** How many swing positions the flag's room is measured at, from one side to the other. */
 const SWEEP_STEPS = 9;
 
 /** Where a flag stands, and whose it is. */
 export interface FlagSpot {
-  /** The bottom of the pole, on the step's floor. */
+  /** Where the pole stands (in the bearer's hand), on the floor of the bearer's step. */
   x: number;
   y: number;
   z: number;
+  /** How high above that floor the bearer holds it: their hand, where it swings about. */
+  hold: number;
+  /** Which side of the bearer the pole is (1: their left, -1: their right). */
+  side: 1 | -1;
   /** Turn about the up axis, in radians: the cloth goes out along the flag's own +x, turned by this (as the crowd's angles). */
   angle: number;
-  /** The person holding it, as an index into the crowd's spots. */
+  /** The bearer: the person holding it, as an index into the crowd's spots. */
   holder: number;
   /** This flag's own waving (see `FlagMotion`). */
   motion: FlagMotion;
@@ -49,7 +51,7 @@ export interface FlagSpot {
 
 /** How one flag waves, so they don't all move alike. */
 export interface FlagMotion {
-  /** How much higher than `holdHeight` it's held, in metres (the pole is longer by as much: its bottom stays hidden). */
+  /** How much higher than `poleHeight` its pole's top is, in metres. */
   raise: number;
   /** How far it swings to each side, in degrees. */
   swing: number;
@@ -73,29 +75,30 @@ interface PlacedBox {
 }
 
 /**
- * The room a flag takes up while it waves, in its own space (the pole at x = z = 0 standing on
- * the floor at y = 0, the cloth going out along +x): a box for each layer of the space it sweeps
- * through, at every swing and lift, and with its ripples at their furthest either way.
+ * The room a flag takes up while it waves, in its own space (the pole at x = z = 0, held `hold`
+ * above the floor at y = 0, the cloth going out along +x): a box for each layer of the space it
+ * sweeps through, at every swing and lift, and with its ripples at their furthest either way.
  */
 export function flagShape(
   s: CrowdFlagSettings,
+  hold: number,
   m: FlagMotion = { raise: 0, swing: s.swing, lift: s.lift },
 ): PersonBox[] {
   const triangles: number[] = [];
-  const bottom = s.holdHeight - POLE_BELOW_HOLD;
   const quad = (a: number[], b: number[], c: number[], d: number[]) =>
     triangles.push(...a, ...b, ...c, ...a, ...c, ...d);
   for (const lift of [0, m.lift / 2, m.lift]) {
-    // Everything but the pole's bottom goes up with the flag (as in the shader), and it swings about where it's held.
-    const up = m.raise + lift;
-    const hold = s.holdHeight + up;
+    // The whole flag goes up and down as the bearer lifts it (as in the shader), its pole's top is raised by its
+    // own amount, and it swings about where it's held.
+    const pivot = hold + lift;
+    const bottom = pivot - POLE_BELOW_HOLD;
+    const top = s.poleHeight + m.raise + lift;
     for (let k = 0; k < SWEEP_STEPS; k++) {
       const tilt = THREE.MathUtils.degToRad(m.swing) * ((2 * k) / (SWEEP_STEPS - 1) - 1);
       const c = Math.cos(tilt);
       const sn = Math.sin(tilt);
-      const at = (x: number, y: number, z: number) => [x * c - (y - hold) * sn, hold + x * sn + (y - hold) * c, z];
+      const at = (x: number, y: number, z: number) => [x * c - (y - pivot) * sn, pivot + x * sn + (y - pivot) * c, z];
       const r = POLE_RADIUS;
-      const top = s.poleHeight + up;
       quad(at(-r, bottom, 0), at(r, bottom, 0), at(r, top, 0), at(-r, top, 0));
       quad(at(0, bottom, -r), at(0, bottom, r), at(0, top, r), at(0, top, -r));
       const strips = 8;
@@ -125,25 +128,26 @@ function ripplesReach(u: number): number {
 }
 
 /**
- * Picks who holds each flag: the person nearest to each place in `s.places` with room behind them
- * for the pole (as near behind them as there's room: often just behind the next step's barrier),
- * and round it for the cloth to wave in, without touching the stadium, anyone in the crowd (in any
- * of their moves) or another flag. The cloth goes out along the row to one side or the other,
- * whichever has room (the flags take turns which side they try first), turned a little by its own
- * random amount (up to the settings' `turn`). Places with no room near
- * them get no flag.
+ * Picks a bearer for each flag: the person nearest to each place in `s.places` who can hold it up
+ * in their hand beside them (see `Holding`), with room round it for the cloth to wave in, without
+ * the flag or the bearer's raised arm touching the stadium, anyone else in the crowd (in any of
+ * their moves) or another flag, and without the pole going through the bearer's own head or body.
+ * The cloth goes out to the side the bearer holds it on, one side or the other, whichever has room
+ * (the flags take turns which side they try first), turned a little by its own random amount (up
+ * to the settings' `turn`). Places with no room near them get no flag.
  */
 export function placeFlags(
   spots: CrowdSpot[],
   room: { stadium: Triangles; shapes: Record<Moves, PersonBox[]>[] },
+  holding: Holding,
   s: CrowdFlagSettings,
   random: () => number = seeded(s.seed),
 ): FlagSpot[] {
   const motions = flagMotions(s, random);
   const turns = s.places.map(() => THREE.MathUtils.degToRad(s.turn) * (random() * 2 - 1));
   const stadium = new TriangleIndex(room.stadium);
-  const peopleBoxes = spots.map((p) =>
-    room.shapes[p.look][p.moves].map((b) => ({
+  const onPerson = (p: CrowdSpot, boxes: PersonBox[]): PlacedBox[] =>
+    boxes.map((b) => ({
       rect: {
         x: p.x,
         z: p.z,
@@ -155,10 +159,11 @@ export function placeFlags(
       },
       lo: p.y + b.y0 * p.size,
       hi: p.y + b.y1 * p.size,
-    })),
-  );
+    }));
+  const peopleBoxes = spots.map((p) => onPerson(p, room.shapes[p.look][p.moves]));
   const touch = (a: PlacedBox[], b: PlacedBox[]) =>
     a.some((p) => b.some((q) => p.lo < q.hi && q.lo < p.hi && rectsOverlap(p.rect, q.rect)));
+  const inStadium = (boxes: PlacedBox[]) => boxes.some((b) => stadium.touches(b.rect, b.lo, b.hi));
 
   // Each row's people in order round the stands: from the left side near the camera, round behind the goal, to the right side.
   const middleZ = spots.reduce((sum, p) => sum + p.z, 0) / Math.max(spots.length, 1);
@@ -168,73 +173,60 @@ export function placeFlags(
     row.sort((a, b) => Math.atan2(spots[a].x, middleZ - spots[a].z) - Math.atan2(spots[b].x, middleZ - spots[b].z));
   }
 
-  // Whether a pole this far behind its holder would stand bare behind a barrier: something of the stadium between
-  // them (below where it's held) and nobody standing round the pole on the step behind to hide it.
-  const bare = (p: CrowdSpot, front: { x: number; z: number }, behind: number, x: number, z: number) => {
-    const between: Rect = {
-      x: p.x - (front.x * behind) / 2,
-      z: p.z - (front.z * behind) / 2,
-      angle: Math.atan2(front.x, front.z),
-      x0: -POLE_RADIUS,
-      x1: POLE_RADIUS,
-      z0: -behind / 2,
-      z1: behind / 2,
-    };
-    if (!stadium.touches(between, p.y + ABOVE_FEET, p.y + s.holdHeight)) return false;
-    return !spots.some((q) => q.y > p.y + ABOVE_FEET && Math.hypot(q.x - x, q.z - z) < HIDDEN_BY);
-  };
-
   const flags: FlagSpot[] = [];
   const placed: PlacedBox[][] = [];
+  const bearers = new Set<number>();
   s.places.forEach((place, n) => {
     const row = rows.get(place.row);
     if (!row) return;
-    const shape = flagShape(s, motions[n]);
-    const reach = Math.max(...shape.map((b) => Math.hypot(Math.max(-b.x0, b.x1), Math.max(-b.z0, b.z1)))) + 1;
     const target = Math.round(THREE.MathUtils.clamp(place.along, 0, 1) * (row.length - 1));
     const order = row.map((_, k) => k).sort((a, b) => Math.abs(a - target) - Math.abs(b - target));
     for (const k of order) {
-      const p = spots[row[k]];
-      const front = facing(spots, row, k);
-      const ahead = Math.atan2(front.x, front.z) + turns[n];
-      for (let behind = BEHIND.nearest; behind <= BEHIND.furthest; behind += BEHIND.step) {
-        const x = p.x - front.x * behind;
-        const z = p.z - front.z * behind;
-        if (bare(p, front, behind, x, z)) continue;
-        for (const angle of n % 2 === 0 ? [ahead, ahead + Math.PI] : [ahead + Math.PI, ahead]) {
-          const boxes = shape.map((b) => ({
-            rect: { x, z, angle, x0: b.x0 - MARGIN, x1: b.x1 + MARGIN, z0: b.z0 - MARGIN, z1: b.z1 + MARGIN },
-            lo: p.y + b.y0 - MARGIN,
-            hi: p.y + b.y1 + MARGIN,
+      const holder = row[k];
+      if (bearers.has(holder)) continue;
+      const p = spots[holder];
+      for (const side of n % 2 === 0 ? ([1, -1] as const) : ([-1, 1] as const)) {
+        // The pole in their hand, and the cloth out to that side.
+        const hand = holding.hand[side];
+        const cos = Math.cos(p.angle);
+        const sin = Math.sin(p.angle);
+        const x = p.x + (hand.x * cos + hand.z * sin) * p.size;
+        const z = p.z + (-hand.x * sin + hand.z * cos) * p.size;
+        const hold = hand.y * p.size;
+        const angle = p.angle + (side > 0 ? 0 : Math.PI) + turns[n];
+        const shape = flagShape(s, hold, motions[n]);
+        const reach = Math.max(...shape.map((b) => Math.hypot(Math.max(-b.x0, b.x1), Math.max(-b.z0, b.z1)))) + 1;
+        const around = (margin: number) =>
+          shape.map((b) => ({
+            rect: { x, z, angle, x0: b.x0 - margin, x1: b.x1 + margin, z0: b.z0 - margin, z1: b.z1 + margin },
+            lo: p.y + b.y0 - margin,
+            hi: p.y + b.y1 + margin,
           }));
-          if (boxes.some((b) => stadium.touches(b.rect, b.lo, b.hi))) continue;
-          const near = spots.some((q, i) => Math.hypot(q.x - x, q.z - z) < reach && touch(peopleBoxes[i], boxes));
-          if (near || placed.some((f) => touch(f, boxes))) continue;
-          placed.push(boxes);
-          flags.push({ x, y: p.y, z, angle, holder: row[k], motion: motions[n] });
-          return;
-        }
+        const boxes = around(MARGIN);
+        const still = onPerson(p, holding.still[p.look]);
+        if (touch(around(OWN_MARGIN), still)) continue;
+        // The bearer's raised arm, and their head looking up (as they bob with the flag's lifting).
+        const lifted = (b: PlacedBox) => ({ ...b, hi: b.hi + motions[n].lift });
+        const bearer = [
+          ...onPerson(p, holding.arm[side]).map(lifted),
+          ...still.filter((b) => b.lo > p.y + BELOW_HEAD * p.size).map(lifted),
+        ];
+        if (inStadium(boxes) || inStadium(bearer)) continue;
+        const others = spots.some(
+          (q, i) =>
+            i !== holder &&
+            Math.hypot(q.x - x, q.z - z) < reach &&
+            (touch(peopleBoxes[i], boxes) || touch(peopleBoxes[i], bearer)),
+        );
+        if (others || placed.some((f) => touch(f, boxes) || touch(f, bearer))) continue;
+        placed.push([...boxes, ...bearer]);
+        bearers.add(holder);
+        flags.push({ x, y: p.y, z, hold, side, angle, holder, motion: motions[n] });
+        return;
       }
     }
   });
   return flags;
-}
-
-/** Which way the row faces at its k-th person: across the row, toward the pitch. */
-function facing(spots: CrowdSpot[], row: number[], k: number): { x: number; z: number } {
-  const p = spots[row[k]];
-  const own = { x: Math.sin(p.angle), z: Math.cos(p.angle) };
-  const nearby = (j: number) => {
-    const q = spots[row[j]];
-    return q && Math.hypot(q.x - p.x, q.z - p.z) < 1.5 ? q : p;
-  };
-  const a = nearby(k - 1);
-  const b = nearby(k + 1);
-  const along = { x: b.x - a.x, z: b.z - a.z };
-  const length = Math.hypot(along.x, along.z);
-  if (length < 1e-6) return own;
-  const across = { x: -along.z / length, z: along.x / length };
-  return across.x * own.x + across.z * own.z >= 0 ? across : { x: -across.x, z: -across.z };
 }
 
 export const FLAG_LOGO_URL = `${import.meta.env.BASE_URL}assets/crowd/flag_logo.svg`;
@@ -283,20 +275,25 @@ export class CrowdFlags {
     uSag: { value: 0 },
     uRippleSpeed: { value: 0 },
     uWidth: { value: 1 },
-    uHold: { value: 0 },
+    uPoleHeight: { value: 0 },
     uPoleColor: { value: new THREE.Color() },
     uLogo: { value: null as THREE.Texture | null },
     uLogoRect: { value: new THREE.Vector4(0, 0, 0, 0) },
   };
 
   constructor(
-    crowd: { spots: CrowdSpot[]; room: { stadium: Triangles; shapes: Record<Moves, PersonBox[]>[] } },
+    crowd: {
+      spots: CrowdSpot[];
+      room: { stadium: Triangles; shapes: Record<Moves, PersonBox[]>[] };
+      holding: Holding;
+      hold(person: number, side: 1 | -1, lift: number, often: number, start: number): void;
+    },
     envMap: THREE.Texture | null,
     logo: FlagLogo | null,
     s: CrowdFlagSettings = CROWD_FLAG_SETTINGS,
   ) {
     const random = seeded(s.seed);
-    this.flags = s.flags ? placeFlags(crowd.spots, crowd.room, s, random) : [];
+    this.flags = s.flags ? placeFlags(crowd.spots, crowd.room, crowd.holding, s, random) : [];
     const u = this.uniforms;
     u.uSwingSpeed.value = s.swingSpeed;
     u.uLiftSpeed.value = s.liftSpeed;
@@ -304,7 +301,7 @@ export class CrowdFlags {
     u.uSag.value = s.sag;
     u.uRippleSpeed.value = s.rippleSpeed;
     u.uWidth.value = s.width;
-    u.uHold.value = s.holdHeight;
+    u.uPoleHeight.value = s.poleHeight;
     u.uPoleColor.value.set(s.poleColor);
     if (logo && s.logoSize > 0) {
       // The logo in the middle of the cloth, `logoSize` of its height (or less, to fit its width), in the cloth's UVs.
@@ -314,9 +311,9 @@ export class CrowdFlags {
       u.uLogoRect.value.set(0.5 - width / 2, 0.5 - height / 2, width, height);
     }
 
-    const bottom = s.holdHeight - POLE_BELOW_HOLD;
-    const pole = new THREE.CylinderGeometry(POLE_RADIUS, POLE_RADIUS, s.poleHeight - bottom, 8, 1);
-    pole.translate(0, (s.poleHeight + bottom) / 2, 0);
+    // The pole from 0 to 1 high: the shader stretches it from just below each bearer's hand to its own top.
+    const pole = new THREE.CylinderGeometry(POLE_RADIUS, POLE_RADIUS, 1, 8, 1);
+    pole.translate(0, 0.5, 0);
     const cloth = new THREE.PlaneGeometry(s.width, s.height, 24, 12);
     cloth.translate(s.width / 2, s.poleHeight - s.height / 2, 0);
     for (const [g, isCloth] of [
@@ -330,16 +327,19 @@ export class CrowdFlags {
     }
     const geometry = mergeGeometries([pole, cloth]);
     if (!geometry) throw new Error('Crowd flags: the pole and cloth could not be put together');
-    // Each flag's start in its waving, its speed, how far it swings (radians), and how high it's raised and lifted.
+    // Each flag's start in its waving, its speed, how far it swings (radians) and is lifted; how much longer its
+    // pole is, its lifting's start, and how high it's held. Its bearer bobs along with its lifting.
     const own = new Float32Array(this.flags.length * 4);
-    const raised = new Float32Array(this.flags.length * 2);
+    const poles = new Float32Array(this.flags.length * 3);
     this.flags.forEach((f, i) => {
-      own.set([random(), 1 - s.speedVariety + 2 * s.speedVariety * random()], i * 4);
-      own.set([THREE.MathUtils.degToRad(f.motion.swing), f.motion.lift], i * 4 + 2);
-      raised.set([f.motion.raise, random()], i * 2);
+      const speed = 1 - s.speedVariety + 2 * s.speedVariety * random();
+      const liftStart = random();
+      own.set([random(), speed, THREE.MathUtils.degToRad(f.motion.swing), f.motion.lift], i * 4);
+      poles.set([f.motion.raise, liftStart, f.hold], i * 3);
+      crowd.hold(f.holder, f.side, f.motion.lift, s.liftSpeed * speed, liftStart);
     });
     geometry.setAttribute('aFlag', new THREE.InstancedBufferAttribute(own, 4));
-    geometry.setAttribute('aRaise', new THREE.InstancedBufferAttribute(raised, 2));
+    geometry.setAttribute('aPole', new THREE.InstancedBufferAttribute(poles, 3));
 
     const material = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0, side: THREE.DoubleSide });
     if (envMap) material.envMap = envMap;
@@ -405,14 +405,14 @@ const LOGO = /* glsl */ `
 
 // The flag's pose at this moment, in its own space: ripples running out along the cloth (none at
 // the pole, the most at its free end, within `ripple` either way, as flagShape allows for), its
-// free end sagging a little, everything but the pole's hidden bottom raised and lifted (so the
-// pole gets longer instead of its bottom showing), then the whole flag swung to the side about
-// where it's held.
+// free end sagging a little, the pole from just below the bearer's hand up to its own top and the
+// cloth raised with it, the whole flag lifted (its bearer bobbing along), then swung to the side
+// about the hand.
 const WAVE = /* glsl */ `
   attribute float aCloth; // 1 on the cloth, 0 on the pole
   attribute vec4 aFlag; // this flag's start in its waving (0..1), its speed, how far it swings (radians) and is lifted (m)
-  attribute vec2 aRaise; // how much higher it's held (m), and its lifting's start (0..1)
-  uniform float uFlagTime, uSwingSpeed, uLiftSpeed, uRipple, uRippleSpeed, uSag, uWidth, uHold;
+  attribute vec3 aPole; // how much longer its pole is (m), its lifting's start (0..1), and how high it's held (m)
+  uniform float uFlagTime, uSwingSpeed, uLiftSpeed, uRipple, uRippleSpeed, uSag, uWidth, uPoleHeight;
   varying float vCloth;
   varying vec2 vFlagUv;
   vec3 flagPosition;
@@ -430,9 +430,11 @@ const WAVE = /* glsl */ `
     float slopeX = uRipple * (reachSlope * w + reach * (7.0 * cos(a) + 0.9 * cos(b)) / uWidth);
     float slopeY = uRipple * reach * 1.2 * cos(b);
     vec3 m = aCloth > 0.5 ? normalize(vec3(vec2(-slopeX, -slopeY) * ${FOLD_SHADING.toFixed(1)}, 1.0)) : n;
-    float up = aRaise.x + aFlag.w * (0.5 - 0.5 * cos(6.2832 * (uLiftSpeed * t + aRaise.y)));
-    float hold = uHold + up;
-    if (aCloth > 0.5 || p.y > uHold) q.y += up;
+    float top = uPoleHeight + aPole.x;
+    q.y = aCloth > 0.5 ? q.y + aPole.x : mix(aPole.z - ${POLE_BELOW_HOLD.toFixed(2)}, top, p.y);
+    float up = aFlag.w * (0.5 - 0.5 * cos(6.2832 * (uLiftSpeed * t + aPole.y)));
+    float hold = aPole.z + up;
+    q.y += up;
     float tilt = aFlag.z * sin(6.2832 * uSwingSpeed * t + start);
     float c = cos(tilt);
     float s = sin(tilt);
