@@ -18,6 +18,10 @@ const POLE_RADIUS = 0.018;
 const POLE_BELOW_HOLD = 0.05;
 /** How far behind the person holding it the pole may stand: the nearest that has room. */
 const BEHIND = { nearest: 0.3, furthest: 0.75, step: 0.03 };
+/** Above this over the holder's step, the stadium between them and their pole is a barrier or a step up (not the floor). */
+const ABOVE_FEET = 0.3;
+/** A pole behind a barrier needs someone on the step behind it standing this near it (metres), to hide its bottom. */
+const HIDDEN_BY = 0.75;
 /** The room a flag takes is measured in layers this high. */
 const SLICE = 0.1;
 /** Space kept free between a flag and anything else, on top of the people's own room. */
@@ -164,6 +168,22 @@ export function placeFlags(
     row.sort((a, b) => Math.atan2(spots[a].x, middleZ - spots[a].z) - Math.atan2(spots[b].x, middleZ - spots[b].z));
   }
 
+  // Whether a pole this far behind its holder would stand bare behind a barrier: something of the stadium between
+  // them (below where it's held) and nobody standing round the pole on the step behind to hide it.
+  const bare = (p: CrowdSpot, front: { x: number; z: number }, behind: number, x: number, z: number) => {
+    const between: Rect = {
+      x: p.x - (front.x * behind) / 2,
+      z: p.z - (front.z * behind) / 2,
+      angle: Math.atan2(front.x, front.z),
+      x0: -POLE_RADIUS,
+      x1: POLE_RADIUS,
+      z0: -behind / 2,
+      z1: behind / 2,
+    };
+    if (!stadium.touches(between, p.y + ABOVE_FEET, p.y + s.holdHeight)) return false;
+    return !spots.some((q) => q.y > p.y + ABOVE_FEET && Math.hypot(q.x - x, q.z - z) < HIDDEN_BY);
+  };
+
   const flags: FlagSpot[] = [];
   const placed: PlacedBox[][] = [];
   s.places.forEach((place, n) => {
@@ -180,6 +200,7 @@ export function placeFlags(
       for (let behind = BEHIND.nearest; behind <= BEHIND.furthest; behind += BEHIND.step) {
         const x = p.x - front.x * behind;
         const z = p.z - front.z * behind;
+        if (bare(p, front, behind, x, z)) continue;
         for (const angle of n % 2 === 0 ? [ahead, ahead + Math.PI] : [ahead + Math.PI, ahead]) {
           const boxes = shape.map((b) => ({
             rect: { x, z, angle, x0: b.x0 - MARGIN, x1: b.x1 + MARGIN, z0: b.z0 - MARGIN, z1: b.z1 + MARGIN },

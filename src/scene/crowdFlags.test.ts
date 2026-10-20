@@ -80,6 +80,17 @@ describe('crowd flags', () => {
     expect(f.z).toBeLessThan(-0.2); // behind them
   });
 
+  it('never stands a pole bare behind a barrier: only where people on the step behind hide it', () => {
+    // A barrier 0.8 m high just behind the people (below the poles, which start at 0.9 m).
+    const barrier = new Float32Array(wall(-10, -0.25, 10, -0.25, 0, 0.8));
+    expect(placeFlags(row(9), { stadium: barrier, shapes }, s)).toHaveLength(0);
+    // With a row standing on a higher step behind the barrier, the pole goes among them.
+    const behind = row(9).map((p) => ({ ...p, x: p.x + 0.35, y: 0.4, z: -0.9, row: 1 }));
+    const flags = placeFlags([...row(9), ...behind], { stadium: barrier, shapes }, s);
+    expect(flags).toHaveLength(1);
+    expect(flags[0].z).toBeLessThan(-0.25);
+  });
+
   it('finds no room where walls stand close behind each other right behind the people, up to over the cloth', () => {
     const stadium = new Float32Array([-0.3, -0.5, -0.7, -0.9].flatMap((z) => wall(-10, z, 10, z, 0, 4)));
     expect(placeFlags(row(9), { stadium, shapes }, s)).toHaveLength(0);

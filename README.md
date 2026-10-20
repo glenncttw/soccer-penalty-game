@@ -163,8 +163,8 @@ someone in the crowd: its pole stands just behind their head, so its bottom is h
 its row to one side or the other (whichever has room, turned a little its own way), is held a bit higher or lower, and
 swings side to side and is lifted up and down by its own amount and speed, while ripples run along the cloth and its
 free end sags a little, worked out on the graphics card, on game time. Where each flag goes is set by
-row and how far along it (`places`); at load, the person nearest that place with room behind them gets it, so the flag
-never touches the stadium, anyone in the crowd (even with their arms up) or another flag at any point of its waving. A
+row and how far along it (`places`); at load, the person nearest that place with room behind them gets it (a pole behind a barrier only where people on the step
+behind hide it, never bare on an empty walkway), so the flag never touches the stadium, anyone in the crowd (even with their arms up) or another flag at any point of its waving. A
 place with no room near it gets no flag. Settings in `src/scene/crowdFlagSettings.ts` (places, sizes, how they wave
 and how much each flag differs, colours, logo size).
 
