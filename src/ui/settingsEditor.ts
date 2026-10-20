@@ -4,6 +4,7 @@ import { FLOODLIGHT_SETTINGS, type FloodlightSettings } from '../scene/floodligh
 import { GRASS_SETTINGS, type GrassSettings } from '../scene/grassSettings';
 import { REPLAY_SETTINGS, type ReplaySettings } from '../scene/replaySettings';
 import { SKY_SETTINGS, type SkySettings } from '../scene/skySettings';
+import { STANDS_SETTINGS, type StandsSettings } from '../scene/standsSettings';
 import { settingsSnippet } from './settingsSnippet';
 
 /** A slider: [setting, label, min, max, step]. A colour: [setting, label]. */
@@ -67,6 +68,8 @@ const GLOW_ROWS: Row<FloodlightSettings>[] = [
   ['glowEdgeColor', 'Halo colour'],
 ];
 
+const STANDS_ROWS: Row<StandsSettings>[] = [['wallColor', 'Wall colour']];
+
 const WIPE_ROWS: Row<ReplaySettings>[] = [
   ['wipeTime', 'Sweep time (s)', 0.3, 2, 0.01],
 ];
@@ -78,6 +81,7 @@ export interface EditorTargets {
   grass: { update(settings: GrassSettings): void };
   sky: { configure(settings: SkySettings): void };
   floodlights: { update(settings: FloodlightSettings): void };
+  stands: { update(settings: StandsSettings): void };
   /** Plays the wipe once, to try its timing. */
   wipe: { play(): void };
 }
@@ -129,6 +133,15 @@ export function openSettingsEditor(targets: EditorTargets) {
     settingsSnippet('FLOODLIGHT_SETTINGS', 'FloodlightSettings', glow),
   );
   glowFolder.add({ reset: () => glowFolder.reset() }, 'reset').name('Reset glow');
+
+  const standsLook = { ...STANDS_SETTINGS };
+  const standsFolder = gui.addFolder('Stands');
+  const applyStands = () => targets.stands.update(standsLook);
+  for (const row of STANDS_ROWS) addRow(standsFolder, standsLook, row).onChange(applyStands);
+  addCopyButton(standsFolder, 'Copy stands settings', () =>
+    settingsSnippet('STANDS_SETTINGS', 'StandsSettings', standsLook),
+  );
+  standsFolder.add({ reset: () => standsFolder.reset() }, 'reset').name('Reset stands');
 
   // The wipe reads its timing each time it plays, so these sliders change it straight away.
   const wipeFolder = gui.addFolder('Wipe');

@@ -33,6 +33,7 @@ import { clampPixelRatio, pickPixelRatio, RESOLUTION_SETTINGS } from './scene/re
 import { Sky } from './scene/sky';
 import { SKY_SETTINGS } from './scene/skySettings';
 import { loadStadium } from './scene/stadiumAsset';
+import { StandsColor } from './scene/standsColor';
 import { COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
 import { PerfStats } from './ui/perfStats';
@@ -90,6 +91,8 @@ scene.add(stadium.environment);
 const grass = await applyGrass(stadium.environment, renderer);
 // The light baked in Blender, plus the live sun. After the grass, so the grass gets the baked light too.
 const { envMap } = await setUpLighting(renderer, stadium.model);
+// The stands' colour; tweak it in src/scene/standsSettings.ts.
+const stands = new StandsColor(stadium.model);
 // The stadium's own animations (the corner flags waving) loop for ever, slowed down with the game.
 const stadiumMotion = new THREE.AnimationMixer(stadium.model);
 for (const clip of stadium.animations) stadiumMotion.clipAction(clip).play();
@@ -302,6 +305,7 @@ if (new URLSearchParams(location.search).has('edit')) {
     grass,
     sky,
     floodlights,
+    stands,
     wipe: { play: () => wipe.run(() => {}) },
   });
 }
