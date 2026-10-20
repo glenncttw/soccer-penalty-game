@@ -149,6 +149,15 @@ the file but not used yet. Settings in `src/scene/crowdSettings.ts` (row heights
 move); a new stadium export that moves the steps needs new `rowHeights`, and the game stops with an error naming a
 height that has no step.
 
+**Flags in the crowd:** a few big flags wave in the stands (`src/scene/crowdFlags.ts`), made in code: a thin pole and a
+cloth (its UVs fill the whole cloth, ready for a logo later), all drawn in one go. Each is held by someone in the
+crowd: its pole stands just behind their head, so its bottom is hidden by them, and the flag swings side to side about
+where it's held while ripples run along the cloth and its free end sags a little, worked out on the graphics card, on
+game time. Where each flag goes is set by row and how far along it (`places`); at load, the person nearest that place
+with room behind them gets it, so the flag never touches the stadium, anyone in the crowd (even with their arms up) or
+another flag at any point of its waving. A place with no room near it gets no flag. Settings in
+`src/scene/crowdFlagSettings.ts` (places, sizes, how it waves, colours).
+
 ## The keeper
 
 The keeper is Glenn's parrot, a Blender export: `public/assets/keeper/Parrot_GK.glb`, loaded by
