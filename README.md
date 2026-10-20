@@ -109,14 +109,10 @@ already changed stays as it is):
 node tools/edit-stadium.mjs Stadium_Recon_web.glb public/assets/stadium/Stadium_Recon_web.glb
 ```
 
-- **Wider boards:** the narrow ad boards along the sides (`ADV_Panel_E07`-`E10` and `W07`-`W10`, 1.00 m each)
-  become two boards of 2.00 x 0.72 m per side, filling the same 4 m stretch. They are copies of the board next to
-  them (`06`, 1.97 m), so they keep its baked light, in the colours of `07` and `08`. Once the boards are changed
-  in Blender itself, the tool leaves them alone.
 - **No backs:** faces of the stands and trees that face away from everywhere a camera can be (anywhere over the
   pitch, up to 6 m high) are taken out. The game only draws the front of these faces, so nothing on screen changes;
-  the inside of the stadium stays whole. It takes out about 21,000 of the trees' 59,500 triangles (and a few of
-  the stands'), and the file gets about 300 KB smaller.
+  the inside of the stadium stays whole. Blender's export already leaves out most of the stands' backs, so this
+  mostly takes out the trees' backs: about 20,000 of their 59,500 triangles.
 
 The game reads all gameplay coordinates from the model when it loads (`src/scene/measureStadium.ts`),
 so goal detection, collisions, the ball's start position and the camera (which stands behind the ball) follow
