@@ -102,6 +102,18 @@ so it comes as a package with three parts:
 To update the stadium, replace all three with the files from the new package. The bakes only fit the model they
 were baked with.
 
+Then run the model through `tools/edit-stadium.mjs` (it changes the export the same way every time, and a file it
+already changed stays as it is):
+
+```
+node tools/edit-stadium.mjs Stadium_Recon_web.glb public/assets/stadium/Stadium_Recon_web.glb
+```
+
+- **No backs:** faces of the stands and trees that face away from everywhere a camera can be (anywhere over the
+  pitch, up to 6 m high) are taken out. The game only draws the front of these faces, so nothing on screen changes;
+  the inside of the stadium stays whole. Blender's export already leaves out most of the stands' backs, so this
+  mostly takes out the trees' backs: about 20,000 of their 59,500 triangles.
+
 The game reads all gameplay coordinates from the model when it loads (`src/scene/measureStadium.ts`),
 so goal detection, collisions, the ball's start position and the camera (which stands behind the ball) follow
 the new export. It relies on these node names:
