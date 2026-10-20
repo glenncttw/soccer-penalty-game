@@ -10,11 +10,9 @@ export interface CrowdFlagSettings {
    * Where the flags are: the row (0 = the lowest step in the crowd's `rowHeights`) and how far
    * along it, from its end on the left side near the camera (0), round behind the goal (0.5), to
    * its end on the right side (1). A flag goes to the nearest person there with room round them
-   * for the flag while it waves, so it never touches the stadium or anyone. A place can point its
-   * flag the other way than `towards` (on the left side stand, a flag pointing left would go into
-   * the stand behind, where there's no room for it).
+   * for the flag while it waves, so it never touches the stadium or anyone.
    */
-  places: { row: number; along: number; towards?: 'left' | 'right' }[];
+  places: { row: number; along: number }[];
   /** The cloth's width (from the pole out), in metres. */
   width: number;
   /** The cloth's height, in metres. */
@@ -27,9 +25,7 @@ export interface CrowdFlagSettings {
    * the barrier behind them).
    */
   holdHeight: number;
-  /** Which way every cloth points from its pole, as seen from the shooter's spot (the same way for all, as in a wind). */
-  towards: 'left' | 'right';
-  /** How far each flag may be turned from pointing straight that way (about the up axis), either way, in degrees. */
+  /** How far each flag may be turned from pointing straight along its row (about the up axis), either way, in degrees. */
   turn: number;
   /** How much higher than `holdHeight` a flag may be held, in metres (each flag its own amount, up to this). */
   raise: number;
@@ -67,20 +63,19 @@ export interface CrowdFlagSettings {
 export const CROWD_FLAG_SETTINGS: CrowdFlagSettings = {
   flags: true,
   places: [
-    { row: 0, along: 0.22, towards: 'right' },
     { row: 1, along: 0.22 },
     { row: 3, along: 0.33 },
-    { row: 2, along: 0.45 },
-    { row: 4, along: 0.55 },
+    { row: 4, along: 0.38 },
+    { row: 2, along: 0.43 },
+    { row: 4, along: 0.5 },
     { row: 1, along: 0.6 },
-    { row: 3, along: 0.67 },
-    { row: 1, along: 0.78 },
+    { row: 3, along: 0.66 },
+    { row: 1, along: 0.76 },
   ],
   width: 1.6,
   height: 1,
   poleHeight: 2.95,
   holdHeight: 0.95,
-  towards: 'left',
   turn: 8,
   raise: 0.2,
   swing: 12,

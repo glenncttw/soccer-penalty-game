@@ -159,15 +159,14 @@ height that has no step.
 **Flags in the crowd:** a few big flags wave in the stands (`src/scene/crowdFlags.ts`), made in code: a thin pole and a
 cloth with Glenn's logo in the middle (`public/assets/crowd/flag_logo.svg`, drawn into a texture once at load: replace
 the SVG to change it; it reads the right way round from both sides of the cloth), all drawn in one go. Each is held by
-someone in the crowd: its pole stands just behind their head, so its bottom is hidden by them. Every cloth points the
-same way (to the left as seen from the shooter's spot, as in a wind; a place can point the other way where there's no
-room, like the left side stand, where the cloth would go into the stand behind), each flag turned a little its own way, held a bit
-higher or lower, and swinging side to side and lifted up and down by its own amount and speed, while ripples run along
-the cloth and its free end sags a little, worked out on the graphics card, on game time. Where each flag goes is set by
+someone in the crowd: its pole stands just behind their head, so its bottom is hidden by them. Each flag points along
+its row to one side or the other (whichever has room, turned a little its own way), is held a bit higher or lower, and
+swings side to side and is lifted up and down by its own amount and speed, while ripples run along the cloth and its
+free end sags a little, worked out on the graphics card, on game time. Where each flag goes is set by
 row and how far along it (`places`); at load, the person nearest that place with room behind them gets it, so the flag
 never touches the stadium, anyone in the crowd (even with their arms up) or another flag at any point of its waving. A
-place with no room near it gets no flag. Settings in `src/scene/crowdFlagSettings.ts` (places, sizes, which way they
-point, how they wave and how much each flag differs, colours, logo size).
+place with no room near it gets no flag. Settings in `src/scene/crowdFlagSettings.ts` (places, sizes, how they wave
+and how much each flag differs, colours, logo size).
 
 ## The keeper
 

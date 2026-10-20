@@ -109,9 +109,7 @@ scene.add(floodlights.group);
 const crowd = new Crowd(stadium.environment, await crowdParts, envMap);
 scene.add(crowd.group);
 // Big flags waving in the crowd; tweak them in src/scene/crowdFlagSettings.ts.
-// They all point to the left as seen from the shooter's spot, looking at the goal.
-const towardGoal = new THREE.Vector3(0, world.groundY + 1, world.goal.lineZ).sub(view.restPosition);
-const crowdFlags = new CrowdFlags(crowd, envMap, await flagLogo, towardGoal);
+const crowdFlags = new CrowdFlags(crowd, envMap, await flagLogo);
 scene.add(crowdFlags.mesh);
 
 const ballMesh = stadium.ball;

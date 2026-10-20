@@ -124,25 +124,19 @@ function ripplesReach(u: number): number {
  * Picks who holds each flag: the person nearest to each place in `s.places` with room behind them
  * for the pole (as near behind them as there's room: often just behind the next step's barrier),
  * and round it for the cloth to wave in, without touching the stadium, anyone in the crowd (in any
- * of their moves) or another flag. Every cloth goes out the same way: along `angle` (a turn about
- * the up axis, as the crowd's angles, for the settings' `towards`; the other way round for a place
- * with its own `towards`), give or take the settings' `turn`. Places with no room near
+ * of their moves) or another flag. The cloth goes out along the row to one side or the other,
+ * whichever has room (the flags take turns which side they try first), turned a little by its own
+ * random amount (up to the settings' `turn`). Places with no room near
  * them get no flag.
  */
 export function placeFlags(
   spots: CrowdSpot[],
   room: { stadium: Triangles; shapes: Record<Moves, PersonBox[]>[] },
   s: CrowdFlagSettings,
-  angle: number,
   random: () => number = seeded(s.seed),
 ): FlagSpot[] {
   const motions = flagMotions(s, random);
-  const turns = s.places.map(
-    (place) =>
-      angle +
-      ((place.towards ?? s.towards) === s.towards ? 0 : Math.PI) +
-      THREE.MathUtils.degToRad(s.turn) * (random() * 2 - 1),
-  );
+  const turns = s.places.map(() => THREE.MathUtils.degToRad(s.turn) * (random() * 2 - 1));
   const stadium = new TriangleIndex(room.stadium);
   const peopleBoxes = spots.map((p) =>
     room.shapes[p.look][p.moves].map((b) => ({
@@ -182,20 +176,23 @@ export function placeFlags(
     for (const k of order) {
       const p = spots[row[k]];
       const front = facing(spots, row, k);
+      const ahead = Math.atan2(front.x, front.z) + turns[n];
       for (let behind = BEHIND.nearest; behind <= BEHIND.furthest; behind += BEHIND.step) {
         const x = p.x - front.x * behind;
         const z = p.z - front.z * behind;
-        const boxes = shape.map((b) => ({
-          rect: { x, z, angle: turns[n], x0: b.x0 - MARGIN, x1: b.x1 + MARGIN, z0: b.z0 - MARGIN, z1: b.z1 + MARGIN },
-          lo: p.y + b.y0 - MARGIN,
-          hi: p.y + b.y1 + MARGIN,
-        }));
-        if (boxes.some((b) => stadium.touches(b.rect, b.lo, b.hi))) continue;
-        const near = spots.some((q, i) => Math.hypot(q.x - x, q.z - z) < reach && touch(peopleBoxes[i], boxes));
-        if (near || placed.some((f) => touch(f, boxes))) continue;
-        placed.push(boxes);
-        flags.push({ x, y: p.y, z, angle: turns[n], holder: row[k], motion: motions[n] });
-        return;
+        for (const angle of n % 2 === 0 ? [ahead, ahead + Math.PI] : [ahead + Math.PI, ahead]) {
+          const boxes = shape.map((b) => ({
+            rect: { x, z, angle, x0: b.x0 - MARGIN, x1: b.x1 + MARGIN, z0: b.z0 - MARGIN, z1: b.z1 + MARGIN },
+            lo: p.y + b.y0 - MARGIN,
+            hi: p.y + b.y1 + MARGIN,
+          }));
+          if (boxes.some((b) => stadium.touches(b.rect, b.lo, b.hi))) continue;
+          const near = spots.some((q, i) => Math.hypot(q.x - x, q.z - z) < reach && touch(peopleBoxes[i], boxes));
+          if (near || placed.some((f) => touch(f, boxes))) continue;
+          placed.push(boxes);
+          flags.push({ x, y: p.y, z, angle, holder: row[k], motion: motions[n] });
+          return;
+        }
       }
     }
   });
@@ -250,8 +247,7 @@ export async function loadFlagLogo(renderer: THREE.WebGLRenderer, url = FLAG_LOG
 
 /**
  * Big flags waving in the crowd (see crowdFlagSettings.ts): each held by someone in the stands
- * (see placeFlags), all pointing the same way (to the left or right as seen from the shooter's
- * spot), each swinging side to side and lifted up and down in its own way, with ripples running
+ * (see placeFlags), each swinging side to side and lifted up and down in its own way, with ripples running
  * along its cloth, and the logo on it. The waving is worked out on the graphics card, and all the
  * flags are drawn in one go.
  */
@@ -272,19 +268,14 @@ export class CrowdFlags {
     uLogoRect: { value: new THREE.Vector4(0, 0, 0, 0) },
   };
 
-  /** `look`: which way the shooter's camera looks, so the flags can all point to its left or right. */
   constructor(
     crowd: { spots: CrowdSpot[]; room: { stadium: Triangles; shapes: Record<Moves, PersonBox[]>[] } },
     envMap: THREE.Texture | null,
     logo: FlagLogo | null,
-    look: THREE.Vector3,
     s: CrowdFlagSettings = CROWD_FLAG_SETTINGS,
   ) {
-    // The camera's left, flat: the cloth goes out along the flag's own +x, which a turn of `angle` points there.
-    const side = s.towards === 'left' ? 1 : -1;
-    const angle = Math.atan2(side * look.x, side * look.z);
     const random = seeded(s.seed);
-    this.flags = s.flags ? placeFlags(crowd.spots, crowd.room, s, angle, random) : [];
+    this.flags = s.flags ? placeFlags(crowd.spots, crowd.room, s, random) : [];
     const u = this.uniforms;
     u.uSwingSpeed.value = s.swingSpeed;
     u.uLiftSpeed.value = s.liftSpeed;

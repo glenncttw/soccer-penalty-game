@@ -57,30 +57,23 @@ describe('crowd flags', () => {
     expect(new Set(motions.map((m) => m.swing.toFixed(3))).size).toBeGreaterThan(10);
   });
 
-  it('points every flag the same way, give or take its turn', () => {
+  it('sends the cloth along the row, the flags taking turns which side, each turned a little', () => {
     const flags = placeFlags(
       row(21),
       { stadium: new Float32Array(), shapes },
       { ...s, places: [0.1, 0.5, 0.9].map((along) => ({ row: 0, along })) },
-      2,
     );
     expect(flags).toHaveLength(3);
-    for (const f of flags) expect(Math.abs(f.angle - 2)).toBeLessThanOrEqual((s.turn * Math.PI) / 180 + 1e-9);
-  });
-
-  it('points a place with its own way the other way round', () => {
-    const [flag] = placeFlags(
-      row(9),
-      { stadium: new Float32Array(), shapes },
-      { ...s, turn: 0, places: [{ row: 0, along: 0.5, towards: s.towards === 'left' ? 'right' : 'left' }] },
-      2,
-    );
-    expect(flag.angle).toBeCloseTo(2 + Math.PI);
+    const turn = (s.turn * Math.PI) / 180 + 1e-9;
+    flags.forEach((f, n) => {
+      const side = n % 2 === 0 ? 0 : Math.PI; // nothing in the way here, so each gets the side it tries first
+      expect(Math.abs(f.angle - side)).toBeLessThanOrEqual(turn);
+    });
   });
 
   it('puts a flag behind the person nearest the place asked for, with nothing in the way', () => {
     const spots = row(9);
-    const flags = placeFlags(spots, { stadium: new Float32Array(), shapes }, s, 0);
+    const flags = placeFlags(spots, { stadium: new Float32Array(), shapes }, s);
     expect(flags).toHaveLength(1);
     const f = flags[0];
     expect(Math.abs(spots[f.holder].x)).toBeLessThan(0.71); // the middle person, or next to them
@@ -89,7 +82,7 @@ describe('crowd flags', () => {
 
   it('finds no room where walls stand close behind each other right behind the people, up to over the cloth', () => {
     const stadium = new Float32Array([-0.3, -0.5, -0.7, -0.9].flatMap((z) => wall(-10, z, 10, z, 0, 4)));
-    expect(placeFlags(row(9), { stadium, shapes }, s, 0)).toHaveLength(0);
+    expect(placeFlags(row(9), { stadium, shapes }, s)).toHaveLength(0);
   });
 
   it('keeps the cloth off the people of the row behind', () => {
@@ -100,7 +93,6 @@ describe('crowd flags', () => {
       [...row(9), ...behind],
       { stadium: new Float32Array(), shapes: [{ cheer: tall, move: tall, calm: tall }] },
       s,
-      0,
     );
     expect(flags).toHaveLength(0);
   });
