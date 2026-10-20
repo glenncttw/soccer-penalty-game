@@ -25,10 +25,24 @@ export interface CrowdFlagSettings {
    * the barrier behind them).
    */
   holdHeight: number;
-  /** How far the flag swings to each side, in degrees. */
+  /** Which way every cloth points from its pole, as seen from the shooter's spot (the same way for all, as in a wind). */
+  towards: 'left' | 'right';
+  /** How far each flag may be turned from pointing straight that way (about the up axis), either way, in degrees. */
+  turn: number;
+  /** How much higher than `holdHeight` a flag may be held, in metres (each flag its own amount, up to this). */
+  raise: number;
+  /** How far a flag swings to each side, in degrees (each flag its own amount: see `variety`). */
   swing: number;
   /** Swings per second. */
   swingSpeed: number;
+  /** How far a flag is lifted and let down again as it's waved, in metres (each flag its own amount: see `variety`). */
+  lift: number;
+  /** Lifts per second. */
+  liftSpeed: number;
+  /** 0..1: how much less than `swing` and `lift` a flag may swing and be lifted (0.5: between half and all of it). */
+  variety: number;
+  /** 0..1: how much faster or slower than the others a flag may wave (0.2: from 80% to 120% of the speeds). */
+  speedVariety: number;
   /** How far the cloth ripples at its free end, either way, in metres. */
   ripple: number;
   /** Ripples running along the cloth per second. */
@@ -37,6 +51,11 @@ export interface CrowdFlagSettings {
   sag: number;
   /** Cloth colours, one per flag in turn. */
   colors: string[];
+  /**
+   * How big the logo (`public/assets/crowd/flag_logo.svg`) is, as a share of the cloth's height (less if it would be
+   * too wide for the cloth), in the middle of the cloth. 0 = no logo.
+   */
+  logoSize: number;
   /** The pole's colour. */
   poleColor: string;
   /** Any whole number. The same seed always gives the same flags' timing. */
@@ -48,23 +67,29 @@ export const CROWD_FLAG_SETTINGS: CrowdFlagSettings = {
   places: [
     { row: 1, along: 0.22 },
     { row: 3, along: 0.33 },
-    { row: 4, along: 0.38 },
-    { row: 2, along: 0.43 },
-    { row: 4, along: 0.5 },
-    { row: 1, along: 0.6 },
-    { row: 3, along: 0.66 },
-    { row: 1, along: 0.76 },
+    { row: 2, along: 0.45 },
+    { row: 4, along: 0.55 },
+    { row: 3, along: 0.67 },
+    { row: 1, along: 0.78 },
   ],
   width: 1.6,
   height: 1,
   poleHeight: 2.95,
   holdHeight: 0.95,
+  towards: 'left',
+  turn: 8,
+  raise: 0.2,
   swing: 12,
   swingSpeed: 0.55,
+  lift: 0.1,
+  liftSpeed: 0.4,
+  variety: 0.5,
+  speedVariety: 0.2,
   ripple: 0.1,
   rippleSpeed: 1.2,
   sag: 0.15,
-  colors: ['#e63946', '#3a2f9e', '#ffffff', '#3a2f9e', '#e63946', '#3a2f9e', '#ffffff', '#e63946'],
+  colors: ['#fa3946', '#2269db'],
+  logoSize: 0.72,
   poleColor: '#e8e8e8',
   seed: 7,
 };

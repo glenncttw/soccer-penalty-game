@@ -17,7 +17,7 @@ import { BallTrail, trailStyle } from './scene/ball';
 import { BallFade } from './scene/ballFade';
 import { Crowd } from './scene/crowd';
 import { loadCrowdParts } from './scene/crowdAsset';
-import { CrowdFlags } from './scene/crowdFlags';
+import { CrowdFlags, loadFlagLogo } from './scene/crowdFlags';
 import { CROWD_SETTINGS } from './scene/crowdSettings';
 import { Effects } from './scene/effects';
 import { FloodlightGlow } from './scene/floodlightGlow';
@@ -81,6 +81,7 @@ const preloader = new Preloader();
 // The keeper's and the crowd's Blender models load alongside the stadium.
 const keeperAsset = loadKeeperModel();
 const crowdParts = loadCrowdParts(CROWD_SETTINGS.heads.map((h) => h.file));
+const flagLogo = loadFlagLogo(renderer);
 // The Blender stadium is the whole environment: pitch, goal, stands, ball and sun.
 const stadium = await loadStadium((f) => preloader.file(f));
 const world = stadium.config;
@@ -108,7 +109,9 @@ scene.add(floodlights.group);
 const crowd = new Crowd(stadium.environment, await crowdParts, envMap);
 scene.add(crowd.group);
 // Big flags waving in the crowd; tweak them in src/scene/crowdFlagSettings.ts.
-const crowdFlags = new CrowdFlags(crowd, envMap);
+// They all point to the left as seen from the shooter's spot, looking at the goal.
+const towardGoal = new THREE.Vector3(0, world.groundY + 1, world.goal.lineZ).sub(view.restPosition);
+const crowdFlags = new CrowdFlags(crowd, envMap, await flagLogo, towardGoal);
 scene.add(crowdFlags.mesh);
 
 const ballMesh = stadium.ball;
