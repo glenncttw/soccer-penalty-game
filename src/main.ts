@@ -18,6 +18,7 @@ import { BallFade } from './scene/ballFade';
 import { Crowd } from './scene/crowd';
 import { loadCrowdPerson } from './scene/crowdAsset';
 import { CrowdFlags } from './scene/crowdFlags';
+import { DepthOfField, keepSharp } from './scene/depthOfField';
 import { Effects } from './scene/effects';
 import { FloodlightGlow } from './scene/floodlightGlow';
 import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera';
@@ -39,7 +40,8 @@ import { Preloader } from './ui/preloader';
 import { Wipe } from './ui/wipe';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+// No smoothing on the screen itself: the game is drawn into a smoothed picture first (see DepthOfField).
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 // How many pixels the picture is drawn with; set by resize(), tweak it in src/scene/resolutionSettings.ts.
 const touchScreen = window.matchMedia('(pointer: coarse)').matches;
 let testPixelRatio: number | null = null; // set by the ?bench panel
@@ -88,6 +90,8 @@ scene.add(stadium.environment);
 const grass = await applyGrass(stadium.environment, renderer);
 // The light baked in Blender, plus the live sun. After the grass, so the grass gets the baked light too.
 const { envMap } = await setUpLighting(renderer, stadium.model);
+// The trees and floodlights stay sharp in the depth of field, however far away (the sky does too).
+keepSharp(stadium.model, ['STATIC_Trees', 'FLOOD_Light_']);
 // The stadium's own animations (the corner flags waving) loop for ever, slowed down with the game.
 const stadiumMotion = new THREE.AnimationMixer(stadium.model);
 for (const clip of stadium.animations) stadiumMotion.clipAction(clip).play();
@@ -140,9 +144,12 @@ const events = new GameEvents();
 const slowMotion = new SlowMotion();
 const coach = new Coach();
 // After a goal, save or woodwork: a slow replay in comic panels, between two wipes; see src/scene/replaySettings.ts.
+// Like a camera focused on the goal: things far behind it get soft; the sky, trees and floodlights stay sharp.
+const depthOfField = new DepthOfField(renderer, new THREE.Vector3(0, world.groundY + 1, world.goal.lineZ));
 const replay = new Replay({
   world,
   renderer,
+  output: depthOfField.picture,
   scene,
   ball: ballMesh,
   ballFade,
@@ -281,6 +288,7 @@ function resize() {
   if (w === drawn.w && h === drawn.h && ratio === drawn.ratio) return;
   drawn = { w, h, ratio };
   renderer.setDrawingBufferSize(w, h, ratio);
+  depthOfField.setSize(renderer.domElement.width, renderer.domElement.height);
   view.fit(w / h);
   effects.setViewportHeight(renderer.domElement.height);
   replay.resize(w, h);
@@ -300,6 +308,7 @@ if (new URLSearchParams(location.search).has('edit')) {
     grass,
     sky,
     floodlights,
+    depthOfField,
     wipe: { play: () => wipe.run(() => {}) },
   });
 }
@@ -412,9 +421,10 @@ renderer.setAnimationLoop((time) => {
 
   if (replay.active) {
     replay.render(realDt);
+    depthOfField.show(); // the replay is drawn into the picture; shown as it is, without the blur
     if (replay.finished) endReplay();
   } else {
-    renderer.render(scene, camera);
+    depthOfField.render(scene, camera);
   }
   perf.end(time);
 });

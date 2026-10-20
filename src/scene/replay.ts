@@ -19,6 +19,8 @@ const TAG_SPACE = 64; // CSS pixels kept free at the top for the "REPLAY" label
 export interface ReplayParts {
   world: WorldConfig;
   renderer: THREE.WebGLRenderer;
+  /** Where the finished replay picture goes (null: straight to the screen). */
+  output: THREE.WebGLRenderTarget | null;
   scene: THREE.Scene;
   ball: THREE.Object3D;
   ballFade: BallFade;
@@ -192,7 +194,7 @@ export class Replay {
     this.trail.update(t, this.camera.position);
     renderer.setRenderTarget(this.target);
     renderer.render(scene, this.camera);
-    renderer.setRenderTarget(null);
+    renderer.setRenderTarget(this.parts.output);
 
     const border = Math.max(5, Math.min(this.size.w, this.size.h) * 0.016);
     const k = popIn(this.elapsed / POP_TIME);
