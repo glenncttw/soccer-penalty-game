@@ -11,6 +11,16 @@ export const COACH_TEXT: Record<Exclude<CoachTip, null>, string> = {
   release: 'Nice curl! Let go when the bar is in the gold zone',
 };
 
+/** The same tips for someone playing with the keyboard. */
+export const COACH_KEY_TEXT: Record<Exclude<CoachTip, null>, string> = {
+  aim: 'Arrow keys to aim, then hold Space',
+  curl: '← → to curl it past the keeper · let go of Space in the gold zone',
+  release: 'Nice curl! Let go of Space when the bar is in the gold zone',
+};
+
+/** The first tip on a computer, before the player has picked the mouse or the keys. */
+export const COACH_AIM_EITHER = 'Point at a spot in the goal, then press and hold · or use the arrow keys and Space';
+
 const DONE_KEY = 'penalty:coached';
 const CURL_NOTICED = 0.35; // how much drag counts as "curled"
 
