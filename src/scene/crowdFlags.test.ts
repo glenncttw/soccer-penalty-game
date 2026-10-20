@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CROWD_FLAG_SETTINGS } from './crowdFlagSettings';
-import { flagShape, placeFlags } from './crowdFlags';
+import { flagMotions, flagShape, placeFlags } from './crowdFlags';
 import type { CrowdSpot, PersonBox } from './crowdSpots';
 
 /** Two triangles for an upright wall from (x0, z0) to (x1, z1), between heights y0 and y1. */
@@ -37,6 +37,40 @@ describe('crowd flags', () => {
     expect(Math.max(...shape.map((b) => b.z1))).toBeCloseTo(s.ripple, 2); // the cloth's furthest ripple
   });
 
+  it('raises and lifts all of the flag but the hidden bottom of its pole, which stays put', () => {
+    const shape = flagShape(s, { raise: 0.2, swing: s.swing, lift: 0.1 });
+    expect(Math.min(...shape.map((b) => b.y0))).toBeCloseTo(s.holdHeight - 0.05, 2);
+    expect(Math.max(...shape.map((b) => b.y1))).toBeGreaterThan(s.poleHeight + 0.3);
+  });
+
+  it('gives each flag its own waving, within the settings', () => {
+    let seed = 1;
+    const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    const motions = flagMotions({ ...s, places: Array.from({ length: 20 }, () => ({ row: 0, along: 0 })) }, random);
+    for (const m of motions) {
+      expect(m.raise).toBeGreaterThanOrEqual(0);
+      expect(m.raise).toBeLessThanOrEqual(s.raise);
+      expect(m.swing).toBeGreaterThanOrEqual(s.swing * (1 - s.variety) - 1e-9);
+      expect(m.swing).toBeLessThanOrEqual(s.swing);
+      expect(m.lift).toBeGreaterThanOrEqual(s.lift * (1 - s.variety) - 1e-9);
+    }
+    expect(new Set(motions.map((m) => m.swing.toFixed(3))).size).toBeGreaterThan(10);
+  });
+
+  it('sends the cloth along the row, the flags taking turns which side, each turned a little', () => {
+    const flags = placeFlags(
+      row(21),
+      { stadium: new Float32Array(), shapes },
+      { ...s, places: [0.1, 0.5, 0.9].map((along) => ({ row: 0, along })) },
+    );
+    expect(flags).toHaveLength(3);
+    const turn = (s.turn * Math.PI) / 180 + 1e-9;
+    flags.forEach((f, n) => {
+      const side = n % 2 === 0 ? 0 : Math.PI; // nothing in the way here, so each gets the side it tries first
+      expect(Math.abs(f.angle - side)).toBeLessThanOrEqual(turn);
+    });
+  });
+
   it('puts a flag behind the person nearest the place asked for, with nothing in the way', () => {
     const spots = row(9);
     const flags = placeFlags(spots, { stadium: new Float32Array(), shapes }, s);
@@ -44,6 +78,17 @@ describe('crowd flags', () => {
     const f = flags[0];
     expect(Math.abs(spots[f.holder].x)).toBeLessThan(0.71); // the middle person, or next to them
     expect(f.z).toBeLessThan(-0.2); // behind them
+  });
+
+  it('never stands a pole bare behind a barrier: only where people on the step behind hide it', () => {
+    // A barrier 0.8 m high just behind the people (below the poles, which start at 0.9 m).
+    const barrier = new Float32Array(wall(-10, -0.25, 10, -0.25, 0, 0.8));
+    expect(placeFlags(row(9), { stadium: barrier, shapes }, s)).toHaveLength(0);
+    // With a row standing on a higher step behind the barrier, the pole goes among them.
+    const behind = row(9).map((p) => ({ ...p, x: p.x + 0.35, y: 0.4, z: -0.9, row: 1 }));
+    const flags = placeFlags([...row(9), ...behind], { stadium: barrier, shapes }, s);
+    expect(flags).toHaveLength(1);
+    expect(flags[0].z).toBeLessThan(-0.25);
   });
 
   it('finds no room where walls stand close behind each other right behind the people, up to over the cloth', () => {
