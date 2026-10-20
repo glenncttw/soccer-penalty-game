@@ -127,13 +127,20 @@ sizes: a ball that flies over the boards fades out and counts as a miss (or a sa
 Animations in the export (like the corner flags waving) play on a loop, slowed down with the game's slow motion.
 Nothing in the game refers to them by name, so a new export can add, change or drop them.
 
-**The crowd:** Glenn's crowd person (`public/assets/crowd/crowd_person.glb`, made in Blender: origin between the feet,
-facing +z; its light version: 920 triangles, WebP texture, meshopt compression) stands in the stands in 5 rows: the
-steps at 0.45, 0.86, 2.10, 2.50 and 2.90 m high. The wide walkway at 1.70 m (where the corner stairs come down), the
-narrow top step at 3.30 m and the corner stairs stay empty. It is its own file, not part of the stadium: replace it to update the person (keep one material for all its parts). The game loads it
-once (`src/scene/crowdAsset.ts`) and draws a copy at every spot in one go (`src/scene/crowd.ts`), each a little bigger or
-smaller, turned, spaced and set back by its own random amount, close together so the stands look full, and with its
-own shirt colour: the texture's shirt colour is swapped for one from the list.
+**The crowd:** Glenn's modular crowd person, made in Blender (`public/assets/crowd/`; how the files fit together:
+`docs/crowd-modular.md` and `docs/crowd_manifest.json`): one body (`crowd_base.glb`: origin between the feet, facing +z,
+926 triangles) and 5 head pieces (`hp_hair_short`, `hp_cap`, `hp_ponytail`, `hp_buckethat`, `hp_hair_long`: 104 to 330
+triangles each, made in the `Head` node's own space, so they sit on the head as they are). All share one material and
+texture (WebP, meshopt compression). The people stand in the stands in 5 rows: the steps at 0.45, 0.86, 2.10, 2.50 and
+2.90 m high. The wide walkway at 1.70 m (where the corner stairs come down), the narrow top step at 3.30 m and the
+corner stairs stay empty. The files are their own, not part of the stadium: replace them to update the person. The
+game loads them once (`src/scene/crowdAsset.ts`), puts each head piece on the body to make 5 looks, and draws everyone
+with the same look in one go (`src/scene/crowd.ts`: 5 draws for the whole crowd), each a little bigger or smaller,
+turned, spaced and set back by its own random amount, close together so the stands look full. Neighbours get different
+looks, and each look gets about its share (`heads` in the settings; the wide long hair fits in fewer places). Everyone
+gets their own skin, hair and shirt colour (shorts, shoes and hat match the shirt) from the lists in the settings: each
+vertex's colour slot (`_REGION`) says which colour it takes, and the texture's shading is kept (the slot's default
+colour is swapped for the new one by brightness). Eyes and mouth keep the texture's colours.
 
 The crowd moves (`src/scene/crowdMotion.ts`), worked out on the graphics card so it costs next to nothing: everyone
 sways and looks around a little, and some people raise their arms now and then (up past their sides) and bounce while

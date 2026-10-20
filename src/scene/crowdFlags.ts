@@ -103,7 +103,7 @@ function ripplesReach(u: number): number {
  */
 export function placeFlags(
   spots: CrowdSpot[],
-  room: { stadium: Triangles; shapes: Record<Moves, PersonBox[]> },
+  room: { stadium: Triangles; shapes: Record<Moves, PersonBox[]>[] },
   s: CrowdFlagSettings,
 ): FlagSpot[] {
   const shape = flagShape(s);
@@ -115,7 +115,7 @@ export function placeFlags(
       ),
     ) + 1;
   const peopleBoxes = spots.map((p) =>
-    room.shapes[p.moves].map((b) => ({
+    room.shapes[p.look][p.moves].map((b) => ({
       rect: {
         x: p.x,
         z: p.z,
@@ -211,7 +211,7 @@ export class CrowdFlags {
   };
 
   constructor(
-    crowd: { spots: CrowdSpot[]; room: { stadium: Triangles; shapes: Record<Moves, PersonBox[]> } },
+    crowd: { spots: CrowdSpot[]; room: { stadium: Triangles; shapes: Record<Moves, PersonBox[]>[] } },
     envMap: THREE.Texture | null,
     s: CrowdFlagSettings = CROWD_FLAG_SETTINGS,
   ) {

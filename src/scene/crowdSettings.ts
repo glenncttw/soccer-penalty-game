@@ -1,5 +1,6 @@
 /**
- * The crowd: copies of Glenn's crowd person standing in the stands.
+ * The crowd: copies of Glenn's crowd person standing in the stands, each with one of the head
+ * pieces (hair or a hat) and their own skin, hair and shirt colours.
  * Sizes are in metres; colours are CSS hex strings (sRGB, as a colour picker shows them).
  */
 export interface CrowdSettings {
@@ -46,10 +47,22 @@ export interface CrowdSettings {
   armRaise: number;
   /** How far the raised arms lean forward, in degrees. */
   armForward: number;
-  /** The shirt colour in the person's texture; every person gets a shirt colour from `shirtColors` in its place. */
-  shirtColor: string;
-  /** Shirt colours, picked at random for each person. Leave it empty to keep the texture's own shirt colour. */
+  /**
+   * The head pieces (files in public/assets/crowd/, made to fit the body in crowd_base.glb), and
+   * how often each is picked compared with the others. Neighbours in a row get different ones
+   * where they can.
+   */
+  heads: { file: string; share: number }[];
+  /** Shirt colours, picked at random for each person; the shorts, shoes and hats get the same colour. */
   shirtColors: string[];
+  /** Skin colours, picked at random for each person. */
+  skinColors: string[];
+  /** Hair colours, picked at random for each person. */
+  hairColors: string[];
+  /** The socks', soles' and collars' colour. */
+  sockColor: string;
+  /** The ponytail tie's colour. */
+  accentColor: string;
   /** Any whole number. The same seed always gives the same crowd. */
   seed: number;
 }
@@ -74,7 +87,13 @@ export const CROWD_SETTINGS: CrowdSettings = {
   cheerEvery: 4,
   armRaise: 150,
   armForward: 20,
-  shirtColor: '#1123eb',
+  heads: [
+    { file: 'hp_hair_short.glb', share: 1 },
+    { file: 'hp_cap.glb', share: 1 },
+    { file: 'hp_ponytail.glb', share: 1 },
+    { file: 'hp_buckethat.glb', share: 1 },
+    { file: 'hp_hair_long.glb', share: 1 },
+  ],
   shirtColors: [
     '#1123eb',
     '#e63946',
@@ -87,5 +106,10 @@ export const CROWD_SETTINGS: CrowdSettings = {
     '#1f2a44',
     '#8ecae6',
   ],
+  // Glenn's five characters' own colours (crowd_manifest.json), and a few darker skin tones and hair colours.
+  skinColors: ['#f8a767', '#fcbf85', '#feca92', '#fbac6b', '#fdc58d', '#d08b56', '#a86a3f', '#7b4a2b'],
+  hairColors: ['#6f2e12', '#5c322b', '#985435', '#8a2e0e', '#925235', '#2b1a12', '#c99a4e'],
+  sockColor: '#f0f0ee',
+  accentColor: '#6d3c26',
   seed: 3,
 };
