@@ -39,17 +39,35 @@ describe('IntroChips', () => {
       }
     }
     expect(chips.mesh.visible).toBe(true);
-    // The smallest chips (just come out) are near the middle of the screen, behind the ball.
-    const small = seen(chips, camera)
-      .filter((c) => c.size > 0)
-      .sort((a, b) => a.size - b.size)[0];
-    expect(Math.hypot(small.view.x, small.view.y - 0)).toBeLessThan(0.5);
+  });
+
+  it('comes out behind the middle of the ball, slowly circles round it and shrinks away inside the screen', () => {
+    const { chips, camera, ball } = setUp();
+    const halfHeight = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    let before = seen(chips, camera);
+    let newOnes = 0;
+    for (let i = 0; i < 60 * 12; i++) {
+      chips.update(1 / 60, camera, ball, 'swirl');
+      const now = seen(chips, camera);
+      now.forEach((chip, j) => {
+        if (chip.size === 0) return;
+        // On screen: never past the top or bottom edge.
+        expect(Math.abs(chip.view.y) / -chip.view.z).toBeLessThan(halfHeight);
+        if (before[j].size === 0) {
+          newOnes++; // just come out: near the middle, behind the ball (2 m away)
+          expect(Math.hypot(chip.view.x, chip.view.y)).toBeLessThan(0.1);
+          expect(-chip.view.z).toBeGreaterThan(2.3);
+        }
+      });
+      before = now;
+    }
+    expect(newOnes).toBeGreaterThan(20); // every chip came round again
   });
 
   it('flies off on Speel nu & Win and is gone soon after, then hides', () => {
     const { chips, camera, ball } = setUp();
     chips.update(1 / 60, camera, ball, 'swirl');
-    for (let i = 0; i < 120; i++) chips.update(1 / 60, camera, ball, 'burst');
+    for (let i = 0; i < 60; i++) chips.update(1 / 60, camera, ball, 'burst');
     expect(
       seen(chips, camera)
         .map((c) => c.size)

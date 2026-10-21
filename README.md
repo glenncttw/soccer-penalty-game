@@ -249,6 +249,10 @@ npx @gltf-transform/cli webp a.glb b.glb --quality 85
 npx @gltf-transform/cli meshopt b.glb public/assets/chips/chip.glb
 ```
 
+How they move is set at the top of `src/scene/introChips.ts`: `LIFE` (seconds for one chip's way round: bigger is
+slower), `CHIP_SIZE` (how big), `REACH` (how far out from the ball the circles go) and `MAX_TILT` (how far the
+circles are tipped apart).
+
 ## The lighting
 
 The light is baked in Blender (`src/scene/lighting.ts` sets it up, right after the grass):
