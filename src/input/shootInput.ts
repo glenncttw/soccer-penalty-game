@@ -181,8 +181,8 @@ export class ShootInput {
   }
 }
 
-/** Typing in a text box (like the ?edit settings editor) isn't playing. */
+/** Typing in a text box (like the ?edit settings editor) or pressing a button with Space or Enter isn't playing. */
 function typing(target: EventTarget | null) {
   const el = target as HTMLElement | null;
-  return !!el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName ?? ''));
+  return !!el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A'].includes(el.tagName ?? ''));
 }

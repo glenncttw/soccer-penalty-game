@@ -1,12 +1,16 @@
 import { PERFECT_MAX, PERFECT_MIN } from '../gameplay/power';
+import type { ShotOutcome } from '../gameplay/round';
+import { scoreBalls } from './screens';
+import { TEXTS } from './texts';
 
-/** HTML overlay: tips, power meter with its gold zone, and banners. */
+/** HTML overlay: tips, the round's score, power meter with its gold zone, and banners. */
 export class Hud {
   private readonly meter: HTMLElement;
   private readonly fill: HTMLElement;
   private readonly banner: HTMLElement;
   private readonly hint: HTMLElement;
   private readonly pop: HTMLElement;
+  private readonly score: HTMLElement;
   private hintText = '';
 
   constructor(root: HTMLElement) {
@@ -17,6 +21,7 @@ export class Hud {
          <div class="meter-zone" style="bottom:${PERFECT_MIN * 100}%;height:${(PERFECT_MAX - PERFECT_MIN) * 100}%"></div>
          <div class="meter-fill"></div>
        </div>
+       <div class="score" role="status" hidden></div>
        <div class="pop"></div>
        <div class="banner"></div>`,
     );
@@ -25,6 +30,17 @@ export class Hud {
     this.fill = root.querySelector('.meter-fill')!;
     this.pop = root.querySelector('.pop')!;
     this.banner = root.querySelector('.banner')!;
+    this.score = root.querySelector('.score')!;
+  }
+
+  /** The round's penalties at the top, one ball each; hidden with null. */
+  showScore(results: ShotOutcome[] | null, shots: number) {
+    this.score.hidden = results === null;
+    if (results === null) return;
+    const goals = results.filter((r) => r === 'goal').length;
+    this.score.innerHTML = scoreBalls(results, shots);
+    this.score.setAttribute('aria-label', TEXTS.scoreLabel(goals, results.length, shots));
+    this.score.children[results.length - 1]?.classList.add('new'); // the latest one pops in
   }
 
   /** Shows a tip at the top, or fades it out with null. */
