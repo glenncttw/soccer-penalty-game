@@ -16,12 +16,17 @@ const SWAY_TILT = 0.007; // radians at the top and bottom screen edges
 const SHAKE_ANGLE = { pitch: 0.022, yaw: 0.018, roll: 0.012 }; // radians at full trauma
 const SHAKE_SPEED = 17; // how fast the shake wobbles
 const TRAUMA_FADE = 1.3; // trauma lost per second
+// The intro: the camera starts close to the goal and pulls straight back to the rest view.
+const INTRO_FORWARD = 10; // metres toward the goal along the view at the start (about 6 m from the goal line)
+const INTRO_RISE = 0.3; // metres higher at the start
 
 export interface CameraState {
   /** True while the player holds a shot. */
   charging: boolean;
   /** Pointer position (x and y in -1..1) to sway toward, or null to settle back to the designed view. */
   swayTarget: { x: number; y: number } | null;
+  /** How close to the goal the intro has the camera: 1 close up, 0 (or left out) the normal view. */
+  intro?: number;
 }
 
 /**
@@ -104,6 +109,9 @@ export function createGameCamera(config: WorldConfig, settings: CameraSettings =
       .applyQuaternion(turn)
       .add(pivot);
     camera.position.y -= PUSH_DROP * push;
+    const intro = state.intro ?? 0;
+    camera.position.addScaledVector(forward, INTRO_FORWARD * intro);
+    camera.position.y += INTRO_RISE * intro;
 
     const s = trauma * trauma;
     euler.set(
@@ -121,7 +129,7 @@ export function createGameCamera(config: WorldConfig, settings: CameraSettings =
     }
   }
 
-  return { camera, restPosition, fit, update, addTrauma, setSettings };
+  return { camera, restPosition, restQuaternion, fit, update, addTrauma, setSettings };
 }
 
 /** The rest position, behind the ball, and the rotation that looks at the target on the goal line. */

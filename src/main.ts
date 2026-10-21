@@ -152,7 +152,14 @@ let playing = false; // a round is on (no intro or end screen in front)
 input.enabled = false;
 // The real ball spins on the intro, then flies down onto the spot on Speel nu (src/scene/introBall.ts).
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const introBall = new IntroBall(ballMesh, camera, renderer.domElement, world.ballRadius, reducedMotion);
+const introBall = new IntroBall(
+  ballMesh,
+  camera,
+  renderer.domElement,
+  world.ballRadius,
+  { position: view.restPosition, quaternion: view.restQuaternion },
+  reducedMotion,
+);
 const introBackdrop = new IntroBackdrop(ballMesh); // the solid purple behind it, opening up from the ball
 let introSeen = false; // after the first time, the ball rises back up from the spot into the intro
 screens.onIntro = () => {
@@ -314,8 +321,7 @@ function startRound() {
   round.reset();
   if (screens.introShown) {
     screens.leaveIntro();
-    const touch = () => effects.kickPuff(BALL_START, world.groundY, 0);
-    introBall.land(touch, beginRound);
+    introBall.land(beginRound);
   } else {
     screens.hide();
     beginRound();
@@ -480,8 +486,13 @@ renderer.setAnimationLoop((time) => {
   // Sway with the mouse while aiming (and hold it while charging), settle back otherwise.
   const sway =
     playing && finePointer && input.hasPointer && !input.usingKeys && (phase === 'aiming' || phase === 'charging');
-  view.update(realDt, { charging: phase === 'charging', swayTarget: sway ? input.pointer : null });
-  introBall.update(realDt, physics.ball.translation(), physics.ball.rotation());
+  introBall.advance(realDt);
+  view.update(realDt, {
+    charging: phase === 'charging',
+    swayTarget: sway ? input.pointer : null,
+    intro: introBall.cameraIntro, // close to the goal on the intro, pulling back as the ball comes down
+  });
+  introBall.place(physics.ball.translation(), physics.ball.rotation());
   trail.update(gameTime, camera.position);
   keeperModel.update(keeper.pose, dt);
   effects.update(dt);

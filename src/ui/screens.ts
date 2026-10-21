@@ -5,26 +5,22 @@ const LOGO_URL = `${import.meta.env.BASE_URL}assets/crowd/flag_logo.svg`;
 const LEAVE_TIME = 300; // milliseconds, as long as the intro-leave animations in style.css
 
 /**
- * The Croky Cup screens over the live stadium: the intro (Speel nu, Info), the info card with
- * how to play, and the end of a round with the score. Plain HTML buttons, so the keyboard and
- * screen readers work with them too.
+ * The Croky Cup screens: the intro (Speel nu & Win) and the end of a round with the score. Plain
+ * HTML buttons, so the keyboard and screen readers work with them too.
  */
 export class Screens {
   onPlay: () => void = () => {};
   /** The intro just came up (the 3D ball goes into `ballSlot`). */
   onIntro: () => void = () => {};
-  /** The empty space on the intro where the real 3D ball is drawn, by the canvas underneath. */
+  /** The empty space in the middle of the intro where the real 3D ball is drawn, by the canvas underneath. */
   readonly ballSlot: HTMLElement;
 
   private readonly intro: HTMLElement;
-  private readonly info: HTMLElement;
   private readonly end: HTMLElement;
-  private infoFrom: HTMLElement | null = null; // where focus goes back to when the info card closes
   private leaveTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(parent: HTMLElement) {
     const t = TEXTS;
-    const rows = t.infoRows.map(([label, text]) => `<dt>${label}</dt><dd>${text}</dd>`).join('');
     const root = document.createElement('div');
     parent.append(root);
     root.insertAdjacentHTML(
@@ -34,12 +30,10 @@ export class Screens {
            <div class="intro-top">
              <img class="screen-logo" src="${LOGO_URL}" alt="Croky" />
              <h1 class="screen-title">${t.title}</h1>
-             <p class="screen-tagline">${t.tagline}</p>
            </div>
            <div class="intro-ball" aria-hidden="true"></div>
            <div class="intro-bottom">
-             <button class="btn btn-primary" data-act="play">${t.play}</button>
-             <button class="btn btn-secondary" data-act="info">${t.info}</button>
+             <button class="btn btn-primary" data-act="play">${escapeHtml(t.play)}</button>
            </div>
          </div>
        </section>
@@ -52,33 +46,19 @@ export class Screens {
            <button class="btn btn-primary" data-act="play">${t.again}</button>
            <button class="btn btn-secondary" data-act="menu">${t.menu}</button>
          </div>
-       </section>
-       <div class="screen info" lang="${t.lang}" role="dialog" aria-modal="true" aria-labelledby="info-title" hidden>
-         <div class="info-card">
-           <button class="info-close" data-act="close" aria-label="${t.close}">✕</button>
-           <h2 id="info-title">${t.infoTitle}</h2>
-           <dl>${rows}</dl>
-           <button class="btn btn-primary" data-act="close">${t.back}</button>
-         </div>
-       </div>`,
+       </section>`,
     );
     this.intro = root.querySelector('.screen.intro')!;
-    this.info = root.querySelector('.screen.info')!;
     this.end = root.querySelector('.screen.end')!;
     this.ballSlot = root.querySelector('.intro-ball')!;
 
-    for (const screen of [this.intro, this.end, this.info]) {
+    for (const screen of [this.intro, this.end]) {
       screen.addEventListener('click', (e) => {
         const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
         if (act === 'play') this.onPlay();
-        else if (act === 'info') this.openInfo();
         else if (act === 'menu') this.showIntro();
-        else if (act === 'close' || e.target === this.info) this.closeInfo(); // also a tap beside the card
       });
     }
-    window.addEventListener('keydown', (e) => {
-      if (e.code === 'Escape' && !this.info.hidden) this.closeInfo();
-    });
   }
 
   /** True while a screen covers the game. */
@@ -100,10 +80,9 @@ export class Screens {
     this.onIntro();
   }
 
-  /** Speel nu: the words move up and the buttons down, out of the way of the ball, then the intro closes. */
+  /** Speel nu & Win: the title moves up and the button down, out of the way of the ball, then the intro closes. */
   leaveIntro() {
     (document.activeElement as HTMLElement | null)?.blur();
-    this.info.hidden = true;
     this.intro.classList.add('leaving');
     clearTimeout(this.leaveTimer);
     this.leaveTimer = setTimeout(() => {
@@ -130,18 +109,6 @@ export class Screens {
     (document.activeElement as HTMLElement | null)?.blur(); // so Space doesn't press a hidden button
     this.intro.hidden = true;
     this.end.hidden = true;
-    this.info.hidden = true;
-  }
-
-  private openInfo() {
-    this.infoFrom = document.activeElement as HTMLElement | null;
-    this.info.hidden = false;
-    this.info.querySelector<HTMLElement>('.btn')!.focus();
-  }
-
-  private closeInfo() {
-    this.info.hidden = true;
-    this.infoFrom?.focus();
   }
 
   private focus(screen: HTMLElement) {
@@ -156,4 +123,8 @@ export function scoreBalls(results: ShotOutcome[], shots: number) {
     const kind = r === undefined ? 'todo' : r === 'goal' ? 'goal' : 'miss';
     return `<span class="ball ${kind}">${kind === 'goal' ? '✓' : kind === 'miss' ? '✕' : ''}</span>`;
   }).join('');
+}
+
+function escapeHtml(text: string) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

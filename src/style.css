@@ -278,7 +278,7 @@ body {
   }
 }
 
-/* The Croky Cup screens: intro, end of a round and the info card (src/ui/screens.ts). */
+/* The Croky Cup screens: the intro and the end of a round (src/ui/screens.ts). */
 .screen {
   position: absolute;
   inset: 0;
@@ -351,10 +351,14 @@ body {
   background: none;
 }
 
+/* The ball sits exactly in the middle of the screen: the title above it, the button below. */
 .screen.intro .screen-body {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
+  justify-items: center;
+  gap: 20px;
+  width: 100%;
   height: 100%;
-  justify-content: center;
-  gap: 10px;
 }
 
 .intro-top,
@@ -365,53 +369,43 @@ body {
   gap: 14px;
 }
 
-.intro-top .screen-tagline {
-  margin: 0;
+.intro-top {
+  align-self: end;
 }
 
-/* The ball is as big as this space's shorter side: it takes what the words and buttons leave free. */
+.intro-bottom {
+  align-self: start;
+}
+
 .intro-ball {
-  flex: 1 1 0;
-  width: min(260px, 64vw);
-  min-height: 90px;
-  max-height: 320px;
+  width: max(110px, min(64vw, 36vh, 260px));
+  aspect-ratio: 1;
 }
 
-/* Phones held sideways: a smaller logo and the buttons side by side, so the ball still has room. */
+/* Phones held sideways: a smaller logo and title, so they fit above the ball. */
 @media (max-height: 500px) {
   .screen.intro {
     padding: 12px 16px;
   }
 
-  .screen.intro .screen-body,
+  .screen.intro .screen-body {
+    gap: 12px;
+  }
+
   .intro-top {
     gap: 6px;
   }
 
   .intro-top .screen-logo {
-    width: 64px;
+    width: 52px;
   }
 
-  .intro-bottom {
-    flex-direction: row;
-  }
-
-  .intro-ball {
-    min-height: 70px;
+  .intro-top .screen-title {
+    font-size: 40px;
   }
 }
 
-/* Over the bare stadium the outline button needs a fill of its own to stay readable. */
-.screen.intro .btn-secondary {
-  background: #6c398b;
-  box-shadow: 0 4px 0 #3b1f4f;
-}
-
-.screen.intro .btn-secondary:hover {
-  background: #7d47a0;
-}
-
-/* Speel nu: the words move up and the buttons down, out of the way of the ball (src/ui/screens.ts). */
+/* Speel nu & Win: the title moves up and the button down, out of the way of the ball (src/ui/screens.ts). */
 .screen.intro.leaving {
   pointer-events: none;
 }
@@ -463,8 +457,7 @@ body {
   transition: transform 0.12s;
 }
 
-.btn:focus-visible,
-.info-close:focus-visible {
+.btn:focus-visible {
   outline: 4px solid #ffffff;
   outline-offset: 4px;
 }
@@ -525,69 +518,6 @@ body {
   font-size: 15px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-.screen.info {
-  background: rgba(59, 31, 79, 0.6);
-}
-
-.info-card {
-  position: relative;
-  width: min(440px, 100%);
-  box-sizing: border-box;
-  padding: 28px 26px 26px;
-  border-radius: 24px;
-  background: #ffffff;
-  color: #3b1f4f;
-  box-shadow: 0 8px 0 #3b1f4f;
-  animation: screen-in 0.4s cubic-bezier(0.2, 1.4, 0.4, 1);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.info-card h2 {
-  margin: 0 0 14px;
-  color: #e5186f;
-  font-size: 30px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.info-card dl {
-  margin: 0 0 22px;
-  width: 100%;
-  font-size: 15px;
-  line-height: 1.4;
-}
-
-.info-card dt {
-  margin-top: 10px;
-  color: #6c398b;
-  font-weight: 900;
-  font-size: 13px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.info-card dd {
-  margin: 2px 0 0;
-}
-
-.info-close {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  width: 44px;
-  height: 44px;
-  border: 0;
-  border-radius: 50%;
-  background: #f1e9f6;
-  color: #6c398b;
-  font:
-    900 18px/1 system-ui,
-    sans-serif;
-  cursor: pointer;
 }
 
 /* The loading bar, shown until the game is ready (src/ui/preloader.ts). */
