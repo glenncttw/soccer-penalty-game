@@ -52,16 +52,15 @@ export function replayCameraPose(
     target = mix(look, { x: end.x * 0.6, y: Math.max(ground + 0.8, end.y), z: lineZ - 0.5 }, 0.5);
     fov = 50;
   } else if (angle === 'high') {
-    // Higher up and further back than the game's camera, on the far side of the shot, like a TV
-    // camera, slowly pushing in.
+    // Up high on the far side of the shot, like a TV camera, gliding in toward the goal with the ball.
     const k = smooth(progress);
     position = mix(
-      { x: -side * 1.5, y: ground + 2.2, z: lineZ + 17.5 },
-      { x: -side * 1.2, y: ground + 1.9, z: lineZ + 13 },
+      { x: -side * 1.6, y: ground + 2.4, z: lineZ + 17 },
+      { x: -side * 2.4, y: ground + 1.8, z: lineZ + 7.5 },
       k,
     );
-    target = mix(look, { x: end.x * 0.7, y: ground + 1, z: lineZ - 0.3 }, 0.45);
-    fov = 40;
+    target = mix(look, { x: end.x * 0.7, y: ground + 1, z: lineZ - 0.3 }, 0.4);
+    fov = 38;
   } else {
     // Low and a little to the side, on the other side from where the ball went. It rides along a
     // couple of metres behind the ball, then stops beside the goal and lets the ball go on into
