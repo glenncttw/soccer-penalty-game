@@ -13,7 +13,10 @@ The game opens on the **Croky Cup** intro screen: solid Croky purple with the re
 middle. **Speel nu & Win** opens the purple up in a growing circle from the ball, the camera pulls back from close to
 the goal to where you shoot from, and the ball swoops and spins down onto the penalty spot; then a round starts
 (`src/scene/introBall.ts`, `src/scene/introBackdrop.ts`; with reduced motion turned on in the device settings the ball
-stands still, the camera doesn't move and the purple fades). A round is 5 penalties; the balls in the top right corner fill in as you go (✓ goal,
+stands still, the camera doesn't move and the purple fades). Croky chips swirl out from behind the ball
+(`src/scene/introChips.ts`), and the menu button in the top right corner opens **Speel nu & Win**, the prizes, the
+terms, the cookie policy and a Dutch/French switch. The menu's words are in `src/ui/texts.ts`; give the prizes,
+terms and cookie policy a web address in `src/ui/links.ts` and they open that page instead of a placeholder text. A round is 5 penalties; the balls in the top right corner fill in as you go (✓ goal,
 ✕ saved or missed). After the fifth penalty (and its replay) the end screen shows how many you scored and your
 record on this device, with **Speel opnieuw** and **Menu**. The screens are in Dutch; their words are all in
 `src/ui/texts.ts`, the round itself in `src/gameplay/round.ts` (`ROUND_SHOTS`).
@@ -231,6 +234,19 @@ npx @gltf-transform/cli resize in.glb a.glb --width 1024 --height 1024
 npx @gltf-transform/cli webp a.glb b.glb --slots "{baseColorTexture,metallicRoughnessTexture}" --quality 88
 python3 tools/glb_image_to_jpeg.py b.glb GAME_Parrot_normal 90 c.glb
 npx @gltf-transform/cli meshopt c.glb public/assets/keeper/Parrot_GK.glb
+```
+
+## The intro chips
+
+`public/assets/chips/chip.glb` is "Chips" by reezzy on Sketchfab
+(https://sketchfab.com/3d-models/chips-bac5fb96ec4345348ad530b4289c648e), licensed CC BY-NC 4.0: it needs this
+credit and may not be used commercially, so it has to be replaced (or licensed) before a real Croky campaign. It was
+made lighter the same way as the keeper, with 256 x 256 pictures:
+
+```sh
+npx @gltf-transform/cli resize in.glb a.glb --width 256 --height 256
+npx @gltf-transform/cli webp a.glb b.glb --quality 85
+npx @gltf-transform/cli meshopt b.glb public/assets/chips/chip.glb
 ```
 
 ## The lighting

@@ -99,6 +99,11 @@ export class IntroBall {
     return this.state === 'land';
   }
 
+  /** True while the ball waits in the middle of the intro. */
+  get floating() {
+    return this.state === 'float';
+  }
+
   /** Shows the ball in `slot`; with `lift`, it first rises there from the penalty spot. */
   float(slot: BallSlot, lift = false) {
     this.slot = slot;

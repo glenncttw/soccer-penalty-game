@@ -24,6 +24,7 @@ import { FloodlightGlow } from './scene/floodlightGlow';
 import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera';
 import { IntroBackdrop } from './scene/introBackdrop';
 import { IntroBall } from './scene/introBall';
+import { IntroChips, loadChipModel } from './scene/introChips';
 import { applyGrass } from './scene/grass';
 import { KeeperModel } from './scene/keeper';
 import { loadKeeperModel } from './scene/keeperAsset';
@@ -84,6 +85,7 @@ const preloader = new Preloader();
 
 // The keeper's and the crowd's Blender models load alongside the stadium.
 const keeperAsset = loadKeeperModel();
+const chipAsset = loadChipModel();
 const crowdParts = loadCrowdParts(CROWD_SETTINGS.heads.map((h) => h.file));
 const flagLogo = loadFlagLogo(renderer);
 // The Blender stadium is the whole environment: pitch, goal, stands, ball and sun.
@@ -161,6 +163,11 @@ const introBall = new IntroBall(
   reducedMotion,
 );
 const introBackdrop = new IntroBackdrop(ballMesh); // the solid purple behind it, opening up from the ball
+// Croky chips swirling out from behind the ball on the intro (fewer on phones; none with reduced motion).
+const introChips = new IntroChips(await chipAsset, touchScreen ? 14 : 24);
+lightMovingObject(introChips.mesh, envMap);
+introChips.mesh.castShadow = false;
+scene.add(introChips.mesh);
 let introSeen = false; // after the first time, the ball rises back up from the spot into the intro
 screens.onIntro = () => {
   introBall.float(screens.ballSlot, introSeen);
@@ -493,6 +500,8 @@ renderer.setAnimationLoop((time) => {
     intro: introBall.cameraIntro, // close to the goal on the intro, pulling back as the ball comes down
   });
   introBall.place(physics.ball.translation(), physics.ball.rotation());
+  const chipsMode = reducedMotion ? 'off' : introBall.floating ? 'swirl' : introBall.landing ? 'burst' : 'off';
+  introChips.update(realDt, camera, ballMesh, chipsMode);
   trail.update(gameTime, camera.position);
   keeperModel.update(keeper.pose, dt);
   effects.update(dt);

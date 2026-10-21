@@ -3,7 +3,8 @@ import * as THREE from 'three';
 const COLOR = '#402985'; // Croky purple
 const RIM_COLOR = '#ffcf3a'; // the gold of the Speel nu button
 const RIM_WIDTH = 6; // CSS pixels of gold around the hole
-const BALL_LAYER = 7; // the ball (and the lights on it) are drawn again on this layer, over the purple
+/** The ball (and the lights on it, and the intro chips) are drawn again on this layer, over the purple. */
+export const OVER_PURPLE_LAYER = 7;
 
 /**
  * The solid purple behind the intro, drawn in WebGL so the real ball can sit on top of it. On Speel nu
@@ -27,7 +28,7 @@ export class IntroBackdrop {
   private stadiumDrawn = false;
 
   constructor(private readonly ball: THREE.Object3D) {
-    ball.traverse((o) => o.layers.enable(BALL_LAYER));
+    ball.traverse((o) => o.layers.enable(OVER_PURPLE_LAYER));
     const material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
       vertexShader: /* glsl */ `
@@ -76,7 +77,7 @@ export class IntroBackdrop {
     }
     if (!this.lightsOnLayer) {
       scene.traverse((o) => {
-        if (o instanceof THREE.Light) o.layers.enable(BALL_LAYER);
+        if (o instanceof THREE.Light) o.layers.enable(OVER_PURPLE_LAYER);
       });
       this.lightsOnLayer = true;
     }
@@ -106,7 +107,7 @@ export class IntroBackdrop {
     renderer.render(this.overlay, this.screen);
     renderer.clearDepth();
     // The ball again, on top, with the same lights; the sun's shadows from the stadium pass are kept.
-    camera.layers.set(BALL_LAYER);
+    camera.layers.set(OVER_PURPLE_LAYER);
     renderer.shadowMap.autoUpdate = false;
     renderer.render(scene, camera);
     camera.layers.mask = layers;
