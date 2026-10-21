@@ -7,13 +7,12 @@ import type { WorldConfig } from '../worldConfig';
 import { BallTrail } from './ball';
 import type { BallFade } from './ballFade';
 import type { KeeperModel } from './keeper';
+import { REPLAY_ANGLES, replayCameraPose, type ReplayAngle } from './replayCamera';
 import { REPLAY_SETTINGS, type ReplaySettings } from './replaySettings';
 
 const SHADOW = 0x3b1f4f; // the panel's drop shadow: a deep purple
 const POP_TIME = 0.4; // seconds the panel takes to pop in
 const TILT = THREE.MathUtils.degToRad(-1.5); // the panel leans a little, like a sticker
-const FOLLOW_DISTANCE = 2.4; // metres the replay camera rides behind the ball
-const STOP_DISTANCE = 4.2; // metres in front of the goal line where it stops
 const TAG_SPACE = 64; // CSS pixels kept free at the top for the "REPLAY" label
 
 export interface ReplayParts {
@@ -31,9 +30,9 @@ export interface ReplayParts {
 
 /**
  * Records every shot and, after a big moment, plays it back slowly in one comic-style panel in
- * the middle of the screen, from a low camera beside the goal that creeps in and follows the
- * ball, so the ball, the keeper and the net are all in the picture. It looks toward the goal,
- * the part of the stadium that is built.
+ * the middle of the screen: the ball flying to the goal, up to just after it hits the keeper, the
+ * frame or the net. Each replay takes the next camera angle (see replayCamera.ts); they all look
+ * toward the goal, the part of the stadium that is built.
  */
 export class Replay {
   readonly recorder = new ReplayRecorder();
@@ -56,6 +55,8 @@ export class Replay {
   private trailStop: number | null = null;
   private nextPush = 0;
   private side = 1;
+  private angle = -1; // index into REPLAY_ANGLES; the first replay takes the first angle
+  private forced: number | null = null;
   private readonly end = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
   private readonly ballNow = new THREE.Vector3();
@@ -97,6 +98,12 @@ export class Replay {
     renderer.setRenderTarget(null);
   }
 
+  /** Always use this angle (for checking one angle: add ?replayAngle=follow, behind or high to the address). */
+  forceAngle(name: string) {
+    const i = REPLAY_ANGLES.indexOf(name as ReplayAngle);
+    this.forced = i >= 0 ? i : null;
+  }
+
   /** Call at the kick. */
   begin(gameTime: number) {
     this.recorder.start(gameTime);
@@ -113,15 +120,22 @@ export class Replay {
     return (result === 'goal' && m.goal) || (result === 'saved' && m.save) || (woodwork && m.woodwork);
   }
 
-  /** Starts playing back the last shot. Call while the screen is covered. */
-  start() {
+  /**
+   * Starts playing back the last shot. Call while the screen is covered. For a goal it plays on to
+   * the ball hitting the net (not stopping at a post it went in off); otherwise to the first thing
+   * the ball hit: the keeper's hands, the post or the bar.
+   */
+  start(goal: boolean) {
     const r = this.recorder;
     if (!r.frames.length) return;
-    this.window = replayWindow(r.kickAt, r.resultAt ?? r.endAt, r.endAt, this.settings);
-    r.sample(r.resultAt ?? r.endAt, this.frame);
+    this.trailStop = this.parts.trail.stopTime;
+    const resultAt = r.resultAt ?? r.endAt;
+    const impactAt = r.impactAfter(goal ? resultAt : r.kickAt);
+    this.window = replayWindow(r.kickAt, resultAt, r.endAt, this.settings, impactAt);
+    r.sample(this.window.end, this.frame);
     this.end.set(this.frame.ball.x, this.frame.ball.y, this.frame.ball.z);
     this.side = this.end.x >= 0 ? 1 : -1;
-    this.trailStop = this.parts.trail.stopTime;
+    this.angle = this.forced ?? (this.angle + 1) % REPLAY_ANGLES.length;
     this.trail.setStyle(this.parts.trail.currentStyle);
     this.trail.clear();
     this.trail.mesh.visible = true;
@@ -221,31 +235,22 @@ export class Replay {
     return t;
   }
 
-  /**
-   * Low and a little to the side, on the other side from where the ball went. It rides along
-   * a couple of metres behind the ball as it flies, then stops beside the goal and lets the
-   * ball go on into the keeper and the net. It looks between the ball and the spot where the
-   * shot ended, so the ball, the keeper and the goal stay in the picture.
-   */
+  /** Puts the camera where this replay's angle wants it, following the ball a little smoothed. */
   private aim(realDt: number) {
     const { world } = this.parts;
-    const g = world.goal;
-    const ground = world.groundY;
     this.look.lerp(this.ballNow, 1 - Math.exp(-5 * realDt));
-    const cam = this.camera;
-    cam.position.set(-this.side * 1.1, ground + 0.4, Math.max(g.lineZ + STOP_DISTANCE, this.look.z + FOLLOW_DISTANCE));
-    cam.lookAt(
-      lerp(this.look.x, this.end.x * 0.8, 0.4),
-      lerp(Math.max(ground + 0.4, this.look.y), ground + 0.85, 0.4),
-      lerp(this.look.z, g.lineZ - 0.3, 0.4),
+    const pose = replayCameraPose(
+      REPLAY_ANGLES[this.angle],
+      this.look,
+      { lineZ: world.goal.lineZ, groundY: world.groundY, end: this.end, side: this.side },
+      this.elapsed / Math.max(this.window.length, 1e-6),
     );
-    cam.fov = 48;
+    const cam = this.camera;
+    cam.position.set(pose.position.x, pose.position.y, pose.position.z);
+    cam.lookAt(pose.target.x, pose.target.y, pose.target.z);
+    cam.fov = pose.fov;
     cam.updateProjectionMatrix();
   }
-}
-
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t;
 }
 
 /** 0 → 1 with a springy overshoot. */

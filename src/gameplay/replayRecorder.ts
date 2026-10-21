@@ -20,9 +20,12 @@ export class ReplayRecorder {
   /** Game time of the kick and of the moment the result was decided. */
   kickAt = 0;
   resultAt: number | null = null;
+  /** Game times the ball hit something other than the grass (the keeper, the frame, the net, the boards). */
+  readonly impacts: number[] = [];
 
   start(t: number) {
     this.frames.length = 0;
+    this.impacts.length = 0;
     this.kickAt = t;
     this.resultAt = null;
   }
@@ -42,6 +45,15 @@ export class ReplayRecorder {
 
   markResult(t: number) {
     this.resultAt ??= t;
+  }
+
+  markImpact(t: number) {
+    this.impacts.push(t);
+  }
+
+  /** The first time the ball hit something at or after game time `t`, or null. */
+  impactAfter(t: number): number | null {
+    return this.impacts.find((i) => i >= t) ?? null;
   }
 
   get endAt() {
@@ -82,17 +94,19 @@ export function blankFrame(): ReplayFrame {
 }
 
 /**
- * Which part of the shot to replay, and how fast. It ends `afterResult` seconds after the result
- * and covers at most `duration` × `slowest` seconds of the shot, so the slowest replay lasts
- * `duration`; shorter shots play a little slower, down to `slowest`, to fill the time.
+ * Which part of the shot to replay, and how fast. It ends `afterImpact` seconds after the ball first
+ * hit something (the keeper, the frame, the net) or `afterResult` seconds after the result, whichever
+ * comes first, so it never shows the ball rolling away. It covers at most `duration` × `fastest`
+ * seconds of the shot; shorter shots play a little slower, down to `slowest`, to fill the time.
  */
 export function replayWindow(
   kickAt: number,
   resultAt: number,
   endAt: number,
-  s: { duration: number; slowest: number; fastest: number; afterResult: number },
+  s: { duration: number; slowest: number; fastest: number; afterResult: number; afterImpact: number },
+  impactAt: number | null = null,
 ) {
-  const end = Math.min(endAt, resultAt + s.afterResult);
+  const end = Math.min(endAt, resultAt + s.afterResult, impactAt === null ? Infinity : impactAt + s.afterImpact);
   const start = Math.max(kickAt, end - s.duration * s.fastest);
   const rate = Math.max(s.slowest, (end - start) / s.duration);
   return { start, end, rate, length: (end - start) / rate };
