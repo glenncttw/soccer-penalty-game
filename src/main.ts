@@ -22,6 +22,7 @@ import { CROWD_SETTINGS } from './scene/crowdSettings';
 import { Effects } from './scene/effects';
 import { FloodlightGlow } from './scene/floodlightGlow';
 import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera';
+import { IntroBall } from './scene/introBall';
 import { applyGrass } from './scene/grass';
 import { KeeperModel } from './scene/keeper';
 import { loadKeeperModel } from './scene/keeperAsset';
@@ -148,6 +149,14 @@ const round = new Round();
 const screens = new Screens(document.querySelector<HTMLElement>('#hud')!);
 let playing = false; // a round is on (no intro or end screen in front)
 input.enabled = false;
+// The real ball spins on the intro, then flies down onto the spot on Speel nu (src/scene/introBall.ts).
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const introBall = new IntroBall(ballMesh, camera, renderer.domElement, world.ballRadius, reducedMotion);
+let introSeen = false; // after the first time, the ball rises back up from the spot into the intro
+screens.onIntro = () => {
+  introBall.float(screens.ballSlot, introSeen);
+  introSeen = true;
+};
 // After a goal, save or woodwork: a slow replay in comic panels, between two wipes; see src/scene/replaySettings.ts.
 const replay = new Replay({
   world,
@@ -297,11 +306,22 @@ function nextShot() {
   else input.enabled = true;
 }
 
-/** Speel nu (or Speel opnieuw): a fresh round from the first penalty. */
+/** Speel nu (or Speel opnieuw): a fresh round from the first penalty, once the ball is on the spot. */
 function startRound() {
+  if (introBall.landing) return;
   round.reset();
+  if (screens.introShown) {
+    screens.leaveIntro();
+    const touch = () => effects.kickPuff(BALL_START, world.groundY, 0);
+    introBall.land(touch, beginRound);
+  } else {
+    screens.hide();
+    beginRound();
+  }
+}
+
+function beginRound() {
   hud.showScore(round.results, round.shots);
-  screens.hide();
   playing = true;
   input.enabled = phase === 'aiming';
 }
@@ -458,6 +478,7 @@ renderer.setAnimationLoop((time) => {
   const sway =
     playing && finePointer && input.hasPointer && !input.usingKeys && (phase === 'aiming' || phase === 'charging');
   view.update(realDt, { charging: phase === 'charging', swayTarget: sway ? input.pointer : null });
+  introBall.update(realDt, physics.ball.translation(), physics.ball.rotation());
   trail.update(gameTime, camera.position);
   keeperModel.update(keeper.pose, dt);
   effects.update(dt);
