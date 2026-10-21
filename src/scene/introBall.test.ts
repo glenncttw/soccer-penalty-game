@@ -126,3 +126,38 @@ describe('IntroBall', () => {
     expect(ball.position.z).toBe(SPOT.z);
   });
 });
+
+describe('reveal', () => {
+  it('is all purple while the ball floats, opens up as it flies, and is gone once it rests', () => {
+    const { camera, ball, view } = setUp(1280, 720);
+    const intro = new IntroBall(ball, camera, view, RADIUS);
+    expect(intro.reveal).toBe(1);
+    intro.float(rect(540, 260, 200, 200));
+    intro.update(1, SPOT, REST);
+    expect(intro.reveal).toBe(0);
+    intro.land(
+      () => {},
+      () => {},
+    );
+    intro.update(0.1, SPOT, REST);
+    expect(intro.reveal).toBe(0); // the words move away first
+    let last = 0;
+    for (let i = 0; i < 50; i++) {
+      intro.update(1 / 60, SPOT, REST);
+      expect(intro.reveal).toBeGreaterThanOrEqual(last);
+      last = intro.reveal;
+    }
+    for (let i = 0; i < 200 && intro.active; i++) intro.update(1 / 60, SPOT, REST);
+    expect(intro.reveal).toBe(1);
+  });
+
+  it('closes again as the ball rises back into the intro', () => {
+    const { camera, ball, view } = setUp(1280, 720);
+    const intro = new IntroBall(ball, camera, view, RADIUS);
+    intro.float(rect(540, 260, 200, 200), true);
+    intro.update(1 / 60, SPOT, REST);
+    expect(intro.reveal).toBeGreaterThan(0.99);
+    for (let i = 0; i < 60; i++) intro.update(1 / 60, SPOT, REST);
+    expect(intro.reveal).toBe(0);
+  });
+});

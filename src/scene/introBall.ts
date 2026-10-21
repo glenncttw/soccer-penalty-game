@@ -10,6 +10,8 @@ const BOUNCE_TIME = 0.18; // seconds of the little hop after it touches down
 const BOUNCE_HEIGHT = 0.03; // metres
 const LIFT_TIME = 0.8; // seconds back up from the spot into the intro (Menu on the end screen)
 const STILL_WAIT = 0.3; // with reduced motion: no flight, the ball is just on the spot after this
+const REVEAL_DELAY = 0.15; // seconds before the purple starts opening up from the ball
+const REVEAL_TIME = 0.75; // seconds for the opening to grow past the corners of the screen
 
 /** Something on screen the ball is drawn in: the intro's empty space between the title and the buttons. */
 export interface BallSlot {
@@ -51,6 +53,18 @@ export class IntroBall {
   /** True while it moves the ball (so a shot can't start yet). */
   get active() {
     return this.state !== 'off';
+  }
+
+  /**
+   * How far the purple intro background has gone (see introBackdrop.ts): 0 all purple while the ball
+   * floats, opening up from the ball as it flies down, 1 once it's gone; closing again on the way up.
+   */
+  get reveal() {
+    if (this.state === 'off') return 1;
+    if (this.state === 'float') return 0;
+    if (this.state === 'lift') return 1 - easeInOutCubic(Math.min(1, this.time / LIFT_TIME));
+    if (this.reducedMotion) return Math.min(1, this.time / STILL_WAIT);
+    return easeOutCubic(Math.min(1, Math.max(0, this.time - REVEAL_DELAY) / REVEAL_TIME));
   }
 
   /** True while the ball is on its way down to the spot. */
@@ -180,6 +194,11 @@ export function flightPoint(from: THREE.Vector3, to: THREE.Vector3, s: number, a
 /** Starts gently, speeds up, and slows down again at the end. */
 export function easeInOutCubic(t: number) {
   return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
+/** Fast at first, then slowing down. */
+export function easeOutCubic(t: number) {
+  return 1 - (1 - t) ** 3;
 }
 
 function smoothstep(a: number, b: number, x: number) {

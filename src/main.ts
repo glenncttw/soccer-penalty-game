@@ -22,6 +22,7 @@ import { CROWD_SETTINGS } from './scene/crowdSettings';
 import { Effects } from './scene/effects';
 import { FloodlightGlow } from './scene/floodlightGlow';
 import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera';
+import { IntroBackdrop } from './scene/introBackdrop';
 import { IntroBall } from './scene/introBall';
 import { applyGrass } from './scene/grass';
 import { KeeperModel } from './scene/keeper';
@@ -152,6 +153,7 @@ input.enabled = false;
 // The real ball spins on the intro, then flies down onto the spot on Speel nu (src/scene/introBall.ts).
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const introBall = new IntroBall(ballMesh, camera, renderer.domElement, world.ballRadius, reducedMotion);
+const introBackdrop = new IntroBackdrop(ballMesh); // the solid purple behind it, opening up from the ball
 let introSeen = false; // after the first time, the ball rises back up from the spot into the intro
 screens.onIntro = () => {
   introBall.float(screens.ballSlot, introSeen);
@@ -404,7 +406,8 @@ renderer.setAnimationLoop((time) => {
   gameTime += dt;
   phaseTime += realDt;
   markers.update(realDt);
-  if (testPixelRatio === null) autoSharpness?.frame(time, phase === 'aiming');
+  // Not measured on the intro: while it's all purple the stadium isn't drawn, so those frames are light.
+  if (testPixelRatio === null) autoSharpness?.frame(time, phase === 'aiming' && !introBall.active);
 
   const keyStep = input.keyStep(realDt); // held arrow keys: aim while aiming, curl while charging
   if (phase === 'aiming') {
@@ -492,7 +495,7 @@ renderer.setAnimationLoop((time) => {
     replay.render(realDt);
     if (replay.finished) endReplay();
   } else {
-    renderer.render(scene, camera);
+    introBackdrop.render(renderer, scene, camera, introBall.reveal, reducedMotion);
   }
   perf.end(time);
 });

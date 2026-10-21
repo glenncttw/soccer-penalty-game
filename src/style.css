@@ -346,7 +346,7 @@ body {
   text-shadow: 0 3px 0 #3b1f4f;
 }
 
-/* The intro has no colour over the stadium: the real ball spins in the empty space in the middle. */
+/* The intro's solid purple is drawn by the game under the ball (src/scene/introBackdrop.ts), not here. */
 .screen.intro {
   background: none;
 }
