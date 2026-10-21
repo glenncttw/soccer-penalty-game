@@ -36,6 +36,8 @@ import { loadStadium } from './scene/stadiumAsset';
 import { COACH_AIM_EITHER, COACH_KEY_TEXT, COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
 import { PerfStats } from './ui/perfStats';
+import { readBest, Round, saveBest } from './gameplay/round';
+import { Screens } from './ui/screens';
 import { Preloader } from './ui/preloader';
 import { Wipe } from './ui/wipe';
 
@@ -141,6 +143,11 @@ const outcome = new OutcomeTracker(world.goal, world.ballRadius);
 const events = new GameEvents();
 const slowMotion = new SlowMotion();
 const coach = new Coach();
+// A round of the Croky Cup: 5 penalties, between the intro screen and the end screen.
+const round = new Round();
+const screens = new Screens(document.querySelector<HTMLElement>('#hud')!);
+let playing = false; // a round is on (no intro or end screen in front)
+input.enabled = false;
 // After a goal, save or woodwork: a slow replay in comic panels, between two wipes; see src/scene/replaySettings.ts.
 const replay = new Replay({
   world,
@@ -242,6 +249,8 @@ function showResult() {
     hud.showBanner('MISS!', lastQuality === 'skied' ? 'too much power' : lastQuality === 'weak' ? 'not enough power' : '');
   }
   replay.recorder.markResult(gameTime);
+  round.record(outcome.result!);
+  hud.showScore(round.results, round.shots);
   setPhase('result');
   events.emit('result', { result: outcome.result!, quality: lastQuality, woodwork: outcome.hitFrame });
 }
@@ -283,8 +292,29 @@ function resetShot() {
 
 function nextShot() {
   if (phase !== 'wipe') return;
-  input.enabled = true;
   setPhase('aiming');
+  if (round.over) endRound();
+  else input.enabled = true;
+}
+
+/** Speel nu (or Speel opnieuw): a fresh round from the first penalty. */
+function startRound() {
+  round.reset();
+  hud.showScore(round.results, round.shots);
+  screens.hide();
+  playing = true;
+  input.enabled = phase === 'aiming';
+}
+screens.onPlay = startRound;
+
+/** After the last penalty: the end screen with the score. */
+function endRound() {
+  playing = false;
+  input.enabled = false;
+  hud.showScore(null, round.shots);
+  const before = readBest();
+  saveBest(round.goals);
+  screens.showEnd(round.results, round.shots, readBest(), before !== null && round.goals > before);
 }
 
 // The canvas fills the page (see style.css); only the number of pixels behind it changes.
@@ -344,6 +374,7 @@ let gameTime = 0;
 const PREVIEW_POWER = (PERFECT_MIN + PERFECT_MAX) / 2; // the preview shows a well-struck shot
 
 preloader.done();
+screens.showIntro();
 
 renderer.setAnimationLoop((time) => {
   perf.begin(time);
@@ -357,7 +388,7 @@ renderer.setAnimationLoop((time) => {
 
   const keyStep = input.keyStep(realDt); // held arrow keys: aim while aiming, curl while charging
   if (phase === 'aiming') {
-    if (input.hasPointer) {
+    if (playing && input.hasPointer) {
       updateAim(keyStep);
       markers.showReticle(aim, { charging: false, power: 0, perfect: false }, realDt);
     } else {
@@ -375,10 +406,12 @@ renderer.setAnimationLoop((time) => {
   }
   const tip = coach.update(phase === 'wipe' || phase === 'replay' ? 'result' : phase, input.curl);
   const tipText = input.usingKeys ? COACH_KEY_TEXT : COACH_TEXT;
-  hud.showHint(tip === 'aim' && finePointer && !input.usingKeys ? COACH_AIM_EITHER : tip ? tipText[tip] : null);
+  hud.showHint(
+    !playing ? null : tip === 'aim' && finePointer && !input.usingKeys ? COACH_AIM_EITHER : tip ? tipText[tip] : null,
+  );
 
   // The keeper edges toward where you aim while you line up the shot, and gets set while you charge.
-  keeper.aimX = phase === 'charging' || (phase === 'aiming' && input.hasPointer) ? aim.x : null;
+  keeper.aimX = phase === 'charging' || (playing && phase === 'aiming' && input.hasPointer) ? aim.x : null;
   keeper.set = phase === 'charging';
 
   accumulator += dt;
@@ -422,7 +455,8 @@ renderer.setAnimationLoop((time) => {
   if (phase === 'flight' || phase === 'result') replay.record(gameTime, p, q, keeper.pose);
 
   // Sway with the mouse while aiming (and hold it while charging), settle back otherwise.
-  const sway = finePointer && input.hasPointer && !input.usingKeys && (phase === 'aiming' || phase === 'charging');
+  const sway =
+    playing && finePointer && input.hasPointer && !input.usingKeys && (phase === 'aiming' || phase === 'charging');
   view.update(realDt, { charging: phase === 'charging', swayTarget: sway ? input.pointer : null });
   trail.update(gameTime, camera.position);
   keeperModel.update(keeper.pose, dt);
