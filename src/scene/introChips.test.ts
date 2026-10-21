@@ -29,39 +29,39 @@ function seen(chips: IntroChips, camera: THREE.PerspectiveCamera) {
 }
 
 describe('IntroChips', () => {
-  it('swirls round the ball, always in front of the camera, coming out from behind it', () => {
-    const { chips, camera, ball } = setUp();
-    for (let i = 0; i < 600; i++) {
-      chips.update(1 / 60, camera, ball, 'swirl');
-      for (const chip of seen(chips, camera)) {
-        if (chip.size === 0) continue;
-        expect(-chip.view.z).toBeGreaterThanOrEqual(0.8 - 1e-9);
-      }
-    }
-    expect(chips.mesh.visible).toBe(true);
-  });
-
-  it('comes out behind the middle of the ball, slowly circles round it and shrinks away inside the screen', () => {
+  it('makes a tunnel: chips come out deep behind the ball, come toward the camera and leave past the screen edge', () => {
     const { chips, camera, ball } = setUp();
     const halfHeight = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const halfWidth = halfHeight * camera.aspect;
+    const ballRadius = 0.175 / 2; // the ball's outline as seen from the camera (2 m away)
+    chips.update(1 / 60, camera, ball, 'swirl');
     let before = seen(chips, camera);
     let newOnes = 0;
+    let gone = 0;
     for (let i = 0; i < 60 * 12; i++) {
       chips.update(1 / 60, camera, ball, 'swirl');
       const now = seen(chips, camera);
       now.forEach((chip, j) => {
-        if (chip.size === 0) return;
-        // On screen: never past the top or bottom edge.
-        expect(Math.abs(chip.view.y) / -chip.view.z).toBeLessThan(halfHeight);
-        if (before[j].size === 0) {
-          newOnes++; // just come out: near the middle, behind the ball (2 m away)
-          expect(Math.hypot(chip.view.x, chip.view.y)).toBeLessThan(0.1);
-          expect(-chip.view.z).toBeGreaterThan(2.3);
+        const was = before[j];
+        expect(-chip.view.z).toBeGreaterThan(0.6); // never at the camera (the ball is 2 m away)
+        if (-chip.view.z > -was.view.z + 1) {
+          // Started again at the back: just before, it was off the screen.
+          gone++;
+          const offSide = Math.abs(was.view.x) / -was.view.z > halfWidth;
+          const offTop = Math.abs(was.view.y) / -was.view.z > halfHeight;
+          expect(offSide || offTop).toBe(true);
+          // And it comes out deep behind the ball, inside its outline (so hidden by it).
+          newOnes++;
+          expect(-chip.view.z).toBeGreaterThan(5);
+          expect(Math.hypot(chip.view.x, chip.view.y) / -chip.view.z).toBeLessThan(ballRadius);
+        } else {
+          expect(-chip.view.z).toBeLessThan(-was.view.z + 1e-9); // always coming closer
         }
       });
       before = now;
     }
-    expect(newOnes).toBeGreaterThan(20); // every chip came round again
+    expect(newOnes).toBeGreaterThan(24); // every chip came round again
+    expect(gone).toBe(newOnes);
   });
 
   it('flies off on Speel nu & Win and is gone soon after, then hides', () => {
