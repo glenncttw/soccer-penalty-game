@@ -2,6 +2,7 @@ import type { ShotOutcome } from '../gameplay/round';
 import { TEXTS } from './texts';
 
 const LOGO_URL = `${import.meta.env.BASE_URL}assets/crowd/flag_logo.svg`;
+const LEAVE_TIME = 300; // milliseconds, as long as the intro-leave animations in style.css
 
 /**
  * The Croky Cup screens over the live stadium: the intro (Speel nu, Info), the info card with
@@ -10,11 +11,16 @@ const LOGO_URL = `${import.meta.env.BASE_URL}assets/crowd/flag_logo.svg`;
  */
 export class Screens {
   onPlay: () => void = () => {};
+  /** The intro just came up (the 3D ball goes into `ballSlot`). */
+  onIntro: () => void = () => {};
+  /** The empty space on the intro where the real 3D ball is drawn, by the canvas underneath. */
+  readonly ballSlot: HTMLElement;
 
   private readonly intro: HTMLElement;
   private readonly info: HTMLElement;
   private readonly end: HTMLElement;
   private infoFrom: HTMLElement | null = null; // where focus goes back to when the info card closes
+  private leaveTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(parent: HTMLElement) {
     const t = TEXTS;
@@ -25,11 +31,16 @@ export class Screens {
       'beforeend',
       `<section class="screen intro" lang="${t.lang}" hidden>
          <div class="screen-body">
-           <img class="screen-logo" src="${LOGO_URL}" alt="Croky" />
-           <h1 class="screen-title">${t.title}</h1>
-           <p class="screen-tagline">${t.tagline}</p>
-           <button class="btn btn-primary" data-act="play">${t.play}</button>
-           <button class="btn btn-secondary" data-act="info">${t.info}</button>
+           <div class="intro-top">
+             <img class="screen-logo" src="${LOGO_URL}" alt="Croky" />
+             <h1 class="screen-title">${t.title}</h1>
+             <p class="screen-tagline">${t.tagline}</p>
+           </div>
+           <div class="intro-ball" aria-hidden="true"></div>
+           <div class="intro-bottom">
+             <button class="btn btn-primary" data-act="play">${t.play}</button>
+             <button class="btn btn-secondary" data-act="info">${t.info}</button>
+           </div>
          </div>
        </section>
        <section class="screen end" lang="${t.lang}" hidden>
@@ -54,6 +65,7 @@ export class Screens {
     this.intro = root.querySelector('.screen.intro')!;
     this.info = root.querySelector('.screen.info')!;
     this.end = root.querySelector('.screen.end')!;
+    this.ballSlot = root.querySelector('.intro-ball')!;
 
     for (const screen of [this.intro, this.end, this.info]) {
       screen.addEventListener('click', (e) => {
@@ -74,10 +86,30 @@ export class Screens {
     return !this.intro.hidden || !this.end.hidden;
   }
 
+  /** True while the intro is up (and not on its way out). */
+  get introShown() {
+    return !this.intro.hidden && !this.intro.classList.contains('leaving');
+  }
+
   showIntro() {
+    clearTimeout(this.leaveTimer);
     this.end.hidden = true;
+    this.intro.classList.remove('leaving');
     this.intro.hidden = false;
     this.focus(this.intro);
+    this.onIntro();
+  }
+
+  /** Speel nu: the words move up and the buttons down, out of the way of the ball, then the intro closes. */
+  leaveIntro() {
+    (document.activeElement as HTMLElement | null)?.blur();
+    this.info.hidden = true;
+    this.intro.classList.add('leaving');
+    clearTimeout(this.leaveTimer);
+    this.leaveTimer = setTimeout(() => {
+      this.intro.hidden = true;
+      this.intro.classList.remove('leaving');
+    }, LEAVE_TIME);
   }
 
   /** The end of a round: how it went, the record on this device, and play again or back to the menu. */
@@ -93,6 +125,8 @@ export class Screens {
   }
 
   hide() {
+    clearTimeout(this.leaveTimer);
+    this.intro.classList.remove('leaving');
     (document.activeElement as HTMLElement | null)?.blur(); // so Space doesn't press a hidden button
     this.intro.hidden = true;
     this.end.hidden = true;
