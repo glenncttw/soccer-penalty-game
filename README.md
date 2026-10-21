@@ -74,12 +74,21 @@ Add `?bench` to the game's address to open the **sharpness test** panel (players
 
 Every shot is recorded: where the ball and the keeper are in each frame (`src/gameplay/replayRecorder.ts`).
 After a big moment, `src/scene/replay.ts` plays the shot back slowly in one tilted panel in the middle of a
-striped purple background. Its camera sits low beside the goal, on the other side from where the ball went, and
-creeps in while it follows the ball, so the ball flies into the picture and the keeper and the net are there
-when it arrives.
+striped purple background. It shows only the ball flying to the goal: it stops 0.3 s after the ball first hits
+the keeper, the post or the bar (for a goal, the net), so you never see the ball bounce back or roll away.
 
-The camera looks toward the goal, because that's the part of the stadium that's built. Turning it around would
-show the unbuilt side behind the player. The ball and the keeper go back to their spots while the wipe covers
+Each replay takes the next of three camera angles (`src/scene/replayCamera.ts`):
+
+| Angle | What you see |
+|---|---|
+| `follow` | low beside the ball's path, on the other side from where it went, riding along behind it and stopping beside the goal |
+| `behind` | just above and behind the ball, chasing it toward the keeper |
+| `high` | up high on the far side, like a TV camera, gliding in toward the goal |
+
+Every angle looks toward the goal, because that's the part of the stadium that's built. Turning around would show
+the unbuilt side behind the player, so the camera never turns more than 30° to the side, 30° down or 8° up, and
+stays between the spot and the goal (a test checks this for shots all over the goal). To see every replay from
+one angle, add `?replayAngle=follow` (or `behind`, `high`) to the game's address. The ball and the keeper go back to their spots while the wipe covers
 the screen, so the keeper never has to get up and walk back to the middle. The panel is drawn at 75% of the
 screen's sharpness, and the normal game view isn't drawn during a replay, so a replay costs less than normal
 play.
@@ -94,7 +103,9 @@ Settings are in `REPLAY_SETTINGS` in `src/scene/replaySettings.ts`:
 | `moments` | which shots get a replay: `goal`, `save`, `woodwork` |
 | `duration` | how many seconds the replay lasts |
 | `slowest`, `fastest` | replay speed limits (1 = real speed); quick shots play slower to fill the time |
-| `afterResult` | how long the replay keeps going after the ball went in or was saved |
+| `afterResult` | how long the replay keeps going after the ball went in or was saved, at most |
+| `afterImpact` | how long it keeps going after the ball hits the keeper, the frame or the net |
+| `panelSize` | the panel's size (1 = the biggest that fits) |
 | `holdWithReplay`, `holdWithout` | how long the GOAL!/MISS! banner shows before the wipe |
 | `wipeTime` | seconds the wipe takes to sweep across the screen |
 | `resolution` | how sharp the panel is drawn (1 = as sharp as the screen) |
