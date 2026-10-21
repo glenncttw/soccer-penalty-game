@@ -2,12 +2,14 @@ import * as THREE from 'three';
 
 const SPIN_SPEED = 0.5; // radians per second while it floats on the intro, about 29 degrees
 const SPIN_AXIS = new THREE.Vector3(0.15, 1, 0.36).normalize(); // mostly upright, tipped toward the camera
-const FLY_DELAY = 0.15; // seconds the intro's words and buttons get to move away first
-const FLY_TIME = 1.0; // seconds from the middle of the screen down onto the penalty spot
-const FLY_ARC = 0.3; // metres the ball rises above a straight line halfway along
-const SETTLE_FROM = 0.7; // share of the flight after which the spin turns into the ball's resting turn
-const BOUNCE_TIME = 0.18; // seconds of the little hop after it touches down
-const BOUNCE_HEIGHT = 0.03; // metres
+const FLY_DELAY = 0.15; // seconds the intro's words and button get to move away first
+const FLY_TIME = 1.6; // seconds from the middle of the screen down onto the penalty spot, as the camera pulls back
+const SWING = 0.3; // how far the ball swings out to each side on the way, as a share of half the view's width
+const RISE = 0.15; // and how far it lifts in the middle, as a share of half the view's height
+const FLY_TURNS = 2.5; // extra turns the ball spins on the way, slowing down
+const FLY_SPIN_AXIS = new THREE.Vector3(1, 0.35, 0.25).normalize(); // topspin with a bit of sidespin
+const SETTLE_FROM = 0.75; // share of the flight after which the spin turns into the ball's resting turn
+const FLY_ARC = 0.3; // metres the ball rises above a straight line halfway up (Menu)
 const LIFT_TIME = 0.8; // seconds back up from the spot into the intro (Menu on the end screen)
 const STILL_WAIT = 0.3; // with reduced motion: no flight, the ball is just on the spot after this
 const REVEAL_DELAY = 0.15; // seconds before the purple starts opening up from the ball
@@ -18,19 +20,25 @@ export interface BallSlot {
   getBoundingClientRect(): { left: number; top: number; width: number; height: number };
 }
 
+/** Where the gameplay camera rests (it moves there from close to the goal as the ball comes down). */
+export interface CameraRest {
+  position: THREE.Vector3;
+  quaternion: THREE.Quaternion;
+}
+
 type State = 'off' | 'float' | 'land' | 'lift';
 
 /**
- * The real ball on the intro screen: big and slowly spinning in the space between the title and
- * the buttons, then (on Speel nu) flying in a soft arc down onto the penalty spot with a tiny hop.
- * "Menu" on the end screen lifts it back up. It only moves the ball's mesh; physics keeps its ball
- * on the spot the whole time, so the first shot starts exactly as before.
+ * The real ball on the intro screen: big and slowly spinning in the middle of the screen, then (on
+ * Speel nu) swooping and spinning down onto the penalty spot while the camera pulls back from close
+ * to the goal to where you shoot from; it comes to rest softly, no bounce. "Menu" on the end screen
+ * lifts it back up. It only moves the ball's mesh; physics keeps its ball on the spot the whole
+ * time, so the first shot starts exactly as before.
  */
 export class IntroBall {
   private state: State = 'off';
   private time = 0;
   private slot: BallSlot | null = null;
-  private onTouch = () => {};
   private onDone = () => {};
   private readonly spin = new THREE.Quaternion();
   private readonly turn = new THREE.Quaternion();
@@ -40,13 +48,17 @@ export class IntroBall {
   private readonly restQuaternion = new THREE.Quaternion();
   private readonly ray = new THREE.Vector3();
   private readonly forward = new THREE.Vector3();
-  private touched = false;
+  private readonly fromView = new THREE.Vector3(); // where the flight starts, as seen from the camera
+  private readonly toView = new THREE.Vector3(); // the spot, as seen from the camera at rest
+  private readonly matrix = new THREE.Matrix4();
+  private readonly one = new THREE.Vector3(1, 1, 1);
 
   constructor(
     private readonly ball: THREE.Object3D,
     private readonly camera: THREE.PerspectiveCamera,
     private readonly view: BallSlot,
     private readonly radius: number,
+    private readonly cameraRest: CameraRest,
     private readonly reducedMotion = false,
   ) {}
 
@@ -67,6 +79,21 @@ export class IntroBall {
     return easeOutCubic(Math.min(1, Math.max(0, this.time - REVEAL_DELAY) / REVEAL_TIME));
   }
 
+  /**
+   * How close the camera is to the goal (see gameCamera.ts): 1 close up while the intro shows,
+   * pulling back to 0, the normal view, as the ball comes down. 0 with reduced motion.
+   */
+  get cameraIntro() {
+    if (this.reducedMotion || this.state === 'off' || this.state === 'lift') return 0;
+    if (this.state === 'float') return 1;
+    return 1 - this.flight;
+  }
+
+  /** How far along the flight down to the spot is (0..1, eased). */
+  private get flight() {
+    return easeInOutCubic(Math.min(1, Math.max(0, this.time - FLY_DELAY) / FLY_TIME));
+  }
+
   /** True while the ball is on its way down to the spot. */
   get landing() {
     return this.state === 'land';
@@ -85,32 +112,35 @@ export class IntroBall {
     setShadow(this.ball, this.state === 'lift');
   }
 
-  /** Flies the ball onto the spot. `onTouch` when it touches the grass, `onDone` once it rests there. */
-  land(onTouch: () => void, onDone: () => void) {
+  /** Flies the ball onto the spot; `onDone` once it rests there. */
+  land(onDone: () => void) {
     if (this.state === 'off' || this.state === 'land') return;
     this.state = 'land';
     this.time = 0;
-    this.touched = false;
-    this.onTouch = onTouch;
     this.onDone = onDone;
-    this.from.copy(this.ball.position);
+    this.camera.updateMatrixWorld();
+    this.fromView.copy(this.ball.position).applyMatrix4(this.camera.matrixWorldInverse);
     this.fromQuaternion.copy(this.ball.quaternion);
     setShadow(this.ball, true); // it grows and sharpens as the ball comes down
+  }
+
+  /** Moves time on. Call every frame before the camera moves (it reads `cameraIntro`). */
+  advance(dt: number) {
+    if (this.state === 'off') return;
+    this.time += dt;
+    if (!this.reducedMotion) this.spin.premultiply(this.turn.setFromAxisAngle(SPIN_AXIS, SPIN_SPEED * dt));
   }
 
   /**
    * Call every frame after physics has put the ball on its spot and the camera has moved, with
    * where physics has the ball (resting on the spot). Moves the ball while the intro needs it.
    */
-  update(
-    dt: number,
+  place(
     restPosition: { x: number; y: number; z: number },
     restQuaternion: { x: number; y: number; z: number; w: number },
   ) {
     if (this.state === 'off') return;
-    this.time += dt;
     this.restQuaternion.set(restQuaternion.x, restQuaternion.y, restQuaternion.z, restQuaternion.w);
-    if (!this.reducedMotion) this.spin.premultiply(this.turn.setFromAxisAngle(SPIN_AXIS, SPIN_SPEED * dt));
 
     if (this.state === 'float') {
       if (this.slotPosition(this.target)) this.ball.position.copy(this.target);
@@ -130,25 +160,27 @@ export class IntroBall {
         this.finish();
         return;
       }
-      const t = Math.max(0, this.time - FLY_DELAY);
-      const s = easeInOutCubic(Math.min(1, t / FLY_TIME));
-      if (t < FLY_TIME) {
-        flightPoint(this.from, this.target, s, FLY_ARC, this.ball.position);
-      } else {
-        if (!this.touched) {
-          this.touched = true;
-          this.onTouch();
-        }
-        const hop = Math.min(1, (t - FLY_TIME) / BOUNCE_TIME);
+      const s = this.flight;
+      if (s === 1) {
         this.ball.position.copy(this.target);
-        this.ball.position.y += BOUNCE_HEIGHT * Math.sin(Math.PI * hop);
-        if (hop === 1) {
-          this.ball.quaternion.copy(this.restQuaternion);
-          this.finish();
-          return;
-        }
+        this.ball.quaternion.copy(this.restQuaternion);
+        this.finish();
+        return;
       }
-      // Keeps spinning on the way down, then settles into exactly how the ball rests on the spot.
+      // The flight is worked out as seen from the camera, which is still pulling back past the spot:
+      // from the middle of the screen to where the spot will be once the camera is back, swinging
+      // out to one side and then the other on the way. Both arrive at the same moment, gently.
+      this.matrix.compose(this.cameraRest.position, this.cameraRest.quaternion, this.one).invert();
+      this.toView.copy(this.target).applyMatrix4(this.matrix);
+      this.camera.updateMatrixWorld();
+      const p = this.ball.position.lerpVectors(this.fromView, this.toView, s);
+      const halfHeight = -p.z * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2);
+      p.x += SWING * halfHeight * this.camera.aspect * Math.sin(2 * Math.PI * s);
+      p.y += RISE * halfHeight * Math.sin(Math.PI * s);
+      p.applyMatrix4(this.camera.matrixWorld);
+      // Spins faster on the way, slowing down, then settles into exactly how the ball rests on the spot.
+      this.turn.setFromAxisAngle(FLY_SPIN_AXIS, FLY_TURNS * 2 * Math.PI * easeOutCubic(s));
+      this.spin.copy(this.turn).multiply(this.fromQuaternion);
       this.ball.quaternion.slerpQuaternions(this.spin, this.restQuaternion, smoothstep(SETTLE_FROM, 1, s));
     }
   }

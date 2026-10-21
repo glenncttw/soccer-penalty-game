@@ -10,9 +10,10 @@ See [docs/PLAN.md](docs/PLAN.md) for the gameplay scope, tech stack and mileston
 ## How to play
 
 The game opens on the **Croky Cup** intro screen: solid Croky purple with the real ball slowly spinning in the
-middle. **Speel nu** opens the purple up in a growing circle from the ball while the ball flies down onto the penalty
-spot, and starts a round; **Info** explains the controls (`src/scene/introBall.ts`, `src/scene/introBackdrop.ts`;
-with reduced motion turned on in the device settings the ball stands still and the purple fades). A round is 5 penalties; the balls in the top right corner fill in as you go (✓ goal,
+middle. **Speel nu & Win** opens the purple up in a growing circle from the ball, the camera pulls back from close to
+the goal to where you shoot from, and the ball swoops and spins down onto the penalty spot; then a round starts
+(`src/scene/introBall.ts`, `src/scene/introBackdrop.ts`; with reduced motion turned on in the device settings the ball
+stands still, the camera doesn't move and the purple fades). A round is 5 penalties; the balls in the top right corner fill in as you go (✓ goal,
 ✕ saved or missed). After the fifth penalty (and its replay) the end screen shows how many you scored and your
 record on this device, with **Speel opnieuw** and **Menu**. The screens are in Dutch; their words are all in
 `src/ui/texts.ts`, the round itself in `src/gameplay/round.ts` (`ROUND_SHOTS`).
