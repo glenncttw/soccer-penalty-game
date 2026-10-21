@@ -153,6 +153,9 @@ const replay = new Replay({
   hide: [effects.group, markers.group],
 });
 const wipe = new Wipe(document.querySelector<HTMLElement>('#hud')!, REPLAY_SETTINGS);
+// Add ?replayAngle=follow, behind or high to the address to see every replay from that one angle.
+const replayAngle = new URLSearchParams(location.search).get('replayAngle');
+if (replayAngle) replay.forceAngle(replayAngle);
 connectFeedback(events, { world, camera: view, effects, hud, slowMotion });
 
 const BALL_START = world.ballStart;
@@ -248,7 +251,7 @@ function endShot() {
   const withReplay = replay.wanted(outcome.result ?? 'miss', outcome.hitFrame);
   setPhase('wipe');
   wipe.run(() => {
-    if (withReplay) replay.start();
+    if (withReplay) replay.start(outcome.result === 'goal');
     resetShot();
     if (replay.active) {
       setPhase('replay');
@@ -388,7 +391,10 @@ renderer.setAnimationLoop((time) => {
   for (const contact of physics.takeContacts()) {
     if (contact.surface === 'keeper') outcome.keeperTouched(contact.point.z);
     // The trail belongs to the shot: it stops at the first touch of anything but the grass.
-    if (contact.surface !== 'ground') trail.stop(gameTime);
+    if (contact.surface !== 'ground') {
+      trail.stop(gameTime);
+      replay.recorder.markImpact(gameTime); // the replay ends just after this
+    }
     events.emit('contact', contact);
   }
 

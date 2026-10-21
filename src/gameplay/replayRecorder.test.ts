@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { KeeperPose } from '../physics/keeperBody';
 import { blankFrame, ReplayRecorder, replayWindow } from './replayRecorder';
 
-const SETTINGS = { duration: 2.5, slowest: 0.3, fastest: 0.7, afterResult: 0.45 };
+const SETTINGS = { duration: 2.5, slowest: 0.3, fastest: 0.7, afterResult: 0.45, afterImpact: 0.3 };
 
 function pose(x: number): KeeperPose {
   return { pivot: { x, y: 0, z: 0 }, tilt: x, gloves: [{ x: -0.4, y: 1, z: 0 }, { x: 0.4, y: 1, z: 0 }], crouch: 0 };
@@ -53,6 +53,20 @@ describe('ReplayRecorder', () => {
   });
 });
 
+describe('ReplayRecorder impacts', () => {
+  it('finds the first time the ball hit something, from a given moment', () => {
+    const r = new ReplayRecorder();
+    r.start(0);
+    r.markImpact(0.7); // the post
+    r.markImpact(1.1); // the net
+    expect(r.impactAfter(0)).toBe(0.7);
+    expect(r.impactAfter(0.9)).toBe(1.1);
+    expect(r.impactAfter(2)).toBeNull();
+    r.start(5);
+    expect(r.impactAfter(0)).toBeNull();
+  });
+});
+
 describe('replayWindow', () => {
   it('slows a quick shot down to fill the replay', () => {
     const w = replayWindow(0, 0.6, 2, SETTINGS);
@@ -68,6 +82,12 @@ describe('replayWindow', () => {
     expect(w.start).toBeCloseTo(3.45 - 2.5 * 0.7);
     expect(w.rate).toBeCloseTo(0.7);
     expect(w.length).toBeCloseTo(2.5);
+  });
+
+  it('stops just after the ball hits something, before it rolls away', () => {
+    const w = replayWindow(0, 2.5, 4, SETTINGS, 0.8);
+    expect(w.end).toBeCloseTo(1.1);
+    expect(w.start).toBe(0);
   });
 
   it('never goes slower than the slowest speed, so a very short shot gets a shorter replay', () => {
