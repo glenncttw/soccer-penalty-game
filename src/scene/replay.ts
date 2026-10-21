@@ -163,9 +163,9 @@ export class Replay {
     const room = { w: w - 2 * gap, h: h - TAG_SPACE - 2 * gap }; // the space under the "REPLAY" label
     // A wide picture on wide screens; nearly square on phones held upright, so it isn't a thin strip.
     const aspect = w >= h ? 16 / 10 : 1;
-    const pw = Math.min(room.w * (w >= h ? 0.82 : 1), room.h * aspect);
+    const pw = Math.min(room.w * (w >= h ? 0.82 : 1), room.h * aspect) * this.settings.panelSize;
     const ph = pw / aspect;
-    this.rect = { x: w / 2, y: gap + room.h / 2, w: pw, h: ph }; // y counts up from the bottom
+    this.rect = { x: w / 2, y: h / 2, w: pw, h: ph }; // in the middle of the screen; y counts up from the bottom
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
     const scale = this.parts.renderer.getPixelRatio() * this.settings.resolution;

@@ -20,6 +20,8 @@ export interface ReplaySettings {
   wipeTime: number;
   /** Share of the screen's sharpness the panel is drawn at (lower is faster on phones). */
   resolution: number;
+  /** The panel's size, as a share of the biggest that fits under the "REPLAY" label (1 = biggest). */
+  panelSize: number;
 }
 
 export const REPLAY_SETTINGS: ReplaySettings = {
@@ -32,4 +34,5 @@ export const REPLAY_SETTINGS: ReplaySettings = {
   holdWithout: 1.4,
   wipeTime: 0.8,
   resolution: 0.75,
+  panelSize: 0.8,
 };
