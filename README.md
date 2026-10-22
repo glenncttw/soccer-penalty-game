@@ -219,22 +219,22 @@ goes through the bearer's own head or body. A place with no room near it gets no
 
 ## The keeper
 
-The keeper is Glenn's parrot, a Blender export: `public/assets/keeper/Parrot_GK.glb`, loaded by
-`src/scene/keeperAsset.ts` at the size it was made in Blender (origin between the feet, facing the shooter). The
-game moves and leans it with the keeper's motion; its rig and animations are in the file but nothing plays them
-yet. The parrot is 1.60 m tall (scale 1 in Blender). The physics body that saves shots is still the placeholder's
-(`src/physics/keeperBody.ts`, 1.52 m tall), which fits the parrot's outline closely enough until its arms animate.
+The keeper is Glenn's blue bird, a Blender export (`BlueBird3_v035_game.glb`): `public/assets/keeper/BlueBird3_GK.glb`,
+loaded by `src/scene/keeperAsset.ts` at the size it was made in Blender (origin between the feet, facing the shooter).
+The game moves and leans it with the keeper's motion; its rig and animations (idle, ready, dives, catch, punch,
+celebrate and more) are in the file but nothing plays them yet. The bird is 1.0 m tall and has no textures yet. The
+physics body that saves shots is still the placeholder's (`src/physics/keeperBody.ts`, 1.52 m tall).
 
-The export was made lighter for the web with [glTF Transform](https://gltf-transform.dev): pictures shrunk to
-1024 x 1024, colour and roughness as WebP, the normal map as JPEG (4:4:4, so it keeps its detail), and the mesh
-compressed with meshopt. To update the keeper, do the same with the new export:
+The export was made lighter for the web with [glTF Transform](https://gltf-transform.dev) (the mesh and animations
+compressed with meshopt). To update the keeper, do the same with the new export:
 
 ```sh
-npx @gltf-transform/cli resize in.glb a.glb --width 1024 --height 1024
-npx @gltf-transform/cli webp a.glb b.glb --slots "{baseColorTexture,metallicRoughnessTexture}" --quality 88
-python3 tools/glb_image_to_jpeg.py b.glb GAME_Parrot_normal 90 c.glb
-npx @gltf-transform/cli meshopt c.glb public/assets/keeper/Parrot_GK.glb
+npx @gltf-transform/cli meshopt in.glb public/assets/keeper/BlueBird3_GK.glb
 ```
+
+Once it has textures, shrink them first as for the parrot before it: `resize` to 1024 x 1024, colour and roughness as
+WebP (`webp --slots "{baseColorTexture,metallicRoughnessTexture}" --quality 88`), and the normal map as JPEG with
+`tools/glb_image_to_jpeg.py` (4:4:4, so it keeps its detail), all before `meshopt`.
 
 ## The intro chips
 
