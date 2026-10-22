@@ -14,7 +14,7 @@ export interface TrailStyle {
 }
 
 export function trailStyle(power: number, perfect: boolean): TrailStyle {
-  if (perfect) return { width: 0.17, life: 0.8, edge: palette.gold, core: 0xfffbea };
+  if (perfect) return { width: 0.3, life: 0.9, edge: palette.gold, core: 0xfffbea };
   return { width: 0.07 + power * 0.05, life: 0.35 + power * 0.3, edge: 0xff4f9a, core: 0xffd3e6 };
 }
 

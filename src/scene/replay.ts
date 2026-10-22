@@ -5,6 +5,7 @@ import type { KeeperPose, Quat } from '../physics/keeperBody';
 import { palette } from '../theme';
 import type { WorldConfig } from '../worldConfig';
 import { BallTrail } from './ball';
+import type { BallAura } from './ballAura';
 import type { BallFade } from './ballFade';
 import type { KeeperModel } from './keeper';
 import { REPLAY_ANGLES, replayCameraPose, type ReplayAngle } from './replayCamera';
@@ -24,6 +25,8 @@ export interface ReplayParts {
   keeper: KeeperModel;
   /** The live trail: the replay copies its colours and when it stopped. */
   trail: BallTrail;
+  /** The glow round the ball on a perfect strike: shown in the replay too, until the ball's first touch. */
+  aura: BallAura;
   /** Things that are left out of the replay (dust, glitter). */
   hide: THREE.Object3D[];
 }
@@ -138,6 +141,7 @@ export class Replay {
     this.angle = this.forced ?? (this.angle + 1) % REPLAY_ANGLES.length;
     this.trail.setStyle(this.parts.trail.currentStyle);
     this.trail.clear();
+    this.parts.aura.begin(this.parts.aura.perfect);
     this.trail.mesh.visible = true;
     this.nextPush = 0;
     this.elapsed = 0;
@@ -204,6 +208,8 @@ export class Replay {
 
     this.aim(realDt);
     this.trail.update(t, this.camera.position, realDt);
+    const flying = this.trailStop === null || t < this.trailStop;
+    this.parts.aura.update(this.parts.ball, flying, this.parts.ballFade.shown, realDt);
     renderer.setRenderTarget(this.target);
     renderer.render(scene, this.camera);
     renderer.setRenderTarget(null);

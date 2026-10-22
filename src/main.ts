@@ -14,6 +14,7 @@ import { FIXED_STEP, solveKick } from './physics/flight';
 import { createPhysicsWorld } from './physics/world';
 import { AimMarkers } from './scene/aimMarkers';
 import { BallTrail, trailStyle } from './scene/ball';
+import { BallAura } from './scene/ballAura';
 import { BallFade } from './scene/ballFade';
 import { Crowd } from './scene/crowd';
 import { loadCrowdParts } from './scene/crowdAsset';
@@ -126,6 +127,7 @@ const ballMesh = stadium.ball;
 const ballFade = new BallFade(ballMesh);
 const boards = new BoardsBoundary(world.boards ?? []);
 const trail = new BallTrail();
+const aura = new BallAura(world.ballRadius); // the gold glow round the ball on a perfect strike
 const markers = new AimMarkers();
 const effects = new Effects();
 
@@ -135,7 +137,7 @@ const keeperModel = new KeeperModel();
 keeperModel.useModel(await keeperAsset);
 lightMovingObject(ballMesh, envMap);
 lightMovingObject(keeperModel.group, envMap);
-scene.add(ballMesh, trail.mesh, markers.group, effects.group, keeperModel.group);
+scene.add(ballMesh, trail.mesh, aura.mesh, markers.group, effects.group, keeperModel.group);
 // Soft shadows on the grass right under the ball and the keeper.
 grass.followContacts(ballMesh, world.ballRadius, keeperModel.group);
 
@@ -185,6 +187,7 @@ const replay = new Replay({
   ballFade,
   keeper: keeperModel,
   trail,
+  aura,
   hide: [effects.group, markers.group],
 });
 const wipe = new Wipe(document.querySelector<HTMLElement>('#hud')!, REPLAY_SETTINGS);
@@ -234,6 +237,7 @@ input.onRelease = () => {
   outcome.reset();
   trail.clear();
   trail.setStyle(trailStyle(power.value, shot.quality === 'perfect'));
+  aura.begin(shot.quality === 'perfect');
   markers.hide();
   hud.showPower(null);
   input.enabled = false;
@@ -314,6 +318,7 @@ function resetShot() {
   keeper.reset();
   physics.poseKeeper(keeper.pose);
   trail.clear();
+  aura.begin(false);
   hud.hideBanner();
   if (autoSharpness?.applyPending()) resize(); // a sharpness step, unseen behind the wipe
 }
@@ -511,6 +516,10 @@ renderer.setAnimationLoop((time) => {
   const chipsMode = reducedMotion ? 'off' : chipsSwirl ? 'swirl' : introBall.landing ? 'burst' : 'off';
   introChips.update(realDt, camera, ballMesh, chipsMode);
   trail.update(gameTime, camera.position, realDt);
+  if (!replay.active) {
+    const flying = (phase === 'flight' || phase === 'result') && trail.stopTime === null;
+    aura.update(ballMesh, flying, ballFade.shown, dt);
+  }
   keeperModel.update(keeper.pose, dt);
   effects.update(dt);
   ballFade.update(dt);
