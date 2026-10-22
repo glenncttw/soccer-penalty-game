@@ -3,6 +3,7 @@ import { KEEPER_SKILL, readShot } from './ai/keeper';
 import { KeeperMotion } from './ai/keeperMotion';
 import { connectFeedback } from './feedback';
 import { clampAimToGoal } from './gameplay/aim';
+import { BallCatch } from './gameplay/ballCatch';
 import { BoardsBoundary } from './gameplay/boundary';
 import { GameEvents } from './gameplay/events';
 import { OutcomeTracker } from './gameplay/outcome';
@@ -11,7 +12,7 @@ import { shapeShot } from './gameplay/shot';
 import { SlowMotion } from './gameplay/slowMotion';
 import { ShootInput } from './input/shootInput';
 import { FIXED_STEP, solveKick } from './physics/flight';
-import { createPhysicsWorld } from './physics/world';
+import { createPhysicsWorld, type Contact } from './physics/world';
 import { AimMarkers } from './scene/aimMarkers';
 import { BallTrail, trailStyle } from './scene/ball';
 import { BallAura } from './scene/ballAura';
@@ -143,6 +144,7 @@ grass.followContacts(ballMesh, world.ballRadius, keeperRig.shadow);
 
 // The keeper's solid parts follow its bones, so the ball is stopped where you see it.
 const physics = await createPhysicsWorld(world, { keeper: { shapes: keeperRig.shapes, parts: keeperRig.parts } });
+const ballCatch = new BallCatch(); // the keeper holding on to the ball in its catch save
 const hud = new Hud(document.querySelector<HTMLElement>('#hud')!);
 // Draw calls, triangles and other numbers that show how hard the game works, above the FPS.
 const perf = new PerfStats(document.querySelector<HTMLElement>('#hud')!, renderer);
@@ -315,6 +317,7 @@ function endReplay() {
 /** Ball back on the spot and the keeper back in the middle, at once: the screen is covered. */
 function resetShot() {
   physics.resetBall();
+  ballCatch.reset();
   ballFade.reset();
   keeper.reset();
   physics.poseKeeper(keeperRig.parts, true);
@@ -468,13 +471,17 @@ renderer.setAnimationLoop((time) => {
   keeper.set = phase === 'charging';
 
   accumulator += dt;
+  let caught: Contact | null = null;
   while (accumulator >= FIXED_STEP) {
     keeper.step(FIXED_STEP);
     physics.poseKeeper(keeperRig.parts);
+    const taken = ballCatch.step(keeper.catchSpot, physics, FIXED_STEP);
+    caught ??= taken;
     physics.step();
     accumulator -= FIXED_STEP;
   }
-  for (const contact of physics.takeContacts()) {
+  if (caught) outcome.caught(caught.point.z);
+  for (const contact of caught ? [caught, ...physics.takeContacts()] : physics.takeContacts()) {
     if (contact.surface === 'keeper') outcome.keeperTouched(contact.point.z);
     // The trail belongs to the shot: it stops at the first touch of anything but the grass.
     if (contact.surface !== 'ground') {

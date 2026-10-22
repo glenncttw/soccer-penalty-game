@@ -5,6 +5,12 @@ import { aeroForce, type Vec3 } from './ballForces';
 import { BALL_SPIN_DAMPING, FIXED_STEP } from './flight';
 import type { KeeperPartPose, KeeperPartShape } from './keeperBody';
 
+// Collision groups (what each collider is, then what it touches): the keeper's parts are group 2,
+// so the ball can be told to pass through them while the keeper catches it.
+const BALL_GROUPS = 0x0001ffff;
+const BALL_GROUPS_NO_KEEPER = 0x0001fffd;
+const KEEPER_GROUPS = 0x0002ffff;
+
 /** What the ball can touch. */
 export type Surface = 'ground' | 'woodwork' | 'net' | 'keeper' | 'boards';
 
@@ -31,6 +37,10 @@ export interface PhysicsWorld {
    * next step, or at once with `jump`. Does nothing in a world made without a keeper.
    */
   poseKeeper(parts: readonly KeeperPartPose[], jump?: boolean): void;
+  /** Holds the ball at `at` (in the keeper's hands): it stops flying and moves there over the next step. `resetBall` lets go. */
+  holdBall(at: Vec3): void;
+  /** Lets the ball pass through the keeper (while it is being caught). `resetBall` turns this off. */
+  ignoreKeeper(on: boolean): void;
 }
 
 export interface WorldOptions {
@@ -135,7 +145,8 @@ export async function createPhysicsWorld(config: WorldConfig, options: WorldOpti
       .setMass(BALL_MASS)
       .setRestitution(0.6)
       .setFriction(0.6)
-      .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
+      .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
+      .setCollisionGroups(BALL_GROUPS),
     ball,
   );
 
@@ -170,6 +181,8 @@ export async function createPhysicsWorld(config: WorldConfig, options: WorldOpti
       return taken;
     },
     resetBall() {
+      ball.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+      ballCollider.setCollisionGroups(BALL_GROUPS);
       ball.setTranslation(start, true);
       ball.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
       ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -182,6 +195,17 @@ export async function createPhysicsWorld(config: WorldConfig, options: WorldOpti
     },
     poseKeeper(parts, jump = false) {
       keeper?.pose(parts, jump);
+    },
+    holdBall(at) {
+      if (ball.bodyType() !== RAPIER.RigidBodyType.KinematicPositionBased) {
+        ball.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+        ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        ball.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+      ball.setNextKinematicTranslation(at);
+    },
+    ignoreKeeper(on) {
+      ballCollider.setCollisionGroups(on ? BALL_GROUPS_NO_KEEPER : BALL_GROUPS);
     },
   };
 }
@@ -208,7 +232,8 @@ function createKeeper(
       .setTranslation(shape.offset.x, shape.offset.y, shape.offset.z)
       .setRotation(shape.rotation)
       .setRestitution(glove ? 0.25 : 0.35)
-      .setFriction(glove ? 0.9 : 0.7);
+      .setFriction(glove ? 0.9 : 0.7)
+      .setCollisionGroups(KEEPER_GROUPS);
     add(desc, 'keeper', body);
     return body;
   });

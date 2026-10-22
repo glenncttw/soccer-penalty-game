@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { KEEPER_SKILL, readShot } from '../ai/keeper';
 import { KeeperMotion } from '../ai/keeperMotion';
+import { BallCatch } from '../gameplay/ballCatch';
 import { OutcomeTracker } from '../gameplay/outcome';
 import { shapeShot } from '../gameplay/shot';
 import { loadKeeperRig } from '../testing/loadKeeper';
@@ -34,6 +35,7 @@ const rig = await loadKeeperRig();
 const keeper = new KeeperMotion(home, KEEPER_SKILL, rig);
 const physics = await createPhysicsWorld(world, { keeper: { shapes: rig.shapes, parts: rig.parts } });
 const outcome = new OutcomeTracker(world.goal, world.ballRadius);
+const ballCatch = new BallCatch();
 
 /**
  * Plays one shot against the keeper through the real pipeline: the keeper lines
@@ -44,6 +46,7 @@ const outcome = new OutcomeTracker(world.goal, world.ballRadius);
 function play(aimX: number, aimY: number, power: number, curl = 0, random = () => 0.5) {
   keeper.reset();
   physics.resetBall();
+  ballCatch.reset();
   outcome.reset();
   keeper.aimX = aimX;
   keeper.set = false;
@@ -63,6 +66,11 @@ function play(aimX: number, aimY: number, power: number, curl = 0, random = () =
   for (let t = 0; t < 6; t += FIXED_STEP) {
     keeper.step(FIXED_STEP);
     physics.poseKeeper(rig.parts);
+    const taken = ballCatch.step(keeper.catchSpot, physics, FIXED_STEP);
+    if (taken) {
+      contacts.push(taken);
+      outcome.caught(taken.point.z);
+    }
     physics.step();
     for (const c of physics.takeContacts()) {
       contacts.push(c);
@@ -83,6 +91,35 @@ describe('shots against the keeper', () => {
     expect(r.result).toBe('saved');
     expect(r.contacts.some((c) => c.surface === 'keeper')).toBe(true);
     expect(r.maxZAfterKeeper).toBeGreaterThan(home.z + 0.4);
+  });
+
+  it.each([
+    ['at its chest', 0, 0.7],
+    ['a little to one side', 0.3, 0.6],
+    ['low at it', -0.1, 0.35],
+  ])('catches a soft shot %s and holds it to its chest', (_, x, y) => {
+    const r = play(x, y, 0.45);
+    expect(r.result).toBe('saved');
+    expect(rig.playing).toBe('catch_chest');
+    expect(ballCatch.caught).toBe(true);
+    // Taken into the hands, not bounced off the keeper first.
+    expect(r.contacts.filter((c) => c.surface === 'keeper')).toHaveLength(1);
+    for (let t = 0; t < 1.5; t += FIXED_STEP) {
+      keeper.step(FIXED_STEP);
+      physics.poseKeeper(rig.parts);
+      ballCatch.step(keeper.catchSpot, physics, FIXED_STEP);
+      physics.step();
+    }
+    const ball = physics.ball.translation();
+    const hands = rig.holdSpot;
+    expect(Math.hypot(ball.x - hands.x, ball.y - hands.y, ball.z - hands.z)).toBeLessThan(0.01);
+  });
+
+  it('punches a hard shot at it away instead of catching it', () => {
+    const r = play(0.1, 0.8, 0.8);
+    expect(rig.playing).toBe('punch');
+    expect(ballCatch.caught).toBe(false);
+    expect(r.result).not.toBe('goal');
   });
 
   it('saves soft shots, even toward a corner', () => {

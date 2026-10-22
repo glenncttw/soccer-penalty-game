@@ -30,6 +30,12 @@ export class OutcomeTracker {
     this.keeperZ = z;
   }
 
+  /** Call when the keeper catches the ball (`z` = where): a save at once. */
+  caught(z: number) {
+    this.keeperTouched(z);
+    this.result ??= 'saved';
+  }
+
   /** Call when the ball flies over the boards into the stands: the shot is over. */
   wentOut() {
     this.result ??= this.hitKeeper ? 'saved' : 'miss';

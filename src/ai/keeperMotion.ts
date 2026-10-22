@@ -1,5 +1,5 @@
 import type { Vec3 } from '../physics/ballForces';
-import type { ClipSample, KeeperClip, KeeperRig } from '../scene/keeperRig';
+import { holdSpot, type ClipSample, type KeeperClip, type KeeperRig } from '../scene/keeperRig';
 import type { KeeperSkill, ShotRead } from './keeper';
 
 const SHUFFLE_PLAY = 1.5; // the side steps play this much faster than in Blender: a keeper on its toes
@@ -16,6 +16,8 @@ const STEP_SLIDE = 0.25; // metres it shifts across in a standing save
 const STAND_LIFT: [number, number] = [0, 0.1]; // metres higher it can stretch in a catch or punch
 const DIVE_LIFT: [number, number] = [-0.15, 0.3]; // metres a dive can be lower or higher than in Blender
 const JUMP_LIFT: [number, number] = [-0.3, 0.25]; // the same for the tuck jump
+const HANDS_CLOSED = 0.2; // seconds into catch_chest its hands have closed enough to hold the ball
+const CATCH_READY = 0.12; // seconds into catch_chest it can take the ball (the hands still closing round it)
 const GLOVE_LINE = 0.5; // metres in front of where it stands that its gloves meet the ball
 
 /** A save: which animation, how fast, and how far the whole keeper is shifted to get its gloves there. */
@@ -155,13 +157,17 @@ export class KeeperMotion {
     lift: [number, number],
   ): Save {
     const track = this.rig.track(clip);
-    const land = lands(track);
+    const catches = clip === 'catch_chest';
+    // A catch takes the ball once its hands have closed, then holds it to its chest: aim the spot
+    // between its hands at the ball. Other saves meet it anywhere on their gloves before landing.
+    const land = catches ? this.rig.duration(clip) : lands(track);
     const latest = Math.min(land, time * this.skill.speedUp);
     let best: Save | null = null;
     let bestCost = Infinity;
     for (const s of track) {
+      if (catches && s.t < HANDS_CLOSED) continue;
       if (s.t > latest && best) break;
-      const near = closestOnSegment(target, s.gloves[0], s.gloves[1]);
+      const near = catches ? holdSpot(s.gloves) : closestOnSegment(target, s.gloves[0], s.gloves[1]);
       const ex = target.x - near.x;
       const ey = target.y - near.y;
       const sx = clamp(ex, slide[0], slide[1]);
@@ -179,6 +185,12 @@ export class KeeperMotion {
       }
     }
     return best!;
+  }
+
+  /** Where it holds the ball while it is catching one (once its hands are closing round it), or null. */
+  get catchSpot(): Vec3 | null {
+    const playing = this.save?.clip === 'catch_chest' && this.rig.playing === 'catch_chest';
+    return playing && this.rig.time >= CATCH_READY ? this.rig.holdSpot : null;
   }
 
   /** Advances the keeper by `dt` seconds. */
