@@ -29,6 +29,8 @@ export interface ReplayParts {
   aura: BallAura;
   /** Things that are left out of the replay (dust, glitter). */
   hide: THREE.Object3D[];
+  /** The crowd: its clock is recorded with every frame, and the replay shows them as they were (`time` is game time). */
+  crowd: { readonly clock: number; show(time: number, clock: number): void };
 }
 
 /**
@@ -55,7 +57,11 @@ export class Replay {
   /** The panel's size and centre on screen, in CSS pixels. */
   private rect = { x: 0, y: 0, w: 1, h: 1 };
   private window = { start: 0, end: 0, rate: 1, length: 0 };
+  /** Replay seconds in at which the result was decided, and the crowd's clock then. */
+  private result = { elapsed: 0, clock: 0 };
   private elapsed = 0;
+  /** Replay seconds it plays for: the part of the shot in `window`, and a goal's celebration after it. */
+  private length = 0;
   private trailStop: number | null = null;
   private nextPush = 0;
   private side = 1;
@@ -116,7 +122,8 @@ export class Replay {
 
   /** Call every frame while the ball is in play. */
   record(gameTime: number, ball: Vec3, spin: Quat) {
-    this.recorder.record(gameTime, ball, spin, this.parts.ballFade.shown, this.parts.keeper.snapshot(this.pose));
+    const { ballFade, keeper, crowd } = this.parts;
+    this.recorder.record(gameTime, ball, spin, ballFade.shown, keeper.snapshot(this.pose), crowd.clock);
   }
 
   /** True if the shot that just ended deserves a replay. */
@@ -137,6 +144,11 @@ export class Replay {
     const resultAt = r.resultAt ?? r.endAt;
     const impactAt = r.impactAfter(goal ? resultAt : r.kickAt);
     this.window = replayWindow(r.kickAt, resultAt, r.endAt, this.settings, impactAt);
+    this.length = this.window.length + (goal ? this.settings.goalCheer : 0);
+    this.result = {
+      elapsed: (resultAt - this.window.start) / this.window.rate,
+      clock: r.sample(resultAt, this.frame).crowd,
+    };
     r.sample(this.window.end, this.frame);
     this.end.set(this.frame.ball.x, this.frame.ball.y, this.frame.ball.z);
     this.side = this.end.x >= 0 ? 1 : -1;
@@ -167,7 +179,7 @@ export class Replay {
 
   /** True once the whole replay has played. */
   get finished() {
-    return this.elapsed >= this.window.length;
+    return this.elapsed >= this.length;
   }
 
   /** Lays the panel out for a screen of `w` x `h` CSS pixels. */
@@ -195,7 +207,7 @@ export class Replay {
   /** Moves the replay on by `realDt` seconds and draws it. */
   render(realDt: number) {
     const { renderer, scene } = this.parts;
-    this.elapsed = Math.min(this.window.length, this.elapsed + realDt);
+    this.elapsed = Math.min(this.length, this.elapsed + realDt);
     const t = this.sample(this.elapsed);
     this.backdrop.material.uniforms.time.value += realDt;
 
@@ -229,10 +241,12 @@ export class Replay {
     renderer.render(this.overlay, this.screen);
   }
 
-  /** Puts the ball and keeper where they were `elapsed` replay seconds in. Returns the game time shown. */
+  /** Puts the ball, keeper and crowd where they were `elapsed` replay seconds in. Returns the game time shown. */
   private sample(elapsed: number) {
     const w = this.window;
-    const t = w.start + elapsed * w.rate;
+    // After the part of the shot it shows, a goal's celebration: the ball settling in the net, slower still.
+    const over = Math.max(0, elapsed - w.length);
+    const t = w.start + (elapsed - over) * w.rate + over * this.settings.slowest;
     const f: ReplayFrame = this.recorder.sample(t, this.frame);
     const { ball, ballFade, keeper } = this.parts;
     ball.position.set(f.ball.x, f.ball.y, f.ball.z);
@@ -240,6 +254,10 @@ export class Replay {
     ballFade.showAt(f.ballOpacity);
     keeper.apply(f.keeper);
     this.ballNow.set(f.ball.x, f.ball.y, f.ball.z);
+    // The crowd as they were, up to the result. From then on their reaction plays at its real speed, not slowed
+    // down like the ball, so their jumping and shouting fit in before the replay ends.
+    const r = this.result;
+    this.parts.crowd.show(t, elapsed > r.elapsed ? r.clock + (elapsed - r.elapsed) : f.crowd);
     return t;
   }
 
@@ -251,7 +269,7 @@ export class Replay {
       REPLAY_ANGLES[this.angle],
       this.look,
       { lineZ: world.goal.lineZ, groundY: world.groundY, end: this.end, side: this.side },
-      this.elapsed / Math.max(this.window.length, 1e-6),
+      Math.min(1, this.elapsed / Math.max(this.window.length, 1e-6)),
     );
     const cam = this.camera;
     cam.position.set(pose.position.x, pose.position.y, pose.position.z);

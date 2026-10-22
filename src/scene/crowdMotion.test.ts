@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { CROWD_SETTINGS } from './crowdSettings';
-import { Limb, limbAt, Party, partyLift, reachablePoses } from './crowdMotion';
+import { jumpLift, Limb, limbAt, reachablePoses, waveLift } from './crowdMotion';
 
 describe('crowd motion', () => {
   it('tells the parts apart by where their origin is', () => {
@@ -35,7 +35,7 @@ describe('crowd motion', () => {
 
   it('jumps a few times after a goal, arms up, and lands back on the step', () => {
     const s = CROWD_SETTINGS;
-    const at = (t: number, own = 1) => partyLift(Party.Jump, t, t, 0.5, own, 1, s);
+    const at = (t: number, own = 1) => jumpLift(t, own, s);
     const jumping = s.jumps * s.jumpTime;
     expect(at(0).lift).toBe(0);
     expect(at(s.jumpTime / 2).lift).toBeCloseTo(s.jumpHeight);
@@ -52,7 +52,7 @@ describe('crowd motion', () => {
       let best = 0;
       let when = 0;
       for (let t = 0; t < s.waveLap; t += 0.005) {
-        const { lift } = partyLift(Party.Wave, 0, t, around, 0, dir, s);
+        const { lift } = waveLift(t, around, 0, dir, s);
         if (lift > best) [best, when] = [lift, t];
       }
       return { best, when };
@@ -61,7 +61,17 @@ describe('crowd motion', () => {
     expect(peak(0.8, 1).when).toBeGreaterThan(peak(0.2, 1).when + s.waveLap * 0.5);
     expect(peak(0.8, -1).when).toBeLessThan(peak(0.2, -1).when);
     // Far from the wave, nobody moves; after its last lap, nobody at all.
-    expect(partyLift(Party.Wave, 0, s.waveLap * 0.2, 0.9, 0, 1, s).lift).toBe(0);
-    expect(partyLift(Party.Wave, 0, s.waveLap * s.waveLaps + 0.01, 0.5, 0, 1, s).lift).toBe(0);
+    expect(waveLift(s.waveLap * 0.2, 0.9, 0, 1, s).lift).toBe(0);
+    expect(waveLift(s.waveLap * s.waveLaps + 0.01, 0.5, 0, 1, s).lift).toBe(0);
+  });
+
+  it('lets a goal or a save stop the Mexican wave: people drop out of it quickly', () => {
+    const s = CROWD_SETTINGS;
+    // Someone the wave is passing right now.
+    let t = 0;
+    while (waveLift(t, 0.3, 0, 1, s).lift < s.waveRise * 0.99) t += 0.005;
+    expect(waveLift(t, 0.3, 0, 1, s, 0).lift).toBeCloseTo(s.waveRise, 2);
+    expect(waveLift(t + 0.1, 0.3, 0, 1, s, 0.1).lift).toBeGreaterThan(0);
+    expect(waveLift(t + 0.3, 0.3, 0, 1, s, 0.3)).toEqual({ lift: 0, arms: 0 });
   });
 });

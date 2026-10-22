@@ -197,12 +197,16 @@ a side it's an arm, in the middle higher up it's the head; parts inside another 
 
 The crowd reacts to each shot (`Crowd.react`, on real time so a goal's slow motion doesn't slow them), using the face's
 shape keys from `crowd_base.glb` (`Surprised_O`, `Frown`, `Smile_Closed`, `Cheer_Open`): after a goal most of them
-shout (mouth wide open), the rest grin, and either everyone jumps three times with their arms up or a Mexican wave goes
-round the stands twice (half and half, at random); after a save they go "ooh!" (an O) and then most frown, while a few
-smile (they're for the keeper). At rest everyone has a faint smile of their own. It all eases away when the next shot
-starts. Flag bearers keep holding their flags. Someone with a rail or a person from the row behind just above them
+shout (mouth wide open), the rest grin, and everyone jumps three times with their arms up; after a save they go "ooh!"
+(an O) and then most frown, while a few smile (they're for the keeper). At rest everyone has a faint smile of their
+own. It all eases away when the next shot starts. While you aim or wait, now and then (about every 15 s) a Mexican wave
+goes round the stands twice (`Crowd.waitAround`); a goal or a save stops it, each person dropping out of it as they
+react. Flag bearers keep holding their flags. Someone with a rail or a person from the row behind just above them
 jumps only as high as there's room for. With reduced motion turned on, the faces still change but nobody jumps or
-waves. Try and tune it with **Crowd reactions** in the `?edit` panel.
+waves. The replay shows the crowd too: the recorder keeps the crowd's clock with every frame, so up to the goal or save
+they move slowed down like the ball, and from then on their reaction plays at its real speed. A goal's replay keeps
+going for one more second (`goalCheer` in `src/scene/replaySettings.ts`, the ball settling in the net) so you see them
+celebrate. Try and tune it with **Crowd reactions** in the `?edit` panel.
 
 The spots are worked out at load from the `STATIC_Concrete` mesh, everything else in the model and the room the person
 needs while moving, measured in 10 cm layers (`src/scene/crowdSpots.ts`): nobody touches a barrier, rail, wall or

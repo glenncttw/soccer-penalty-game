@@ -15,6 +15,8 @@ export interface ReplaySettings {
   afterResult: number;
   /** Game seconds it keeps going after the ball first hits the keeper, the frame or the net. */
   afterImpact: number;
+  /** Extra seconds a goal's replay keeps going at the end (the ball slowly settling in the net), so you see the crowd celebrate. */
+  goalCheer: number;
   /** Seconds the result banner shows before the wipe, after a shot with a replay and after one without. */
   holdWithReplay: number;
   holdWithout: number;
@@ -33,6 +35,7 @@ export const REPLAY_SETTINGS: ReplaySettings = {
   fastest: 0.7,
   afterResult: 0.45,
   afterImpact: 0.3,
+  goalCheer: 1,
   holdWithReplay: 1.2,
   holdWithout: 1.4,
   wipeTime: 0.8,

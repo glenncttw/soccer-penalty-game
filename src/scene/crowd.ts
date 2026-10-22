@@ -2,17 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CrowdParts } from './crowdAsset';
 import { CROWD_SETTINGS, type CrowdSettings } from './crowdSettings';
-import {
-  addMotion,
-  holdingPose,
-  Limb,
-  limbAt,
-  Mood,
-  motionOf,
-  motionUniforms,
-  Party,
-  reachablePoses,
-} from './crowdMotion';
+import { addMotion, holdingPose, Limb, limbAt, Mood, motionOf, motionUniforms, reachablePoses } from './crowdMotion';
 import {
   concat,
   findCrowdSpots,
@@ -94,7 +84,11 @@ export class Crowd {
   private readonly motion: ReturnType<typeof motionUniforms>;
   /** Where each person's flag-bearing numbers are: their look's `aHold` and their place in it. */
   private readonly holds: { attribute: THREE.InstancedBufferAttribute; k: number }[] = [];
-  private waveChance: number;
+  private waveEvery: number;
+  /** Real seconds since the game started: what their reactions run on (see `update`). */
+  private time = 0;
+  /** Seconds of waiting around (see `waitAround`) until the next Mexican wave. */
+  private untilWave: number;
 
   constructor(
     stadium: THREE.Object3D,
@@ -143,7 +137,8 @@ export class Crowd {
       material.envMapIntensity = 1;
     }
     this.motion = motionUniforms(s);
-    this.waveChance = s.waveChance;
+    this.waveEvery = s.waveEvery;
+    this.untilWave = this.waveGap();
     dress(material, s, this.motion);
     // Everyone's own timing and colours, drawn from the same random numbers every time.
     const pick = (list: string[], fallback: string) => list[Math.floor(random() * list.length)] ?? fallback;
@@ -210,31 +205,63 @@ export class Crowd {
   }
 
   /**
-   * The crowd reacts to a shot: after a goal they shout, and jump or do a Mexican wave (`party`: picked at random
-   * unless given; none with `still`, for people who'd rather not see much moving); after a save they go "ooh!" and
-   * most look disappointed.
+   * The crowd reacts to a shot: after a goal they shout and jump (not with `still`, for people who'd rather not
+   * see much moving); after a save they go "ooh!" and most look disappointed. Either stops a Mexican wave.
    */
-  react(result: 'goal' | 'saved', { still = false, party }: { still?: boolean; party?: Party } = {}) {
+  react(result: 'goal' | 'saved', { still = false }: { still?: boolean } = {}) {
     const u = this.motion;
-    u.uReactAt.value = u.uCrowdClock.value;
+    u.uReactAt.value = this.time;
     u.uReactEnd.value = 1e9;
     u.uMood.value = result === 'goal' ? Mood.Goal : Mood.Save;
-    u.uParty.value =
-      result !== 'goal' || still ? Party.None : (party ?? (Math.random() < this.waveChance ? Party.Wave : Party.Jump));
+    u.uJump.value = result === 'goal' && !still ? 1 : 0;
+    if (this.waving) u.uWaveEnd.value = this.time;
+  }
+
+  /** Starts a Mexican wave round the stands, one way or the other (unless one is going already). */
+  wave() {
+    if (this.waving) return;
+    const u = this.motion;
+    u.uWaveAt.value = this.time;
+    u.uWaveEnd.value = 1e9;
     u.uWaveDir.value = Math.random() < 0.5 ? 1 : -1;
+  }
+
+  /** True while a Mexican wave is going round. */
+  get waving() {
+    const u = this.motion;
+    const s = this.time - u.uWaveAt.value;
+    return s < u.uWaveLap.value * u.uWaveLaps.value && this.time < u.uWaveEnd.value;
+  }
+
+  /**
+   * Call every frame while you aim or wait (not with `still`): now and then, the crowd starts a Mexican wave.
+   * The time only counts while no wave is going.
+   */
+  waitAround(realDt: number, still: boolean) {
+    if (still || this.waving) return;
+    this.untilWave -= realDt;
+    if (this.untilWave > 0) return;
+    this.wave();
+    this.untilWave = this.waveGap();
   }
 
   /** Changes how they react (the reaction settings in `s`), from the next reaction on. */
   tune(s: CrowdSettings) {
     const fresh = motionUniforms(s);
     for (const key of REACTION_UNIFORMS) this.motion[key].value = fresh[key].value;
-    this.waveChance = s.waveChance;
+    this.waveEvery = s.waveEvery;
+    this.untilWave = Math.min(this.untilWave, this.waveGap());
   }
 
   /** Back to how they were before the shot, easing out of whatever they're doing. */
   calm() {
     const u = this.motion;
-    if (u.uReactEnd.value > u.uCrowdClock.value) u.uReactEnd.value = u.uCrowdClock.value;
+    if (u.uReactEnd.value > this.time) u.uReactEnd.value = this.time;
+  }
+
+  /** Their clock, in real seconds: what their reactions and the Mexican wave run on. */
+  get clock() {
+    return this.time;
   }
 
   /**
@@ -242,8 +269,19 @@ export class Crowd {
    * to the real time (so a goal's slow motion doesn't make them float).
    */
   update(time: number, realDt: number) {
+    this.time += realDt;
+    this.show(time, this.time);
+  }
+
+  /** Shows them at game time `time` and at `clock` on their own clock (for the replay: see `update`). */
+  show(time: number, clock: number) {
     this.motion.uCrowdTime.value = time;
-    this.motion.uCrowdClock.value += realDt;
+    this.motion.uCrowdClock.value = clock;
+  }
+
+  /** Seconds until the next Mexican wave: about `waveEvery`, a bit shorter or longer each time. */
+  private waveGap() {
+    return this.waveEvery * (0.5 + Math.random());
   }
 }
 

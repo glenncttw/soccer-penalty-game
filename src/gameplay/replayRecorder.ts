@@ -11,6 +11,8 @@ export interface ReplayFrame {
   ballOpacity: number;
   /** The keeper's pose (see KeeperRig.snapshot). */
   keeper: Float32Array;
+  /** The crowd's clock (real seconds, see Crowd.clock), so the replay shows them as they were. */
+  crowd: number;
 }
 
 const MAX_FRAMES = 2400; // 10 s at 240 frames a second: more than any shot lasts
@@ -31,7 +33,7 @@ export class ReplayRecorder {
     this.resultAt = null;
   }
 
-  record(t: number, ball: Vec3, spin: Quat, ballOpacity: number, keeper: Float32Array) {
+  record(t: number, ball: Vec3, spin: Quat, ballOpacity: number, keeper: Float32Array, crowd = 0) {
     if (this.frames.length >= MAX_FRAMES) return;
     const last = this.frames[this.frames.length - 1];
     if (last && t <= last.t) return; // a frame where game time stood still adds nothing
@@ -41,6 +43,7 @@ export class ReplayRecorder {
       spin: { x: spin.x, y: spin.y, z: spin.z, w: spin.w },
       ballOpacity,
       keeper: keeper.slice(),
+      crowd,
     });
   }
 
@@ -74,6 +77,7 @@ export class ReplayRecorder {
     lerpPoint(out.ball, a.ball, b.ball, k);
     slerp(out.spin, a.spin, b.spin, k);
     out.ballOpacity = a.ballOpacity + (b.ballOpacity - a.ballOpacity) * k;
+    out.crowd = a.crowd + (b.crowd - a.crowd) * k;
     if (out.keeper.length !== a.keeper.length) out.keeper = new Float32Array(a.keeper.length);
     for (let i = 0; i < a.keeper.length; i++) out.keeper[i] = a.keeper[i] + (b.keeper[i] - a.keeper[i]) * k;
     return out;
@@ -89,6 +93,7 @@ export function blankFrame(): ReplayFrame {
     spin: { x: 0, y: 0, z: 0, w: 1 },
     ballOpacity: 1,
     keeper: new Float32Array(0),
+    crowd: 0,
   };
 }
 

@@ -75,7 +75,7 @@ const CROWD_ROWS: Row<CrowdSettings>[] = [
   ['saveSulk', 'Sulking after a save (s)', 0.5, 5, 0.1],
   ['frownShare', 'Share frowning', 0, 1, 0.01],
   ['restSmile', 'Smile at rest', 0, 1, 0.01],
-  ['waveChance', 'Chance of a wave', 0, 1, 0.01],
+  ['waveEvery', 'Time between waves (s)', 3, 60, 1],
   ['jumps', 'Jumps', 1, 6, 1],
   ['jumpTime', 'Time per jump (s)', 0.2, 1, 0.01],
   ['jumpHeight', 'Jump height (m)', 0, 0.3, 0.01],
@@ -99,7 +99,8 @@ export interface EditorTargets {
   /** The crowd's reactions, to tune and try. */
   crowd: {
     tune(settings: CrowdSettings): void;
-    react(result: 'goal' | 'saved', options: { party: 1 | 2 }): void;
+    react(result: 'goal' | 'saved'): void;
+    wave(): void;
     calm(): void;
   };
 }
@@ -157,9 +158,9 @@ export function openSettingsEditor(targets: EditorTargets) {
   const crowd = { ...CROWD_SETTINGS };
   const crowdFolder = gui.addFolder('Crowd reactions');
   for (const row of CROWD_ROWS) addRow(crowdFolder, crowd, row).onChange(() => targets.crowd.tune(crowd));
-  crowdFolder.add({ jump: () => targets.crowd.react('goal', { party: 1 }) }, 'jump').name('Goal: jump');
-  crowdFolder.add({ wave: () => targets.crowd.react('goal', { party: 2 }) }, 'wave').name('Goal: Mexican wave');
-  crowdFolder.add({ save: () => targets.crowd.react('saved', { party: 1 }) }, 'save').name('Save');
+  crowdFolder.add({ wave: () => targets.crowd.wave() }, 'wave').name('Mexican wave');
+  crowdFolder.add({ goal: () => targets.crowd.react('goal') }, 'goal').name('Goal');
+  crowdFolder.add({ save: () => targets.crowd.react('saved') }, 'save').name('Save');
   crowdFolder.add({ calm: () => targets.crowd.calm() }, 'calm').name('Calm down');
   addCopyButton(crowdFolder, 'Copy crowd settings', () => settingsSnippet('CROWD_SETTINGS', 'CrowdSettings', crowd));
   crowdFolder.add({ reset: () => crowdFolder.reset() }, 'reset').name('Reset crowd reactions');

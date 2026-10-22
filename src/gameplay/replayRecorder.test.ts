@@ -12,14 +12,15 @@ describe('ReplayRecorder', () => {
   it('blends between the two nearest frames', () => {
     const r = new ReplayRecorder();
     r.start(10);
-    r.record(10, { x: 0, y: 0, z: 12 }, { x: 0, y: 0, z: 0, w: 1 }, 1, pose(0));
-    r.record(10.5, { x: 2, y: 1, z: 2 }, { x: 0, y: 0, z: 0, w: 1 }, 0, pose(1));
+    r.record(10, { x: 0, y: 0, z: 12 }, { x: 0, y: 0, z: 0, w: 1 }, 1, pose(0), 20);
+    r.record(10.5, { x: 2, y: 1, z: 2 }, { x: 0, y: 0, z: 0, w: 1 }, 0, pose(1), 22);
     const f = r.sample(10.25, blankFrame());
     expect(f.ball).toEqual({ x: 1, y: 0.5, z: 7 });
     expect(f.ballOpacity).toBeCloseTo(0.5);
     expect(f.keeper[0]).toBeCloseTo(0.5);
     expect(f.keeper[3]).toBeCloseTo(0.5);
     expect(f.keeper[4]).toBe(1);
+    expect(f.crowd).toBeCloseTo(21); // the crowd's clock
   });
 
   it('holds the first and last frames outside the recording', () => {
