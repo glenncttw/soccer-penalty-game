@@ -495,6 +495,12 @@ renderer.setAnimationLoop((time) => {
     physics.step();
     accumulator -= FIXED_STEP;
   }
+  // A goal slows the game down for the ball, but the keeper, beaten by then, carries on at full
+  // speed: its dive in slow motion looked like it was floating.
+  if (outcome.result === 'goal' && realDt > dt) {
+    keeper.step(realDt - dt);
+    physics.poseKeeper(keeperRig.parts);
+  }
   if (caught) outcome.caught(caught.point.z);
   for (const contact of caught ? [caught, ...physics.takeContacts()] : physics.takeContacts()) {
     if (contact.surface === 'keeper') outcome.keeperTouched(contact.point.z);

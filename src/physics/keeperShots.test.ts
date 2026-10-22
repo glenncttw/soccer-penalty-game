@@ -132,8 +132,8 @@ describe('shots against the keeper', () => {
   });
 
   it('is fooled by curl on a shot it saves when hit straight', () => {
-    // Dragging left swings the ball out toward the middle, then it bends right, away from the keeper.
-    expect(play(1.6, 0.9, 0.8, 0).result).toBe('saved');
-    expect(play(1.6, 0.9, 0.8, -1).result).toBe('goal');
+    // Curled, the ball starts out toward the middle, then bends right, away from the keeper.
+    expect(play(1.6, 0.9, 0.7, 0).result).toBe('saved');
+    expect(play(1.6, 0.9, 0.7, 1).result).toBe('goal');
   });
 });

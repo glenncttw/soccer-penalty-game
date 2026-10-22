@@ -21,6 +21,21 @@ const DIVE_LIFT: [number, number] = [-0.15, 0.3]; // metres a dive can be lower 
 const JUMP_LIFT: [number, number] = [-0.3, 0.25]; // the same for the tuck jump
 const HANDS_CLOSED = 0.2; // seconds into catch_chest its hands have closed enough to hold the ball
 const CATCH_READY = 0.12; // seconds into catch_chest it can take the ball (the hands still closing round it)
+/**
+ * How fast each save plays as a rule, compared with Blender: the clips are timed calmly, and next
+ * to a 25 m/s ball they look like slow motion at their own speed. It can go up to `speedUp` times
+ * faster still to get there in time.
+ */
+const PACE: Partial<Record<KeeperClip, number>> = {
+  dive_low_L: 1.5,
+  dive_low_R: 1.5,
+  dive_high_L: 1.5,
+  dive_high_R: 1.5,
+  tuck_jump: 1.3,
+  punch: 1.3,
+  catch_chest: 1.2,
+};
+const SLOWEST = 0.8; // share of its pace a save can slow down to for a slow ball, before it starts later instead
 const GLOVE_LINE = 0.5; // metres in front of where it stands that its gloves meet the ball
 
 /** A save: which animation, how fast, and how far the whole keeper is shifted to get its gloves there. */
@@ -32,6 +47,8 @@ interface Save {
   at: number;
   /** How fast the clip plays up to `at` (1 = as made in Blender). */
   speed: number;
+  /** How fast it plays after `at` (its PACE). */
+  pace: number;
   /** Seconds into the clip it lands: the lift is back to 0 by then. */
   land: number;
   slide: number;
@@ -176,7 +193,8 @@ export class KeeperMotion {
     // A catch takes the ball once its hands have closed, then holds it to its chest: aim the spot
     // between its hands at the ball. Other saves meet it anywhere on their gloves before landing.
     const land = catches ? this.rig.duration(clip) : lands(track);
-    const latest = Math.min(land, time * this.skill.speedUp);
+    const pace = PACE[clip] ?? 1;
+    const latest = Math.min(land, time * pace * this.skill.speedUp);
     let best: Save | null = null;
     let bestCost = Infinity;
     for (const s of track) {
@@ -193,10 +211,11 @@ export class KeeperMotion {
       if (cost < bestCost) {
         bestCost = cost;
         const at = Math.max(s.t, 1e-3);
-        // As fast as it has to be to get there in time, but never slower than in Blender:
-        // with time to spare it starts later instead.
-        const speed = Math.max(1, at / time);
-        best = { clip, start: delay + Math.max(0, time - at / speed), at, speed, land, slide: sx, lift: sy, miss };
+        // As fast as it has to be to get there in time, but not much slower than its pace: with
+        // more time to spare it starts later instead.
+        const speed = Math.max(pace * SLOWEST, at / time);
+        const start = delay + Math.max(0, time - at / speed);
+        best = { clip, start, at, speed, pace, land, slide: sx, lift: sy, miss };
       }
     }
     return best!;
@@ -222,8 +241,8 @@ export class KeeperMotion {
           const fade = rig.playing === 'idle' ? SAVE_BLEND_IDLE : SAVE_BLEND;
           rig.play(save.clip, { fade, once: true, speed: save.speed });
         } else if (rig.time >= save.at) {
-          // Past full stretch: eases back to the speed it was made at.
-          rig.speed = save.speed + (1 - save.speed) * smoothstep((rig.time - save.at) / SPEED_EASE);
+          // Past full stretch: eases to its usual pace.
+          rig.speed = save.speed + (save.pace - save.speed) * smoothstep((rig.time - save.at) / SPEED_EASE);
         }
         // Shift across and up to meet the ball, and back down by the landing.
         const t = rig.time;

@@ -239,12 +239,15 @@ It plays the animations in the file (`src/ai/keeperMotion.ts` picks them, `src/s
 | `dive_low_L/R`, `dive_high_L/R` | a ball to the side, below or above 0.9 m |
 | `celebrate` | after the last penalty, on the end screen |
 
-When the ball is struck the keeper waits its reaction time, then picks the moment in the save's animation where its
-gloves come closest to where it thinks the ball goes. It plays the save so that moment comes as the ball arrives: up
-to 1.1x faster than in Blender (`speedUp` in `src/ai/keeper.ts`), or starting later for a slow ball. On top of the
-animation it can shift across by up to 0.4 m in a dive (`lunge`) and 0.25 m when standing, and up or down a little,
+When the ball is struck the keeper waits its reaction time (0.32 s), then picks the moment in the save's animation
+where its gloves come closest to where it thinks the ball goes. The saves play faster than in Blender as a rule
+(`PACE` in `src/ai/keeperMotion.ts`: dives 1.5x, tuck jump and punch 1.3x, catch 1.2x), because at their own speed
+they looked like slow motion next to the ball. It plays the save so that moment comes as the ball arrives: up to 1.05x
+faster than its pace (`speedUp` in `src/ai/keeper.ts`), down to 0.8x of it for a slow ball, or starting later for a
+very slow one. On top of the animation it can shift across by up to 0.3 m in a dive (`lunge`) and 0.25 m when
+standing, and up or down a little,
 so its gloves meet the ball. The save rate is the same as the keeper before the animations (about 35% goals and 43%
-saves over 1,512 simulated shots).
+saves over 1,512 simulated shots). When a goal slows the game down, the keeper keeps moving at full speed.
 
 Going from one animation to the next is always a blend, never a cut: whatever shows fades out from where it is while
 the next fades in (0.3 s between `idle`, `ready` and `celebrate`, 0.15-0.2 s into a save). It follows your aim like a
