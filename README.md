@@ -195,13 +195,21 @@ they do, each with their own timing, on game time (slow motion slows them too). 
 placed in Blender, and the kind of part is told by where that origin is: at the feet it's the body (stays put), off to
 a side it's an arm, in the middle higher up it's the head; parts inside another part (the hair) move with it.
 
+The crowd reacts to each shot (`Crowd.react`, on real time so a goal's slow motion doesn't slow them), using the face's
+shape keys from `crowd_base.glb` (`Surprised_O`, `Frown`, `Smile_Closed`, `Cheer_Open`): after a goal most of them
+shout (mouth wide open), the rest grin, and either everyone jumps three times with their arms up or a Mexican wave goes
+round the stands twice (half and half, at random); after a save they go "ooh!" (an O) and then most frown, while a few
+smile (they're for the keeper). At rest everyone has a faint smile of their own. It all eases away when the next shot
+starts. Flag bearers keep holding their flags. Someone with a rail or a person from the row behind just above them
+jumps only as high as there's room for. With reduced motion turned on, the faces still change but nobody jumps or
+waves. Try and tune it with **Crowd reactions** in the `?edit` panel.
+
 The spots are worked out at load from the `STATIC_Concrete` mesh, everything else in the model and the room the person
 needs while moving, measured in 10 cm layers (`src/scene/crowdSpots.ts`): nobody touches a barrier, rail, wall or
 another person, even with their arms up. Where there isn't room to cheer, a person only sways; where even that's too
-tight (the narrow side steps), they stand still apart from a small bounce. The face's shape keys (expressions) are in
-the file but not used yet. Settings in `src/scene/crowdSettings.ts` (row heights, spacing and its randomness, how they
-move); a new stadium export that moves the steps needs new `rowHeights`, and the game stops with an error naming a
-height that has no step.
+tight (the narrow side steps), they stand still apart from a small bounce. Settings in `src/scene/crowdSettings.ts`
+(row heights, spacing and its randomness, how they move and react); a new stadium export that moves the steps needs new
+`rowHeights`, and the game stops with an error naming a height that has no step.
 
 **Flags in the crowd:** a few big flags wave in the stands (`src/scene/crowdFlags.ts`), made in code: a thin pole and a
 cloth with Glenn's logo in the middle (`public/assets/crowd/flag_logo.svg`, drawn into a texture once at load: replace

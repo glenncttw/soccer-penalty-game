@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { CROWD_SETTINGS } from './crowdSettings';
-import { Limb, limbAt, reachablePoses } from './crowdMotion';
+import { Limb, limbAt, Party, partyLift, reachablePoses } from './crowdMotion';
 
 describe('crowd motion', () => {
   it('tells the parts apart by where their origin is', () => {
@@ -19,7 +19,9 @@ describe('crowd motion', () => {
     const cheer = reachablePoses(Limb.Arm, shoulder, CROWD_SETTINGS, 'cheer');
     expect(top(cheer)).toBeGreaterThan(shoulder.y + 0.2);
     expect(out(cheer)).toBeGreaterThan(shoulder.x + 0.2);
-    expect(top(reachablePoses(Limb.Arm, shoulder, CROWD_SETTINGS, 'calm'))).toBeLessThan(0.2 + CROWD_SETTINGS.bob + 1e-6);
+    expect(top(reachablePoses(Limb.Arm, shoulder, CROWD_SETTINGS, 'calm'))).toBeLessThan(
+      0.2 + CROWD_SETTINGS.bob + 1e-6,
+    );
   });
 
   it('keeps calm people facing the way they were put', () => {
@@ -29,5 +31,37 @@ describe('crowd motion', () => {
       expect(p.x).toBeCloseTo(0);
       expect(p.z).toBeCloseTo(0.2);
     }
+  });
+
+  it('jumps a few times after a goal, arms up, and lands back on the step', () => {
+    const s = CROWD_SETTINGS;
+    const at = (t: number, own = 1) => partyLift(Party.Jump, t, t, 0.5, own, 1, s);
+    const jumping = s.jumps * s.jumpTime;
+    expect(at(0).lift).toBe(0);
+    expect(at(s.jumpTime / 2).lift).toBeCloseTo(s.jumpHeight);
+    expect(at(s.jumpTime / 2, 0).lift).toBeCloseTo(s.jumpHeight * 0.6);
+    expect(at(s.jumpTime * 1.5).arms).toBe(1);
+    for (let t = 0; t < jumping + 1; t += 0.01) expect(at(t).lift).toBeGreaterThanOrEqual(0);
+    expect(at(jumping + 0.01)).toEqual({ lift: 0, arms: 0 });
+  });
+
+  it('sends a Mexican wave along the stands, each person up as it passes them', () => {
+    const s = CROWD_SETTINGS;
+    // When the wave (going right) is fullest at `around`, within its first lap.
+    const peak = (around: number, dir: 1 | -1) => {
+      let best = 0;
+      let when = 0;
+      for (let t = 0; t < s.waveLap; t += 0.005) {
+        const { lift } = partyLift(Party.Wave, 0, t, around, 0, dir, s);
+        if (lift > best) [best, when] = [lift, t];
+      }
+      return { best, when };
+    };
+    expect(peak(0.2, 1).best).toBeCloseTo(s.waveRise, 2);
+    expect(peak(0.8, 1).when).toBeGreaterThan(peak(0.2, 1).when + s.waveLap * 0.5);
+    expect(peak(0.8, -1).when).toBeLessThan(peak(0.2, -1).when);
+    // Far from the wave, nobody moves; after its last lap, nobody at all.
+    expect(partyLift(Party.Wave, 0, s.waveLap * 0.2, 0.9, 0, 1, s).lift).toBe(0);
+    expect(partyLift(Party.Wave, 0, s.waveLap * s.waveLaps + 0.01, 0.5, 0, 1, s).lift).toBe(0);
   });
 });
