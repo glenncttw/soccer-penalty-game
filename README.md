@@ -220,9 +220,10 @@ goes through the bearer's own head or body. A place with no room near it gets no
 ## The keeper
 
 The keeper is Glenn's blue bird, a Blender export (`BlueBird3_v035_game.glb`): `public/assets/keeper/BlueBird3_GK.glb`,
-loaded by `src/scene/keeperAsset.ts` at the size it was made in Blender (origin between the feet, facing the shooter).
+loaded by `src/scene/keeperAsset.ts` (origin between the feet, facing the shooter) and scaled to stand 1.6 m tall
+(`KEEPER_HEIGHT`; the export itself is 1.0 m).
 The game moves and leans it with the keeper's motion; its rig and animations (idle, ready, dives, catch, punch,
-celebrate and more) are in the file but nothing plays them yet. The bird is 1.0 m tall and has no textures yet. The
+celebrate and more) are in the file but nothing plays them yet. The bird has no textures yet. The
 physics body that saves shots is still the placeholder's (`src/physics/keeperBody.ts`, 1.52 m tall).
 
 The export was made lighter for the web with [glTF Transform](https://gltf-transform.dev) (the mesh and animations
