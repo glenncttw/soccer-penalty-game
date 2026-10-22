@@ -194,6 +194,14 @@ describe('KeeperMotion', async () => {
     expect(glovesTo(x, y)).toBeLessThan(rig.shapes[0].radius);
   });
 
+  it('dives quicker than the calm timing in Blender', () => {
+    const motion = fresh();
+    motion.react(spotAt(1.6, 0.4, 0.5, 26));
+    run(motion, KEEPER_SKILL.reaction + 0.3);
+    expect(rig.playing).toBe('dive_low_L');
+    expect(rig.time).toBeGreaterThan(0.3 * 1.4);
+  });
+
   it('waits for a slow ball instead of diving too early', () => {
     const motion = fresh();
     motion.react(spotAt(2, 0.8, 1.5));

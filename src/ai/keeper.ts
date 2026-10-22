@@ -8,7 +8,7 @@ export interface KeeperSkill {
   reaction: number;
   /** How far (m) it can throw itself across in a dive, on top of how far the dive animation goes. */
   lunge: number;
-  /** How much faster than in Blender it can play a save to get there in time (1 = never faster). */
+  /** How much faster than its usual pace it can play a save to get there in time (1 = never faster). */
   speedUp: number;
   /** Chance (0..1) that it reads a full-power shot instead of guessing a side. Slow shots are always read. */
   read: number;
@@ -22,9 +22,9 @@ export interface KeeperSkill {
 
 /** The game's keeper: saves soft and central shots, while well-struck corners and curled shots usually beat it. */
 export const KEEPER_SKILL: KeeperSkill = {
-  reaction: 0.23,
-  lunge: 0.4,
-  speedUp: 1.1,
+  reaction: 0.32,
+  lunge: 0.3,
+  speedUp: 1.05,
   read: 0.7,
   curlSense: 0.45,
   misjudge: 0.5,
