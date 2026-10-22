@@ -168,7 +168,7 @@ describe('game camera', () => {
         expect(middle.y).toBeCloseTo(-0.05, 2);
       } else {
         expect(middle.x).toBeCloseTo(0, 2);
-        expect(middle.y).toBeCloseTo(0.45, 2);
+        expect(middle.y).toBeCloseTo(0.38, 2);
       }
       // And back to the rest view once the screen goes.
       settle(view);

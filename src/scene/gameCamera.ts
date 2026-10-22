@@ -23,10 +23,14 @@ const INTRO_RISE = 0.3; // metres higher at the start
 // the left (the score goes on the right, src/style.css) or, on screens taller than wide, at the top.
 const END_TIME = 1.4; // seconds to move in (and back out)
 const KEEPER_SIZE = 1.6; // metres: the keeper's height, to frame it
-const END_HEIGHT = 1.1; // metres up: a little above the keeper's middle, looking slightly down at it
+// A hero shot: low down, looking up at it from a little to one side, the picture tilted, drifting slowly round it.
+const END_HEIGHT = 0.4; // metres up
+const END_ORBIT = THREE.MathUtils.degToRad(25); // round to the keeper's left (our right) from straight in front
+const END_ROLL = THREE.MathUtils.degToRad(4); // the picture's tilt
+const END_DRIFT = { angle: THREE.MathUtils.degToRad(6), rise: 0.06, time: 9 }; // the slow drift round it, and its seconds
 const END_FRAME = {
   wide: { x: -0.48, y: -0.05, height: 0.62 }, // the keeper's middle on screen (-1..1 across and up) and its share of the height
-  tall: { x: 0, y: 0.45, height: 0.34 },
+  tall: { x: 0, y: 0.38, height: 0.32 },
 };
 
 export interface CameraState {
@@ -63,6 +67,13 @@ export function createGameCamera(
   const endPosition = new THREE.Vector3();
   const endQuaternion = new THREE.Quaternion();
   const aimer = new THREE.PerspectiveCamera();
+  const middle = new THREE.Vector3(keeper.x, keeper.y + KEEPER_SIZE / 2, keeper.z);
+  let endFrame = END_FRAME.wide;
+  let endDistance = 1;
+  const toCamera = new THREE.Vector3();
+  const across = new THREE.Vector3();
+  const look = new THREE.Vector3();
+  const seen = new THREE.Vector3();
   let ending = 0; // 0..1 of the way in
 
   let charge = 0;
@@ -82,24 +93,40 @@ export function createGameCamera(
     restFov = Math.max(designFov, THREE.MathUtils.radToDeg(neededVertical));
     camera.fov = restFov;
     camera.updateProjectionMatrix();
-    // Close enough that the keeper fills its share of the height, slid sideways toward where the frame has it,
-    // then turned (a few small corrections) until its middle sits exactly there.
-    const frame = aspect >= 1 ? END_FRAME.wide : END_FRAME.tall;
-    const tanV = Math.tan(THREE.MathUtils.degToRad(restFov) / 2);
-    const distance = KEEPER_SIZE / (2 * frame.height * tanV);
-    const middle = new THREE.Vector3(keeper.x, keeper.y + KEEPER_SIZE / 2, keeper.z);
-    endPosition.set(keeper.x - frame.x * distance * tanV * aspect, keeper.y + END_HEIGHT, keeper.z + distance);
-    aimer.position.copy(endPosition);
+    // The end of a round: close enough that the keeper fills its share of the height.
+    endFrame = aspect >= 1 ? END_FRAME.wide : END_FRAME.tall;
+    endDistance = KEEPER_SIZE / (2 * endFrame.height * Math.tan(THREE.MathUtils.degToRad(restFov) / 2));
     aimer.fov = restFov;
     aimer.aspect = aspect;
     aimer.updateProjectionMatrix();
-    const look = middle.clone();
-    for (let i = 0; i < 6; i++) {
+  }
+
+  /**
+   * The end of a round's close-up at `time` seconds: round to one side of the keeper and low, slid sideways
+   * toward where the frame has it, then turned (a few small corrections) until its middle sits exactly there.
+   */
+  function aimEnd(time: number) {
+    const wave = Math.sin((2 * Math.PI * time) / END_DRIFT.time);
+    const orbit = END_ORBIT + END_DRIFT.angle * wave;
+    toCamera.set(Math.sin(orbit), 0, Math.cos(orbit));
+    across.set(Math.cos(orbit), 0, -Math.sin(orbit)); // screen right
+    const tanV = Math.tan(THREE.MathUtils.degToRad(aimer.fov) / 2);
+    const perX = endDistance * tanV * aimer.aspect; // metres across per unit of screen, at the keeper
+    const perY = endDistance * tanV;
+    endPosition
+      .copy(middle)
+      .addScaledVector(toCamera, endDistance)
+      .addScaledVector(across, -endFrame.x * perX)
+      .setY(keeper.y + END_HEIGHT + END_DRIFT.rise * Math.cos((2 * Math.PI * time) / (END_DRIFT.time * 0.7)));
+    aimer.position.copy(endPosition);
+    look.copy(middle);
+    for (let i = 0; i < 8; i++) {
       aimer.lookAt(look);
+      aimer.rotateZ(END_ROLL);
       aimer.updateMatrixWorld();
-      const seen = middle.clone().project(aimer);
-      look.x += (seen.x - frame.x) * distance * tanV * aspect;
-      look.y += (seen.y - frame.y) * distance * tanV;
+      seen.copy(middle).project(aimer);
+      look.addScaledVector(across, (seen.x - endFrame.x) * perX);
+      look.y += (seen.y - endFrame.y) * perY;
     }
     endQuaternion.copy(aimer.quaternion);
   }
@@ -162,6 +189,7 @@ export function createGameCamera(
     shake.setFromEuler(euler);
     camera.quaternion.copy(turn).multiply(restQuaternion).multiply(shake);
     if (ending > 0) {
+      aimEnd(time);
       const k = ending < 0.5 ? 4 * ending ** 3 : 1 - (-2 * ending + 2) ** 3 / 2; // ease in and out
       camera.position.lerp(endPosition, k);
       camera.quaternion.slerp(endQuaternion, k);
