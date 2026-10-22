@@ -26,7 +26,7 @@ const MAX_SAMPLES = 512;
  * Real seconds the trail's back end takes to catch up with its front after the ball's first touch after
  * the shot. Real time, not game time, so it stays snappy in the slow motion after a goal.
  */
-const PULL_IN = 0.3;
+const PULL_IN = 0.25;
 /** Metres over which the trail grows in from nothing at its front end. */
 const HEAD_TAPER = 0.3;
 /**
@@ -38,8 +38,8 @@ const TAIL_TAPER = 1.5;
 /**
  * A fading ribbon behind the ball that makes its curl visible. It always faces
  * the camera, and each point fades by age, so it looks the same at any frame rate.
- * Both ends taper off smoothly (also just after the kick), and once the ball touches something the trail stops
- * growing and its back end shoots forward, faster and faster, to where the ball hit.
+ * Both ends taper off smoothly (also just after the kick), and once the ball touches something its back end
+ * shoots forward to catch up with the front, which keeps following the ball until then.
  */
 export class BallTrail {
   readonly mesh: THREE.Mesh;
@@ -50,8 +50,6 @@ export class BallTrail {
   private style = trailStyle(0.5, false);
   /** Game time the trail stopped following the ball, or null while it follows. */
   private stoppedAt: number | null = null;
-  /** The trail's length (m) when it stopped, so its front fade moves back at a steady pace. */
-  private stopLength: number | null = null;
   /** Real seconds since it stopped, and the game time of the last update. */
   private pulled = 0;
   private lastTime: number | null = null;
@@ -112,7 +110,7 @@ export class BallTrail {
 
   /** Adds the ball's position at game time `time` (seconds). */
   push(p: Vec3, time: number) {
-    if (this.stoppedAt !== null) return;
+    if (this.stoppedAt !== null && this.pulled >= PULL_IN) return; // all pulled in: done until clear()
     const newest = this.samples[0];
     if (newest && newest.p.distanceToSquared(p) < MIN_STEP * MIN_STEP) return;
     const reuse = this.samples.length >= MAX_SAMPLES ? this.samples.pop()! : { p: new THREE.Vector3(), t: 0 };
@@ -139,7 +137,6 @@ export class BallTrail {
   clear() {
     this.samples.length = 0;
     this.stoppedAt = null;
-    this.stopLength = null;
     this.pulled = 0;
     this.mesh.geometry.setDrawRange(0, 0);
   }
@@ -151,7 +148,7 @@ export class BallTrail {
   update(time: number, cameraPosition: THREE.Vector3, realDt = time - (this.lastTime ?? time)) {
     this.lastTime = time;
     const { life, width } = this.style;
-    // After a stop, the back end speeds forward along the trail to its front, where the ball hit.
+    // After a stop, the back end shoots forward along the trail to its front, at the ball.
     if (this.stoppedAt !== null && time >= this.stoppedAt) this.pulled += Math.max(0, realDt);
     const out = this.pulled / PULL_IN;
     if (out >= 1) this.samples.length = 0;
@@ -160,9 +157,9 @@ export class BallTrail {
     const n = this.samples.length;
     let length = 0;
     for (let i = 1; i < n; i++) length += this.samples[i].p.distanceTo(this.samples[i - 1].p);
-    if (this.stoppedAt !== null) this.stopLength ??= length;
-    // How much of the trail is left, measured from its front: all of it until the stop, then less and less.
-    const left = this.stopLength === null ? length : Math.min(length, this.stopLength * (1 - Math.min(1, out) ** 2));
+    // How much of the trail is left, measured from its front: all of it until the stop, then less and less,
+    // going fastest right away.
+    const left = length * (1 - Math.min(1, out)) ** 2;
     const tailTaper = Math.min(TAIL_TAPER, 0.5 * left); // a short trail still shows its middle
     const headTaper = Math.min(HEAD_TAPER, 0.5 * left);
     let along = 0; // metres from the front end
