@@ -507,7 +507,8 @@ renderer.setAnimationLoop((time) => {
     intro: introBall.cameraIntro, // close to the goal on the intro, pulling back as the ball comes down
   });
   introBall.place(physics.ball.translation(), physics.ball.rotation());
-  const chipsMode = reducedMotion ? 'off' : introBall.floating ? 'swirl' : introBall.landing ? 'burst' : 'off';
+  const chipsSwirl = introBall.floating || introBall.windingUp; // they keep swirling while the ball sinks in
+  const chipsMode = reducedMotion ? 'off' : chipsSwirl ? 'swirl' : introBall.landing ? 'burst' : 'off';
   introChips.update(realDt, camera, ballMesh, chipsMode);
   trail.update(gameTime, camera.position, realDt);
   keeperModel.update(keeper.pose, dt);

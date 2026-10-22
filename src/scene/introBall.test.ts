@@ -127,29 +127,51 @@ describe('IntroBall', () => {
     }
   });
 
-  it('starts moving on the first frame, only ever rolls forward round one line, and ends as it rests', () => {
+  it('swings into the tunnel and back out toward you in one smooth curve, only ever rolling forward', () => {
     for (const [w, h] of SCREENS) {
-      const { ball, slot, intro, frame } = setUp(w, h);
+      const { camera, ball, slot, intro, frame } = setUp(w, h);
       intro.float(slot);
       for (let i = 0; i < 90; i++) frame();
-      const start = ball.position.clone();
+      const start = onScreen(ball, camera, w, h);
       intro.land(() => {});
-      frame();
-      expect(ball.position.distanceTo(start)).toBeGreaterThan(0.002); // no waiting
-      expect(intro.cameraIntro).toBeLessThan(1); // the camera already pulls back too
       // The ball's turn (from how it rests) is always round the line across the screen (x).
       const rolled = (q: THREE.Quaternion) => {
         expect(Math.hypot(q.y, q.z)).toBeLessThan(1e-9);
         return 2 * Math.atan2(q.x, q.w);
       };
+      const dt = 1 / 240;
       let last = rolled(ball.quaternion);
-      for (let i = 0; i < 400 && intro.active; i++) {
-        frame();
+      let lastPosition = ball.position.clone();
+      let lastVelocity = new THREE.Vector3();
+      let deepest = start.depth;
+      let deepestAt = 0;
+      let nearest = Infinity;
+      let biggestKick = 0;
+      for (let i = 1; i < 1000 && intro.active; i++) {
+        frame(dt);
+        const now = onScreen(ball, camera, w, h);
+        if (i * dt < 0.6 && now.depth > deepest) [deepest, deepestAt] = [now.depth, i * dt];
+        if (i * dt > deepestAt && i * dt < 1.5) nearest = Math.min(nearest, now.depth);
+        if (intro.windingUp) {
+          // Nothing else has started yet, and it stays about in the middle of the screen.
+          expect(intro.reveal).toBe(0);
+          expect(Math.hypot(now.x - start.x, now.y - start.y)).toBeLessThan(0.05 * h);
+        }
+        // No jumps and no kinks: its speed changes only a little from one moment to the next.
+        const velocity = ball.position.clone().sub(lastPosition).divideScalar(dt);
+        if (i > 1 && intro.active) biggestKick = Math.max(biggestKick, velocity.distanceTo(lastVelocity));
         const angle = rolled(ball.quaternion);
-        const step = THREE.MathUtils.euclideanModulo(angle - last, 2 * Math.PI);
-        expect(step).toBeLessThan(Math.PI / 2); // forward only, never back
+        const step = THREE.MathUtils.euclideanModulo(angle - last + Math.PI, 2 * Math.PI) - Math.PI;
+        expect(step).toBeGreaterThan(-1e-9); // forward only
         last = angle;
+        lastPosition = ball.position.clone();
+        lastVelocity = velocity;
       }
+      expect(deepest).toBeGreaterThan(start.depth * 1.3); // first clearly deeper into the tunnel
+      expect(deepestAt).toBeGreaterThan(0.25);
+      expect(deepestAt).toBeLessThan(0.5);
+      expect(nearest).toBeLessThan(start.depth); // then back out, closer to you than where it floated
+      expect(biggestKick).toBeLessThan(0.5); // metres a second, between samples 1/240 s apart: no sudden starts
       expect(ball.quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(1e-6);
     }
   });
@@ -186,8 +208,9 @@ describe('reveal', () => {
     frame();
     expect(intro.reveal).toBe(0);
     intro.land(() => {});
+    while (intro.windingUp) frame();
     frame();
-    expect(intro.reveal).toBeGreaterThan(0); // opens up straight away, with the chips and the ball
+    expect(intro.reveal).toBeGreaterThan(0); // opens up as soon as the ball shoots out, with the chips
     let last = 0;
     for (let i = 0; i < 50; i++) {
       frame();
