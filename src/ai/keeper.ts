@@ -6,10 +6,10 @@ import type { GoalConfig } from '../worldConfig';
 export interface KeeperSkill {
   /** Seconds between the kick and the keeper starting to move. */
   reaction: number;
-  /** How far (m) it can launch itself in a dive. */
+  /** How far (m) it can throw itself across in a dive, on top of how far the dive animation goes. */
   lunge: number;
-  /** How fast (m/s) its gloves get across the goal in a dive. */
-  diveSpeed: number;
+  /** How much faster than in Blender it can play a save to get there in time (1 = never faster). */
+  speedUp: number;
   /** Chance (0..1) that it reads a full-power shot instead of guessing a side. Slow shots are always read. */
   read: number;
   /** How much of the curl (0..1) it sees coming. At 0 it only sees which way the ball starts. */
@@ -23,8 +23,8 @@ export interface KeeperSkill {
 /** The game's keeper: saves soft and central shots, while well-struck corners and curled shots usually beat it. */
 export const KEEPER_SKILL: KeeperSkill = {
   reaction: 0.23,
-  lunge: 0.9,
-  diveSpeed: 2.75,
+  lunge: 0.4,
+  speedUp: 1.1,
   read: 0.7,
   curlSense: 0.45,
   misjudge: 0.5,
@@ -35,6 +35,8 @@ export const KEEPER_SKILL: KeeperSkill = {
 export interface ShotRead {
   /** Seconds from the kick until the ball reaches the keeper's line. */
   time: number;
+  /** How fast (m/s) the ball was struck. */
+  speed: number;
   /** True if it reads the flight, false if it just guessed a side. */
   read: boolean;
   /** Where it thinks the ball will cross (x across, y up), judging by what it has seen `t` seconds after the kick. */
@@ -88,13 +90,14 @@ export function readShot(
     // A guess: left, middle or right, at a random height.
     const side = Math.floor(random() * 3) - 1;
     const guess = { x: side * reach, y: 0.5 + random() * 0.8 };
-    return { time, read: false, spot: () => guess };
+    return { time, speed, read: false, spot: () => guess };
   }
 
   const off = skill.misjudge * (speed / FULL_POWER_SPEED) ** 2;
   const error = { x: off * (random() + random() - 1), y: off * 0.6 * (random() + random() - 1) };
   return {
     time,
+    speed,
     read: true,
     spot(t) {
       // What it sees at time t, extended straight on to its line (with gravity).

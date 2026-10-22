@@ -27,8 +27,8 @@ import { IntroBackdrop } from './scene/introBackdrop';
 import { IntroBall } from './scene/introBall';
 import { IntroChips, loadChipModel } from './scene/introChips';
 import { applyGrass } from './scene/grass';
-import { KeeperModel } from './scene/keeper';
 import { loadKeeperModel } from './scene/keeperAsset';
+import { KeeperRig } from './scene/keeperRig';
 import { lightMovingObject, setUpLighting } from './scene/lighting';
 import { Replay } from './scene/replay';
 import { REPLAY_SETTINGS } from './scene/replaySettings';
@@ -131,17 +131,18 @@ const aura = new BallAura(world.ballRadius); // the gold glow round the ball on 
 const markers = new AimMarkers();
 const effects = new Effects();
 
-// The keeper stands just off its line, toward the ball.
-const keeper = new KeeperMotion({ x: 0, y: world.groundY, z: world.goal.lineZ + 0.35 }, KEEPER_SKILL);
-const keeperModel = new KeeperModel();
-keeperModel.useModel(await keeperAsset);
+// The keeper (Glenn's bird with its Blender animations) stands just off its line, toward the ball.
+const { model: keeperModel, animations: keeperAnimations } = await keeperAsset;
+const keeperRig = new KeeperRig(keeperModel, keeperAnimations);
+const keeper = new KeeperMotion({ x: 0, y: world.groundY, z: world.goal.lineZ + 0.35 }, KEEPER_SKILL, keeperRig);
 lightMovingObject(ballMesh, envMap);
-lightMovingObject(keeperModel.group, envMap);
-scene.add(ballMesh, trail.mesh, aura.mesh, markers.group, effects.group, keeperModel.group);
+lightMovingObject(keeperRig.object, envMap);
+scene.add(ballMesh, trail.mesh, aura.mesh, markers.group, effects.group, keeperRig.object);
 // Soft shadows on the grass right under the ball and the keeper.
-grass.followContacts(ballMesh, world.ballRadius, keeperModel.group);
+grass.followContacts(ballMesh, world.ballRadius, keeperRig.shadow);
 
-const physics = await createPhysicsWorld(world, { keeper: keeper.pose });
+// The keeper's solid parts follow its bones, so the ball is stopped where you see it.
+const physics = await createPhysicsWorld(world, { keeper: { shapes: keeperRig.shapes, parts: keeperRig.parts } });
 const hud = new Hud(document.querySelector<HTMLElement>('#hud')!);
 // Draw calls, triangles and other numbers that show how hard the game works, above the FPS.
 const perf = new PerfStats(document.querySelector<HTMLElement>('#hud')!, renderer);
@@ -185,7 +186,7 @@ const replay = new Replay({
   scene,
   ball: ballMesh,
   ballFade,
-  keeper: keeperModel,
+  keeper: keeperRig,
   trail,
   aura,
   hide: [effects.group, markers.group],
@@ -316,7 +317,7 @@ function resetShot() {
   physics.resetBall();
   ballFade.reset();
   keeper.reset();
-  physics.poseKeeper(keeper.pose);
+  physics.poseKeeper(keeperRig.parts, true);
   trail.clear();
   aura.begin(false);
   hud.hideBanner();
@@ -344,6 +345,8 @@ function startRound() {
 }
 
 function beginRound() {
+  keeper.reset();
+  physics.poseKeeper(keeperRig.parts, true);
   hud.showScore(round.results, round.shots);
   playing = true;
   input.enabled = phase === 'aiming';
@@ -358,6 +361,7 @@ function endRound() {
   const before = readBest();
   saveBest(round.goals);
   screens.showEnd(round.results, round.shots, readBest(), before !== null && round.goals > before);
+  keeper.celebrate();
 }
 
 // The canvas fills the page (see style.css); only the number of pixels behind it changes.
@@ -458,14 +462,15 @@ renderer.setAnimationLoop((time) => {
     !playing ? null : tip === 'aim' && finePointer && !input.usingKeys ? COACH_AIM_EITHER : tip ? tipText[tip] : null,
   );
 
-  // The keeper edges toward where you aim while you line up the shot, and gets set while you charge.
-  keeper.aimX = phase === 'charging' || (playing && phase === 'aiming' && input.hasPointer) ? aim.x : null;
+  // The keeper gets ready and steps across toward where you aim while you line up the shot.
+  const aiming = playing && phase === 'aiming' && (input.hasPointer || input.usingKeys);
+  keeper.aimX = phase === 'charging' || aiming ? aim.x : null;
   keeper.set = phase === 'charging';
 
   accumulator += dt;
   while (accumulator >= FIXED_STEP) {
     keeper.step(FIXED_STEP);
-    physics.poseKeeper(keeper.pose);
+    physics.poseKeeper(keeperRig.parts);
     physics.step();
     accumulator -= FIXED_STEP;
   }
@@ -500,7 +505,7 @@ renderer.setAnimationLoop((time) => {
     const replayNext = replay.wanted(outcome.result ?? 'miss', outcome.hitFrame);
     if (phaseTime > (replayNext ? REPLAY_SETTINGS.holdWithReplay : REPLAY_SETTINGS.holdWithout)) endShot();
   }
-  if (phase === 'flight' || phase === 'result') replay.record(gameTime, p, q, keeper.pose);
+  if (phase === 'flight' || phase === 'result') replay.record(gameTime, p, q);
 
   // Sway with the mouse while aiming (and hold it while charging), settle back otherwise.
   const sway =
@@ -520,7 +525,6 @@ renderer.setAnimationLoop((time) => {
     const flying = (phase === 'flight' || phase === 'result') && trail.stopTime === null;
     aura.update(ballMesh, flying, ballFade.shown, dt);
   }
-  keeperModel.update(keeper.pose, dt);
   effects.update(dt);
   ballFade.update(dt);
   stadiumMotion.update(dt);

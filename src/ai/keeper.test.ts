@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { solveKick } from '../physics/flight';
-import { KEEPER_BODY, keeperParts } from '../physics/keeperBody';
+import { loadKeeperRig } from '../testing/loadKeeper';
 import type { GoalConfig } from '../worldConfig';
 import { KEEPER_SKILL, readShot, type KeeperSkill } from './keeper';
-import { KeeperMotion, lowestPivot } from './keeperMotion';
+import { KeeperMotion } from './keeperMotion';
 
 const goal: GoalConfig = {
   lineZ: 0,
@@ -81,100 +81,127 @@ describe('readShot', () => {
   });
 });
 
-describe('KeeperMotion', () => {
+describe('KeeperMotion', async () => {
   const home = { x: 0, y: 0, z: 0.35 };
-  const spotAt = (x: number, y: number, time: number) => ({ time, read: true, spot: () => ({ x, y }) });
+  const rig = await loadKeeperRig();
+  const spotAt = (x: number, y: number, time: number, speed = 20) => ({
+    time,
+    speed,
+    read: true,
+    spot: () => ({ x, y }),
+  });
+  const fresh = () => new KeeperMotion(home, KEEPER_SKILL, rig);
   const run = (motion: KeeperMotion, seconds: number) => {
     for (let t = 0; t < seconds; t += 1 / 120) motion.step(1 / 120);
   };
-  const reachOf = (motion: KeeperMotion) => {
-    const arms = keeperParts(motion.pose).arms;
-    return { x: (arms[0].glove.x + arms[1].glove.x) / 2, y: (arms[0].glove.y + arms[1].glove.y) / 2 };
+  /** How far the ball at (x, y) is from the line between the gloves' centres. */
+  const glovesTo = (x: number, y: number) => {
+    const [a, b] = [rig.partCentre(0), rig.partCentre(1)];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const k = Math.min(1, Math.max(0, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(x - a.x - dx * k, y - a.y - dy * k);
   };
 
-  it('edges toward the aim while waiting, then gets set', () => {
-    const motion = new KeeperMotion(home, KEEPER_SKILL);
-    motion.aimX = 2;
-    run(motion, 2);
-    expect(motion.pose.pivot.x).toBeCloseTo(2 * KEEPER_SKILL.lean, 1);
-    motion.set = true;
-    run(motion, 1);
-    expect(motion.pose.crouch).toBeGreaterThan(0.3);
-    expect(motion.pose.pivot.y).toBeCloseTo(0, 2);
-  });
-
-  it('waits for its reaction time before moving', () => {
-    const motion = new KeeperMotion(home, KEEPER_SKILL);
-    motion.react(spotAt(2.2, 0.5, 0));
-    run(motion, KEEPER_SKILL.reaction - 0.02);
-    expect(motion.pose.pivot.x).toBeCloseTo(0, 5);
-    run(motion, 0.1);
-    expect(motion.pose.pivot.x).toBeGreaterThan(0.1);
+  it('stands at ease until you aim, then gets ready', () => {
+    const motion = fresh();
+    run(motion, 0.5);
+    expect(rig.playing).toBe('idle');
+    motion.aimX = 0;
+    run(motion, 0.5);
+    expect(rig.playing).toBe('ready');
   });
 
   it.each([
-    ['low', 1.9, 0.4],
+    [2, 'shuffle_L'],
+    [-2, 'shuffle_R'],
+  ])('steps across toward where you aim (%s)', (aimX, clip) => {
+    const motion = fresh();
+    motion.aimX = aimX;
+    run(motion, 0.2);
+    expect(rig.playing).toBe(clip);
+    run(motion, 3);
+    expect(rig.object.position.x).toBeCloseTo(aimX * KEEPER_SKILL.lean, 1);
+    expect(rig.playing).toBe('ready');
+  });
+
+  it('waits for its reaction time before moving', () => {
+    const motion = fresh();
+    motion.react(spotAt(2.2, 0.5, 0.6));
+    run(motion, KEEPER_SKILL.reaction - 0.02);
+    expect(rig.playing).toBe('idle');
+    expect(rig.object.position.x).toBe(0);
+    run(motion, 0.1);
+    expect(rig.playing).toBe('dive_low_L');
+    expect(rig.object.position.x).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ['a hard shot at it', 0.2, 0.9, 28, 'punch'],
+    ['a soft shot at it', -0.2, 0.7, 16, 'catch_chest'],
+    ['a ball over its head', 0.1, 1.7, 22, 'tuck_jump'],
+    ['a low ball to its left', 1.6, 0.3, 22, 'dive_low_L'],
+    ['a high ball to its right', -1.5, 1.5, 22, 'dive_high_R'],
+  ])('picks the save for %s', (_, x, y, speed, clip) => {
+    const motion = fresh();
+    motion.react(spotAt(x, y, 0.6, speed));
+    run(motion, 0.6);
+    expect(rig.playing).toBe(clip);
+  });
+
+  it.each([
+    ['low', 1.6, 0.4],
     ['mid', -1.8, 1],
     ['high', 1.6, 1.6],
-    ['close', 0.5, 1.1],
+    ['close', 0.4, 1.1],
   ])('gets its gloves to a %s ball within reach, in time', (_, x, y) => {
-    const motion = new KeeperMotion(home, KEEPER_SKILL);
+    const motion = fresh();
     motion.react(spotAt(x, y, 0.9));
     run(motion, 0.9);
-    const reach = reachOf(motion);
-    expect(Math.hypot(reach.x - x, reach.y - y)).toBeLessThan(0.15);
+    expect(glovesTo(x, y)).toBeLessThan(rig.shapes[0].radius);
   });
 
   it('waits for a slow ball instead of diving too early', () => {
-    const motion = new KeeperMotion(home, KEEPER_SKILL);
+    const motion = fresh();
     motion.react(spotAt(2, 0.8, 1.5));
     run(motion, 0.6);
-    expect(motion.pose.pivot.x).toBeCloseTo(0, 5);
+    expect(rig.playing).toBe('idle');
+    expect(rig.object.position.x).toBe(0);
   });
 
-  it('cannot reach the far top corner from the middle', () => {
-    const motion = new KeeperMotion(home, KEEPER_SKILL);
-    motion.react(spotAt(2.65, 1.75, 0));
+  it('cannot reach the top corner of a hard shot from the middle', () => {
+    const motion = fresh();
+    motion.react(spotAt(2.65, 1.75, 0.45, 28));
     let best = Infinity;
     for (let t = 0; t < 1; t += 1 / 120) {
       motion.step(1 / 120);
-      const r = reachOf(motion);
-      best = Math.min(best, Math.hypot(r.x - 2.65, r.y - 1.75));
+      best = Math.min(best, glovesTo(2.65, 1.75));
     }
-    expect(best).toBeGreaterThan(KEEPER_BODY.glove.radius + 0.175);
+    expect(best).toBeGreaterThan(rig.shapes[0].radius + 0.175);
   });
 
-  it('never sinks into the grass, and lands lying down after a dive', () => {
-    const motion = new KeeperMotion(home, KEEPER_SKILL);
-    motion.react(spotAt(-2.6, 0.25, 0));
-    for (let t = 0; t < 1.5; t += 1 / 120) {
+  it('dives without sinking into the grass, and ends lying on it', () => {
+    const motion = fresh();
+    motion.react(spotAt(-2.4, 0.25, 0.5));
+    for (let t = 0; t < 1.6; t += 1 / 120) {
       motion.step(1 / 120);
-      expect(motion.pose.pivot.y).toBeGreaterThanOrEqual(lowestPivot(motion.pose.tilt) - 1e-6);
+      expect(rig.object.position.y).toBeGreaterThanOrEqual(-0.15);
     }
-    expect(motion.pose.tilt).toBeLessThan(-1.3);
+    const body = rig.shapes.findIndex((s) => s.name === 'chest');
+    expect(rig.partCentre(body).y).toBeLessThan(0.45);
+    expect(rig.partCentre(body).x).toBeLessThan(-1);
   });
 
-  it('gets back up and into the middle when it recovers', () => {
-    const motion = new KeeperMotion(home, KEEPER_SKILL);
-    motion.react(spotAt(-2.2, 0.4, 0));
-    run(motion, 1.2);
-    expect(motion.pose.tilt).toBeLessThan(-1);
-    motion.recover();
-    run(motion, 0.2);
-    expect(motion.pose.tilt).toBeLessThan(-0.1);
-    run(motion, 0.4);
-    expect(motion.pose.tilt).toBeCloseTo(0, 5);
-    expect(motion.pose.pivot.x).toBeCloseTo(0, 5);
-    expect(motion.moving).toBe(false);
-  });
-
-  it('goes back to standing in the middle on reset', () => {
-    const motion = new KeeperMotion(home, KEEPER_SKILL);
-    motion.react(spotAt(2, 1, 0));
+  it('celebrates, and goes back to standing in the middle on reset', () => {
+    const motion = fresh();
+    motion.react(spotAt(2, 1, 0.5));
     run(motion, 1);
+    motion.celebrate();
+    run(motion, 1);
+    expect(rig.playing).toBe('celebrate');
     motion.reset();
-    expect(motion.pose.pivot).toEqual(home);
-    expect(motion.pose.tilt).toBe(0);
+    expect(rig.object.position.toArray()).toEqual([home.x, home.y, home.z]);
+    expect(rig.playing).toBe('idle');
     expect(motion.moving).toBe(false);
   });
 });

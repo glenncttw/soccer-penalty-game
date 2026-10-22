@@ -9,16 +9,19 @@ export const KEEPER_URL = `${import.meta.env.BASE_URL}assets/keeper/BlueBird_GK.
 export const KEEPER_HEIGHT = 1.6;
 
 /**
- * Loads the keeper model, scaled so it stands KEEPER_HEIGHT tall: origin between
- * the feet, facing the shooter (+z). Its rig and animations are in the file, but
- * nothing plays them yet, so it stands in its rest pose.
+ * Loads the keeper model, scaled so it stands KEEPER_HEIGHT tall (origin between the feet, facing
+ * the shooter, +z), with its animations.
  */
-export async function loadKeeperModel(): Promise<THREE.Object3D> {
+export async function loadKeeperModel(): Promise<{ model: THREE.Object3D; animations: THREE.AnimationClip[] }> {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
-  const gltf = await loader.loadAsync(KEEPER_URL);
+  return fitKeeper(await loader.loadAsync(KEEPER_URL));
+}
+
+/** Scales a loaded keeper to KEEPER_HEIGHT. */
+export function fitKeeper(gltf: { scene: THREE.Object3D; animations: THREE.AnimationClip[] }) {
   const model = gltf.scene;
   const height = new THREE.Box3().setFromObject(model).max.y; // its feet are at 0
   if (height > 0) model.scale.setScalar(KEEPER_HEIGHT / height);
-  return model;
+  return { model, animations: gltf.animations };
 }

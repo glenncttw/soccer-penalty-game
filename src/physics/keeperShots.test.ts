@@ -3,6 +3,7 @@ import { KEEPER_SKILL, readShot } from '../ai/keeper';
 import { KeeperMotion } from '../ai/keeperMotion';
 import { OutcomeTracker } from '../gameplay/outcome';
 import { shapeShot } from '../gameplay/shot';
+import { loadKeeperRig } from '../testing/loadKeeper';
 import type { WorldConfig } from '../worldConfig';
 import { FIXED_STEP, solveKick } from './flight';
 import { createPhysicsWorld, type Contact } from './world';
@@ -29,8 +30,9 @@ const world: WorldConfig = {
 };
 
 const home = { x: 0, y: 0, z: 0.35 };
-const keeper = new KeeperMotion(home, KEEPER_SKILL);
-const physics = await createPhysicsWorld(world, { keeper: keeper.pose });
+const rig = await loadKeeperRig();
+const keeper = new KeeperMotion(home, KEEPER_SKILL, rig);
+const physics = await createPhysicsWorld(world, { keeper: { shapes: rig.shapes, parts: rig.parts } });
 const outcome = new OutcomeTracker(world.goal, world.ballRadius);
 
 /**
@@ -48,7 +50,7 @@ function play(aimX: number, aimY: number, power: number, curl = 0, random = () =
   for (let t = 0; t < 1; t += FIXED_STEP) keeper.step(FIXED_STEP);
   keeper.set = true;
   for (let t = 0; t < 0.5; t += FIXED_STEP) keeper.step(FIXED_STEP);
-  physics.poseKeeper(keeper.pose, true);
+  physics.poseKeeper(rig.parts, true);
 
   const shot = shapeShot({ aim: { x: aimX, y: aimY, z: 0 }, power, curl, minTargetY: world.ballRadius }, random);
   const velocity = solveKick(world.ballStart, shot.target, shot.speed, shot.spin);
@@ -60,7 +62,7 @@ function play(aimX: number, aimY: number, power: number, curl = 0, random = () =
   let maxZAfterKeeper = -Infinity;
   for (let t = 0; t < 6; t += FIXED_STEP) {
     keeper.step(FIXED_STEP);
-    physics.poseKeeper(keeper.pose);
+    physics.poseKeeper(rig.parts);
     physics.step();
     for (const c of physics.takeContacts()) {
       contacts.push(c);
@@ -95,7 +97,7 @@ describe('shots against the keeper', () => {
 
   it('is fooled by curl on a shot it saves when hit straight', () => {
     // Dragging left swings the ball out toward the middle, then it bends right, away from the keeper.
-    expect(play(1.6, 1.6, 0.7, 0).result).toBe('saved');
-    expect(play(1.6, 1.6, 0.7, -1).result).toBe('goal');
+    expect(play(1.6, 0.9, 0.8, 0).result).toBe('saved');
+    expect(play(1.6, 0.9, 0.8, -1).result).toBe('goal');
   });
 });
