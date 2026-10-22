@@ -19,6 +19,19 @@ const TRAUMA_FADE = 1.3; // trauma lost per second
 // The intro: the camera starts close to the goal and pulls straight back to the rest view.
 const INTRO_FORWARD = 10; // metres toward the goal along the view at the start (about 6 m from the goal line)
 const INTRO_RISE = 0.3; // metres higher at the start
+// The end of a round: the camera moves in close to the keeper dancing in front of its goal, with the keeper on
+// the left (the score goes on the right, src/style.css) or, on screens taller than wide, at the top.
+const END_TIME = 1.4; // seconds to move in (and back out)
+const KEEPER_SIZE = 1.6; // metres: the keeper's height, to frame it
+// A hero shot: low down, looking up at it from a little to one side, the picture tilted, drifting slowly round it.
+const END_HEIGHT = 0.4; // metres up
+const END_ORBIT = THREE.MathUtils.degToRad(25); // round to the keeper's left (our right) from straight in front
+const END_ROLL = THREE.MathUtils.degToRad(4); // the picture's tilt
+const END_DRIFT = { angle: THREE.MathUtils.degToRad(6), rise: 0.06, time: 9 }; // the slow drift round it, and its seconds
+const END_FRAME = {
+  wide: { x: -0.48, y: -0.05, height: 0.62 }, // the keeper's middle on screen (-1..1 across and up) and its share of the height
+  tall: { x: 0, y: 0.38, height: 0.32 },
+};
 
 export interface CameraState {
   /** True while the player holds a shot. */
@@ -27,6 +40,8 @@ export interface CameraState {
   swayTarget: { x: number; y: number } | null;
   /** How close to the goal the intro has the camera: 1 close up, 0 (or left out) the normal view. */
   intro?: number;
+  /** True while the end of a round shows: the camera moves in close to the keeper (see `keeper`). */
+  ending?: boolean;
 }
 
 /**
@@ -36,7 +51,11 @@ export interface CameraState {
  * view. On top of that rest pose it pushes in while charging, sways with the
  * mouse (sideways and up and down) and shakes on impacts.
  */
-export function createGameCamera(config: WorldConfig, settings: CameraSettings = CAMERA_SETTINGS) {
+export function createGameCamera(
+  config: WorldConfig,
+  settings: CameraSettings = CAMERA_SETTINGS,
+  keeper: { x: number; y: number; z: number } = { x: 0, y: config.groundY, z: config.goal.lineZ },
+) {
   const camera = new THREE.PerspectiveCamera(settings.fov, DESIGN_ASPECT, 0.05, 400);
   const restPosition = new THREE.Vector3();
   const restQuaternion = new THREE.Quaternion();
@@ -45,6 +64,17 @@ export function createGameCamera(config: WorldConfig, settings: CameraSettings =
   let designFov = settings.fov;
   let goalHalfAngle = 0;
   let restFov = designFov;
+  const endPosition = new THREE.Vector3();
+  const endQuaternion = new THREE.Quaternion();
+  const aimer = new THREE.PerspectiveCamera();
+  const middle = new THREE.Vector3(keeper.x, keeper.y + KEEPER_SIZE / 2, keeper.z);
+  let endFrame = END_FRAME.wide;
+  let endDistance = 1;
+  const toCamera = new THREE.Vector3();
+  const across = new THREE.Vector3();
+  const look = new THREE.Vector3();
+  const seen = new THREE.Vector3();
+  let ending = 0; // 0..1 of the way in
 
   let charge = 0;
   const sway = { x: 0, y: 0 };
@@ -63,6 +93,42 @@ export function createGameCamera(config: WorldConfig, settings: CameraSettings =
     restFov = Math.max(designFov, THREE.MathUtils.radToDeg(neededVertical));
     camera.fov = restFov;
     camera.updateProjectionMatrix();
+    // The end of a round: close enough that the keeper fills its share of the height.
+    endFrame = aspect >= 1 ? END_FRAME.wide : END_FRAME.tall;
+    endDistance = KEEPER_SIZE / (2 * endFrame.height * Math.tan(THREE.MathUtils.degToRad(restFov) / 2));
+    aimer.fov = restFov;
+    aimer.aspect = aspect;
+    aimer.updateProjectionMatrix();
+  }
+
+  /**
+   * The end of a round's close-up at `time` seconds: round to one side of the keeper and low, slid sideways
+   * toward where the frame has it, then turned (a few small corrections) until its middle sits exactly there.
+   */
+  function aimEnd(time: number) {
+    const wave = Math.sin((2 * Math.PI * time) / END_DRIFT.time);
+    const orbit = END_ORBIT + END_DRIFT.angle * wave;
+    toCamera.set(Math.sin(orbit), 0, Math.cos(orbit));
+    across.set(Math.cos(orbit), 0, -Math.sin(orbit)); // screen right
+    const tanV = Math.tan(THREE.MathUtils.degToRad(aimer.fov) / 2);
+    const perX = endDistance * tanV * aimer.aspect; // metres across per unit of screen, at the keeper
+    const perY = endDistance * tanV;
+    endPosition
+      .copy(middle)
+      .addScaledVector(toCamera, endDistance)
+      .addScaledVector(across, -endFrame.x * perX)
+      .setY(keeper.y + END_HEIGHT + END_DRIFT.rise * Math.cos((2 * Math.PI * time) / (END_DRIFT.time * 0.7)));
+    aimer.position.copy(endPosition);
+    look.copy(middle);
+    for (let i = 0; i < 8; i++) {
+      aimer.lookAt(look);
+      aimer.rotateZ(END_ROLL);
+      aimer.updateMatrixWorld();
+      seen.copy(middle).project(aimer);
+      look.addScaledVector(across, (seen.x - endFrame.x) * perX);
+      look.y += (seen.y - endFrame.y) * perY;
+    }
+    endQuaternion.copy(aimer.quaternion);
   }
 
   /** Moves the rest view to new settings straight away (the settings editor uses this). */
@@ -98,6 +164,7 @@ export function createGameCamera(config: WorldConfig, settings: CameraSettings =
     sway.x = THREE.MathUtils.damp(sway.x, target.x, rate, dt);
     sway.y = THREE.MathUtils.damp(sway.y, target.y, rate, dt);
     trauma = Math.max(0, trauma - TRAUMA_FADE * dt);
+    ending = THREE.MathUtils.clamp(ending + (state.ending ? dt : -dt) / END_TIME, 0, 1);
 
     const push = charge * charge * (3 - 2 * charge); // smoothstep
     // Pointer right or up: the camera circles the goal to the left or down, so the view turns toward it.
@@ -121,6 +188,12 @@ export function createGameCamera(config: WorldConfig, settings: CameraSettings =
     );
     shake.setFromEuler(euler);
     camera.quaternion.copy(turn).multiply(restQuaternion).multiply(shake);
+    if (ending > 0) {
+      aimEnd(time);
+      const k = ending < 0.5 ? 4 * ending ** 3 : 1 - (-2 * ending + 2) ** 3 / 2; // ease in and out
+      camera.position.lerp(endPosition, k);
+      camera.quaternion.slerp(endQuaternion, k);
+    }
 
     const fov = restFov * (1 - PUSH_ZOOM * push);
     if (Math.abs(camera.fov - fov) > 1e-4) {

@@ -105,8 +105,11 @@ for (const clip of stadium.animations) stadiumMotion.clipAction(clip).play();
 const sky = new Sky(SKY_SETTINGS);
 scene.add(sky.mesh);
 
+// Where the keeper stands, just in front of its goal line.
+const KEEPER_HOME = { x: 0, y: world.groundY, z: world.goal.lineZ + 0.35 };
 // The gameplay camera: ball low in the foreground, goal centred; tweak it in src/scene/cameraSettings.ts.
-const view = createGameCamera(world);
+// At the end of a round it moves in close to the keeper.
+const view = createGameCamera(world, undefined, KEEPER_HOME);
 const camera = view.camera;
 // The grass texture's blades stand up as seen from where the camera usually is.
 grass.lookFrom(view.restPosition);
@@ -135,7 +138,7 @@ const effects = new Effects();
 // The keeper (Glenn's bird with its Blender animations) stands just off its line, toward the ball.
 const { model: keeperModel, animations: keeperAnimations } = await keeperAsset;
 const keeperRig = new KeeperRig(keeperModel, keeperAnimations);
-const keeper = new KeeperMotion({ x: 0, y: world.groundY, z: world.goal.lineZ + 0.35 }, KEEPER_SKILL, keeperRig);
+const keeper = new KeeperMotion(KEEPER_HOME, KEEPER_SKILL, keeperRig);
 lightMovingObject(ballMesh, envMap);
 lightMovingObject(keeperRig.object, envMap);
 scene.add(ballMesh, trail.mesh, aura.mesh, markers.group, effects.group, keeperRig.object);
@@ -557,6 +560,7 @@ renderer.setAnimationLoop((time) => {
     charging: phase === 'charging',
     swayTarget: sway ? input.pointer : null,
     intro: introBall.cameraIntro, // close to the goal on the intro, pulling back as the ball comes down
+    ending: screens.endShown, // close to the keeper dancing, beside the score
   });
   introBall.place(physics.ball.translation(), physics.ball.rotation());
   const chipsSwirl = introBall.floating || introBall.windingUp; // they keep swirling while the ball sinks in
