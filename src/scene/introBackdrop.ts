@@ -13,9 +13,11 @@ const RING_SPACING = 0.32; // one rounded ring of the wall to the next
 const RING_DEPTH = 0.07; // how far the rings stand out of the wall
 const SEGMENTS = 48; // round the tunnel
 const DRIFT = 0.12; // how fast the rings come toward the camera, in ring spacings a second
-const DEEP = '#38257a'; // the purple far down the tunnel
-const FOG_FROM = 4; // where it starts to get darker
-const FOG_TO = 12; // and where it's as dark as it gets
+const DEEP = '#1d1140'; // the purple far down the tunnel
+const FOG_FROM = 2.5; // where it starts to get darker
+const FOG_TO = 9; // and where it's all dark
+const EDGE_LIGHT = 0.8; // how much lighter the wall is close to the camera, at the screen's edges
+const EDGE_TO = 2.5; // how far from the camera that lighter part reaches
 
 /**
  * The purple behind the intro: a tunnel of rounded purple rings with soft light painted on, like the
@@ -35,6 +37,7 @@ export class IntroBackdrop {
     uHole: { value: new THREE.Vector3() }, // centre x, y and radius, in drawing pixels from the bottom left
     uRimWidth: { value: RIM_WIDTH },
     uOpacity: { value: 1 },
+    uEdgeTo: { value: 1 }, // EDGE_TO, in world units
   };
   private readonly size = new THREE.Vector2();
   private readonly centre = new THREE.Vector3();
@@ -61,6 +64,7 @@ export class IntroBackdrop {
           uniform vec3 uHole;
           uniform float uRimWidth;
           uniform float uOpacity;
+          uniform float uEdgeTo;
           void main() {`,
         )
         .replace(
@@ -70,6 +74,7 @@ export class IntroBackdrop {
             float hole = 1.0 - smoothstep(uHole.z - 1.0, uHole.z + 1.0, d);
             float rim = 1.0 - smoothstep(uHole.z + uRimWidth - 1.0, uHole.z + uRimWidth + 1.0, d);
             float alpha = (1.0 - hole) * uOpacity;
+            gl_FragColor.rgb *= 1.0 + ${EDGE_LIGHT.toFixed(2)} * (1.0 - smoothstep(0.0, uEdgeTo, vFogDepth));
             if (alpha <= 0.0) discard;
             gl_FragColor = vec4(mix(gl_FragColor.rgb, linearToOutputTexel(vec4(uRim, 1.0)).rgb, rim), alpha);
           }
@@ -145,6 +150,7 @@ export class IntroBackdrop {
     this.rings.position.z = -this.drift * RING_SPACING;
     this.fog.near = FOG_FROM * away;
     this.fog.far = FOG_TO * away;
+    this.uniforms.uEdgeTo.value = EDGE_TO * away;
 
     const autoClear = renderer.autoClear;
     const shadows = renderer.shadowMap.autoUpdate;
@@ -180,7 +186,7 @@ function tunnelGeometry() {
     const bump = Math.sin(Math.PI * u) ** 0.6; // rounded ring, narrow groove at its ends
     profile.push(new THREE.Vector2(TUNNEL_RADIUS - RING_DEPTH * bump, z));
     const front = u < 0.5 ? Math.sin(2 * Math.PI * u) : 0; // the side of the ring that faces you
-    across.push((0.84 + 0.16 * bump) * (1 + 0.35 * front));
+    across.push((0.62 + 0.38 * bump) * (1 + 0.35 * front));
   }
   const geometry = new THREE.LatheGeometry(profile, SEGMENTS);
   geometry.rotateX(Math.PI / 2); // its axis along z (and the lathe's half turn on top)
