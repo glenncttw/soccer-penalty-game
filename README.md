@@ -355,7 +355,7 @@ To change the look, try the settings in the [settings editor](#the-settings-edit
 | `angleShading` | how much darker the grass in front of you is (0 = the same everywhere) |
 | `farLight` | how much lighter and sunnier the grass gets towards the far end, where you look across it instead of down on it (0 = off) |
 | `contactShadow` | how dark the soft shadows are where things meet the grass: along the ad boards and goal posts, under the keeper's feet and under the ball (they fade as the ball or keeper leaves the ground; 0 = off) |
-| `lineColor`, `lineRagged`, `lineWobble` | the colour of the painted lines and spot, how far blades poke out of their edges (only seen up close: far away they would flicker), and how far the edges wave in and out over 20 to 50 cm (seen on the far lines too) |
+| `lineColor`, `lineRagged`, `lineWobble` | the colour of the painted lines and spot, how far blades poke out of their edges (only seen up close: far away they would flicker), and how far the edges are roughened over 5 to 12 cm (so they stay a little rough further out too, while the lines stay straight) |
 | `lineTexture`, `lineGrassTint` | how much of the grass texture's light and dark, and how much of its green, shows through the paint, so the lines and spot look like paint on grass instead of flat white (keep `lineColor` a little below pure white, or the sun turns it flat white again) |
 
 To move or resize the stripes, lines or spot, change them in Blender and export again.

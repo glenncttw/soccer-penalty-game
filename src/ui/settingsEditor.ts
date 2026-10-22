@@ -44,7 +44,7 @@ const GRASS_ROWS: Record<string, Row<GrassSettings>[]> = {
   'Painted lines': [
     ['lineColor', 'Colour'],
     ['lineRagged', 'Ragged edges', 0, 0.15, 0.005],
-    ['lineWobble', 'Wavy edges (m)', 0, 0.1, 0.005],
+    ['lineWobble', 'Rough edges far (m)', 0, 0.04, 0.002],
     ['lineTexture', 'Grass texture through', 0, 1, 0.01],
     ['lineGrassTint', 'Green through', 0, 0.5, 0.01],
   ],
