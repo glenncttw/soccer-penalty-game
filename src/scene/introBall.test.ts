@@ -150,8 +150,8 @@ describe('IntroBall', () => {
       for (let i = 1; i < 1000 && intro.active; i++) {
         frame(dt);
         const now = onScreen(ball, camera, w, h);
-        if (i * dt < 0.5 && now.depth > deepest) [deepest, deepestAt] = [now.depth, i * dt];
-        if (i * dt > deepestAt && i * dt < 1.2) nearest = Math.min(nearest, now.depth);
+        if (i * dt < 0.6 && now.depth > deepest) [deepest, deepestAt] = [now.depth, i * dt];
+        if (i * dt > deepestAt && i * dt < 1.5) nearest = Math.min(nearest, now.depth);
         if (intro.windingUp) {
           // Nothing else has started yet, and it stays about in the middle of the screen.
           expect(intro.reveal).toBe(0);
@@ -167,9 +167,9 @@ describe('IntroBall', () => {
         lastPosition = ball.position.clone();
         lastVelocity = velocity;
       }
-      expect(deepest).toBeGreaterThan(start.depth * 1.15); // first clearly deeper into the tunnel
-      expect(deepestAt).toBeGreaterThan(0.2);
-      expect(deepestAt).toBeLessThan(0.4);
+      expect(deepest).toBeGreaterThan(start.depth * 1.3); // first clearly deeper into the tunnel
+      expect(deepestAt).toBeGreaterThan(0.25);
+      expect(deepestAt).toBeLessThan(0.5);
       expect(nearest).toBeLessThan(start.depth); // then back out, closer to you than where it floated
       expect(biggestKick).toBeLessThan(0.5); // metres a second, between samples 1/240 s apart: no sudden starts
       expect(ball.quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(1e-6);

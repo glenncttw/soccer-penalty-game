@@ -3,20 +3,20 @@ import * as THREE from 'three';
 // The ball only ever turns one way: rolling forward round the line across the screen (no tilted or wobbly spin).
 const ROLL_AXIS = new THREE.Vector3(1, 0, 0);
 const SPIN_SPEED = 0.5; // radians per second it rolls while it floats on the intro, about 29 degrees
-const FLY_TIME = 1.6; // seconds from the middle of the screen down onto the penalty spot, as the camera pulls back
+const FLY_TIME = 2.0; // seconds from the middle of the screen down onto the penalty spot, as the camera pulls back
 const RISE = 0.15; // how far it lifts in the middle of its curve, as a share of half the view's height
 // On Speel nu it first swings a little deeper into the tunnel, then back out toward you, then on down.
-const SINK_TIME = 0.6; // seconds of its swing into the tunnel (deepest halfway)
-const SINK_DEPTH = 0.3; // how much further away it swings, as a share of how far away it floats (about 23% smaller)
+const SINK_TIME = 0.75; // seconds of its swing into the tunnel (deepest halfway)
+const SINK_DEPTH = 0.5; // how much further away it swings, as a share of how far away it floats (a third smaller)
 const TURN_TIME = SINK_TIME / 2; // when it turns back toward you: the opening, chips and camera go from here
-const COME_TIME = 0.9; // seconds of its swing back toward you, from the turn (closest halfway)
+const COME_TIME = 1.1; // seconds of its swing back toward you, from the turn (closest halfway)
 const COME_NEAR = 0.3; // how much closer than it floated it comes, as a share of how far away it floats
-const FLY_DELAY = 0.15; // seconds before it starts (gently) on its way down, while it still swings in
+const FLY_DELAY = 0.2; // seconds before it starts (gently) on its way down, while it still swings in
 const FLY_TURNS = 2.5; // at least this many extra turns it rolls on the way, slowing down to rest
 const FLY_ARC = 0.3; // metres the ball rises above a straight line halfway up (Menu)
 const LIFT_TIME = 0.8; // seconds back up from the spot into the intro (Menu on the end screen)
 const STILL_WAIT = 0.3; // with reduced motion: no flight, the ball is just on the spot after this
-const REVEAL_TIME = 0.75; // seconds for the opening to grow past the corners of the screen
+const REVEAL_TIME = 0.9; // seconds for the opening to grow past the corners of the screen
 
 /** Something on screen the ball is drawn in: the intro's empty space between the title and the buttons. */
 export interface BallSlot {
