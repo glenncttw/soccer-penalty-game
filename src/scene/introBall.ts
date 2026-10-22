@@ -5,6 +5,10 @@ const ROLL_AXIS = new THREE.Vector3(1, 0, 0);
 const SPIN_SPEED = 0.5; // radians per second it rolls while it floats on the intro, about 29 degrees
 const FLY_TIME = 1.6; // seconds from the middle of the screen down onto the penalty spot, as the camera pulls back
 const RISE = 0.15; // how far it lifts in the middle of its curve, as a share of half the view's height
+const WIND_UP = 0.35; // seconds it first pulls back (up and toward you) on Speel nu, before it flies
+const WIND_BACK = 0.07; // how far it pulls back, as a share of the flight
+const WIND_ROLL = 0.5; // radians it rolls back while it pulls back
+const FLY_START = 0.18; // seconds after Speel nu it starts forward (while the pull-back eases off)
 const FLY_TURNS = 2.5; // at least this many extra turns it rolls on the way, slowing down to rest
 const FLY_ARC = 0.3; // metres the ball rises above a straight line halfway up (Menu)
 const LIFT_TIME = 0.8; // seconds back up from the spot into the intro (Menu on the end screen)
@@ -26,8 +30,8 @@ type State = 'off' | 'float' | 'land' | 'lift';
 
 /**
  * The real ball on the intro screen: big and slowly rolling forward in the middle of the screen, then
- * (on Speel nu, at once, together with the purple opening up and the chips) coming down onto the
- * penalty spot in one smooth curve, rolling forward, while the camera pulls back from close to the
+ * (on Speel nu, at once, together with the purple opening up and the chips) pulling back a little, like
+ * a wind-up, and coming down onto the penalty spot in one smooth curve, rolling forward, while the camera pulls back from close to the
  * goal to where you shoot from; it comes to rest softly, no bounce. "Menu" on the end screen
  * lifts it back up. It only moves the ball's mesh; physics keeps its ball on the spot the whole
  * time, so the first shot starts exactly as before.
@@ -88,9 +92,20 @@ export class IntroBall {
     return 1 - this.flight;
   }
 
-  /** How far along the flight down to the spot is (0..1, eased). */
+  /** How far along the flight down to the spot is (0..1, eased): what the camera follows. */
   private get flight() {
     return easeOut(Math.min(1, this.time / FLY_TIME));
+  }
+
+  /** How far back the ball has pulled for its wind-up (0..1..0), at the start of the flight. */
+  private get windUp() {
+    const w = this.time / WIND_UP;
+    return w < 1 ? Math.sin(Math.PI * w) : 0;
+  }
+
+  /** How far along its own way down the ball is (0..1, eased): it starts a moment after the camera, behind its wind-up. */
+  private get ballFlight() {
+    return easeOut(Math.min(1, Math.max(0, this.time - FLY_START) / (FLY_TIME - FLY_START)));
   }
 
   /** True while the ball is on its way down to the spot. */
@@ -167,8 +182,7 @@ export class IntroBall {
         this.finish();
         return;
       }
-      const s = this.flight;
-      if (s === 1) {
+      if (this.flight === 1) {
         this.ball.position.copy(this.target);
         this.ball.quaternion.copy(this.restQuaternion);
         this.finish();
@@ -180,13 +194,16 @@ export class IntroBall {
       this.matrix.compose(this.cameraRest.position, this.cameraRest.quaternion, this.one).invert();
       this.toView.copy(this.target).applyMatrix4(this.matrix);
       this.camera.updateMatrixWorld();
-      const p = this.ball.position.lerpVectors(this.fromView, this.toView, s);
+      // Pulling back for the wind-up is going a little the other way along the same line: up and toward you.
+      const s = this.ballFlight;
+      const back = WIND_BACK * this.windUp;
+      const p = this.ball.position.lerpVectors(this.fromView, this.toView, s - back);
       const halfHeight = -p.z * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2);
-      p.y += RISE * halfHeight * Math.sin(Math.PI * s);
+      p.y += RISE * halfHeight * Math.sin(Math.PI * Math.max(0, s));
       p.applyMatrix4(this.camera.matrixWorld);
       // Rolls forward faster on the way, slowing down with the flight, and stops after whole turns: so
       // it ends up exactly as it rests on the spot, without ever turning another way.
-      this.roll = this.rollFrom + (this.rollTo - this.rollFrom) * s;
+      this.roll = this.rollFrom + (this.rollTo - this.rollFrom) * s - WIND_ROLL * this.windUp;
       this.rolled(this.turn.slerpQuaternions(this.base, this.restQuaternion, s));
     }
   }

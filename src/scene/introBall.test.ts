@@ -127,29 +127,36 @@ describe('IntroBall', () => {
     }
   });
 
-  it('starts moving on the first frame, only ever rolls forward round one line, and ends as it rests', () => {
+  it('pulls back first, then only ever rolls forward round one line, and ends as it rests', () => {
     for (const [w, h] of SCREENS) {
-      const { ball, slot, intro, frame } = setUp(w, h);
+      const { camera, ball, slot, intro, frame } = setUp(w, h);
       intro.float(slot);
       for (let i = 0; i < 90; i++) frame();
       const start = ball.position.clone();
+      const away = () => ball.position.distanceTo(camera.position);
+      const startAway = away();
       intro.land(() => {});
       frame();
       expect(ball.position.distanceTo(start)).toBeGreaterThan(0.002); // no waiting
-      expect(intro.cameraIntro).toBeLessThan(1); // the camera already pulls back too
+      expect(away()).toBeLessThan(startAway); // it pulls back toward you first
+      expect(intro.cameraIntro).toBeLessThan(1); // while the camera already pulls back too
       // The ball's turn (from how it rests) is always round the line across the screen (x).
       const rolled = (q: THREE.Quaternion) => {
         expect(Math.hypot(q.y, q.z)).toBeLessThan(1e-9);
         return 2 * Math.atan2(q.x, q.w);
       };
       let last = rolled(ball.quaternion);
-      for (let i = 0; i < 400 && intro.active; i++) {
+      let back = 0;
+      for (let i = 1; i < 400 && intro.active; i++) {
         frame();
         const angle = rolled(ball.quaternion);
-        const step = THREE.MathUtils.euclideanModulo(angle - last, 2 * Math.PI);
-        expect(step).toBeLessThan(Math.PI / 2); // forward only, never back
+        const step = THREE.MathUtils.euclideanModulo(angle - last + Math.PI, 2 * Math.PI) - Math.PI;
+        if (i < 0.2 * 60) back = Math.min(back, step); // a little back during the wind-up
+        else expect(step).toBeGreaterThan(-1e-9); // then forward only
+        expect(Math.abs(step)).toBeLessThan(Math.PI / 2);
         last = angle;
       }
+      expect(back).toBeLessThan(0);
       expect(ball.quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(1e-6);
     }
   });
