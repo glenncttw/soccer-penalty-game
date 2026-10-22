@@ -51,8 +51,8 @@ export interface GrassSettings {
   /** How far blades poke out of the edges of the painted lines and spot (only seen up close). */
   lineRagged: number;
   /**
-   * How far (m) the edges of the painted lines wave in and out, slowly, over 20 to 50 cm. Unlike the
-   * blades, this stays visible on the far lines.
+   * How far (m) the edges of the painted lines are roughened, over 5 to 12 cm along them: a little
+   * rough further out too, where the blades fade, while the lines stay straight.
    */
   lineWobble: number;
   /** 0..1: how much of the grass texture's light and dark shows through the paint. 0 = flat paint. */
@@ -80,7 +80,7 @@ export const GRASS_SETTINGS: GrassSettings = {
   contactShadow: 0.6,
   lineColor: '#ebe8de',
   lineRagged: 0.04,
-  lineWobble: 0.05,
+  lineWobble: 0.012,
   lineTexture: 0.12,
   lineGrassTint: 0.1,
 };

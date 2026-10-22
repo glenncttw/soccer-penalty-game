@@ -601,11 +601,11 @@ const GRASS_COLOR = /* glsl */ `
   // Painted lines and spot: white grass. Blades poke out of the edge up close;
   // far away, where a line is thinner than a pixel, it keeps its average coverage.
   vec2 paintUv = vec2(grassXZ.x - uPaintCorner.x, uPaintCorner.y - grassXZ.y) / uPaintSize;
-  // Plus a slow wave in and out along the edges (cells of about 20 to 50 cm), big enough to stay
-  // visible on the far lines, where the blades have faded out.
+  // Plus fine roughness along the edges (cells of about 5 to 12 cm): it roughens the edge a little
+  // further out too, where the blades have faded, without making the line wave in and out.
   vec2 paintWobble = vec2(
-    grassNoise(grassXZ * vec2(3.0, 2.0) + 83.0) + 0.5 * grassNoise(grassXZ * vec2(7.0, 5.0) + 97.0),
-    grassNoise(grassXZ * vec2(2.0, 3.0) + 89.0) + 0.5 * grassNoise(grassXZ * vec2(5.0, 7.0) + 101.0)
+    grassNoise(grassXZ * vec2(12.0, 8.0) + 83.0) + 0.5 * grassNoise(grassXZ * vec2(28.0, 20.0) + 97.0),
+    grassNoise(grassXZ * vec2(8.0, 12.0) + 89.0) + 0.5 * grassNoise(grassXZ * vec2(20.0, 28.0) + 101.0)
   ) - 0.75;
   paintUv += (grassBlades * uLineRagged + paintWobble * uLineWobble) / uPaintSize;
   float paintCover = texture(uPaint, paintUv).r;
