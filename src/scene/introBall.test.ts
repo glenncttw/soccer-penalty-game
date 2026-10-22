@@ -98,7 +98,7 @@ describe('IntroBall', () => {
     }
   });
 
-  it('swoops down onto the spot as the camera pulls back: always in view, no bounce, ending exactly at rest', () => {
+  it('comes down onto the spot in one smooth curve as the camera pulls back: no zig-zag, no bounce, ending exactly at rest', () => {
     for (const [w, h] of SCREENS) {
       const { view, camera, ball, slot, intro, frame } = setUp(w, h);
       intro.float(slot);
@@ -110,7 +110,7 @@ describe('IntroBall', () => {
         frame();
         const seen = onScreen(ball, camera, w, h);
         expect(seen.depth).toBeGreaterThan(0.4);
-        expect(Math.abs(seen.x - w / 2)).toBeLessThan(w / 2);
+        expect(Math.abs(seen.x - w / 2)).toBeLessThan(w * 0.01); // straight down the middle: no swinging side to side
         expect(Math.abs(seen.y - h / 2)).toBeLessThan(h / 2);
         expect(ball.position.y).toBeGreaterThan(RADIUS - 1e-6);
         heights.push(ball.position.y);
@@ -124,6 +124,33 @@ describe('IntroBall', () => {
       expect(ball.quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(1e-6);
       expect(camera.position.distanceTo(view.restPosition)).toBeLessThan(1e-9); // and the camera is back
       expect(intro.cameraIntro).toBe(0);
+    }
+  });
+
+  it('starts moving on the first frame, only ever rolls forward round one line, and ends as it rests', () => {
+    for (const [w, h] of SCREENS) {
+      const { ball, slot, intro, frame } = setUp(w, h);
+      intro.float(slot);
+      for (let i = 0; i < 90; i++) frame();
+      const start = ball.position.clone();
+      intro.land(() => {});
+      frame();
+      expect(ball.position.distanceTo(start)).toBeGreaterThan(0.002); // no waiting
+      expect(intro.cameraIntro).toBeLessThan(1); // the camera already pulls back too
+      // The ball's turn (from how it rests) is always round the line across the screen (x).
+      const rolled = (q: THREE.Quaternion) => {
+        expect(Math.hypot(q.y, q.z)).toBeLessThan(1e-9);
+        return 2 * Math.atan2(q.x, q.w);
+      };
+      let last = rolled(ball.quaternion);
+      for (let i = 0; i < 400 && intro.active; i++) {
+        frame();
+        const angle = rolled(ball.quaternion);
+        const step = THREE.MathUtils.euclideanModulo(angle - last, 2 * Math.PI);
+        expect(step).toBeLessThan(Math.PI / 2); // forward only, never back
+        last = angle;
+      }
+      expect(ball.quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(1e-6);
     }
   });
 
@@ -159,8 +186,8 @@ describe('reveal', () => {
     frame();
     expect(intro.reveal).toBe(0);
     intro.land(() => {});
-    frame(0.1);
-    expect(intro.reveal).toBe(0); // the title and button move away first
+    frame();
+    expect(intro.reveal).toBeGreaterThan(0); // opens up straight away, with the chips and the ball
     let last = 0;
     for (let i = 0; i < 50; i++) {
       frame();
