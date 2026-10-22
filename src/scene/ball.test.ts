@@ -52,23 +52,43 @@ describe('ball trail', () => {
     expect(ribbonLength(trail)).toBeGreaterThan(35 * style.life * 0.95);
   });
 
-  it('stops growing at a touch and fades away from the front', () => {
+  it('after a touch, keeps following the ball while its back end shoots forward to the front', () => {
     const trail = new BallTrail();
     trail.setStyle(trailStyle(0.87, true));
     const camera = new THREE.Vector3(0, 1, 20);
     fly(trail, 60, 25, 1);
-    trail.stop(1);
-    trail.push({ x: 0, y: 1, z: -40 }, 1.05); // the ball moves on, the trail doesn't
-    trail.update(1.1, camera);
     const pos = trail.mesh.geometry.getAttribute('position');
-    expect(pos.getZ(0)).toBeGreaterThan(-26);
     const alpha = trail.mesh.geometry.getAttribute('alpha');
-    trail.update(1.2, camera);
-    expect(alpha.getX(3 * 2)).toBeLessThan(0.5 * alpha.getX(25 * 2)); // the front fades first (a point per frame here)
-    trail.update(1.36, camera);
-    expect(trail.mesh.geometry.drawRange.count).toBe(0); // gone within 0.35 s
+    /** Where the furthest-back point that still shows is, along z. */
+    const backZ = () => {
+      const points = trail.mesh.geometry.drawRange.count / 6 + 1;
+      let last = 0;
+      for (let i = 0; i < points; i++) if (alpha.getX(i * 2) > 0.01) last = i;
+      return pos.getZ(last * 2);
+    };
+    const before = backZ();
+    trail.stop(1);
+    let ball = -25;
+    const step = (to: number) => {
+      for (let t = 1; t <= to + 1e-9; t += 1 / 60) {
+        ball -= 3 / 60; // the ball rolls on slowly in the net
+        trail.push({ x: 0, y: 1, z: ball }, t);
+        trail.update(t, camera);
+      }
+    };
+    step(1.05);
+    const first = backZ();
+    expect(Math.abs(pos.getZ(0) - ball)).toBeLessThan(0.1); // the front is still at the ball
+    step(1.1);
+    const second = backZ();
+    expect(first).toBeLessThan(before); // the back moves forward (toward -z) at once
+    expect(before - first).toBeGreaterThan(first - second); // fastest right away, no slow start
+    step(1.26);
+    expect(trail.mesh.geometry.drawRange.count).toBe(0); // gone within 0.25 s
+    step(1.5);
+    expect(trail.mesh.geometry.drawRange.count).toBe(0); // and stays gone while the ball moves on
     trail.clear();
-    fly(trail, 60, 25, 0.5, 2); // and follows the next shot again
+    fly(trail, 60, 25, 0.5, 2); // until the next shot
     expect(trail.mesh.geometry.drawRange.count).toBeGreaterThan(0);
   });
 

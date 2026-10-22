@@ -514,7 +514,7 @@ renderer.setAnimationLoop((time) => {
   introBall.place(physics.ball.translation(), physics.ball.rotation());
   const chipsMode = reducedMotion ? 'off' : introBall.floating ? 'swirl' : introBall.landing ? 'burst' : 'off';
   introChips.update(realDt, camera, ballMesh, chipsMode);
-  trail.update(gameTime, camera.position);
+  trail.update(gameTime, camera.position, realDt);
   if (!replay.active) {
     const flying = (phase === 'flight' || phase === 'result') && trail.stopTime === null;
     aura.update(ballMesh, flying, ballFade.shown, dt);
