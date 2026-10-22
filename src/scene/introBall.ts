@@ -5,11 +5,13 @@ const ROLL_AXIS = new THREE.Vector3(1, 0, 0);
 const SPIN_SPEED = 0.5; // radians per second it rolls while it floats on the intro, about 29 degrees
 const FLY_TIME = 1.6; // seconds from the middle of the screen down onto the penalty spot, as the camera pulls back
 const RISE = 0.15; // how far it lifts in the middle of its curve, as a share of half the view's height
-const WIND_IN = 0.3; // seconds it first sinks deeper into the tunnel on Speel nu, before it shoots out
-const WIND_HOLD = 0.05; // seconds it waits there, loaded, before everything starts
-const WIND_UP = WIND_IN + WIND_HOLD;
-const WIND_DEPTH = 0.3; // how much further away it sinks, as a share of how far away it floats (about 23% smaller)
-const WIND_ROLL = 1.2; // extra radians it rolls forward while it sinks in (about a fifth of a turn)
+// On Speel nu it first swings a little deeper into the tunnel, then back out toward you, then on down.
+const SINK_TIME = 0.6; // seconds of its swing into the tunnel (deepest halfway)
+const SINK_DEPTH = 0.3; // how much further away it swings, as a share of how far away it floats (about 23% smaller)
+const TURN_TIME = SINK_TIME / 2; // when it turns back toward you: the opening, chips and camera go from here
+const COME_TIME = 0.9; // seconds of its swing back toward you, from the turn (closest halfway)
+const COME_NEAR = 0.3; // how much closer than it floated it comes, as a share of how far away it floats
+const FLY_DELAY = 0.15; // seconds before it starts (gently) on its way down, while it still swings in
 const FLY_TURNS = 2.5; // at least this many extra turns it rolls on the way, slowing down to rest
 const FLY_ARC = 0.3; // metres the ball rises above a straight line halfway up (Menu)
 const LIFT_TIME = 0.8; // seconds back up from the spot into the intro (Menu on the end screen)
@@ -31,9 +33,8 @@ type State = 'off' | 'float' | 'land' | 'lift';
 
 /**
  * The real ball on the intro screen: big and slowly rolling forward in the middle of the screen, then
- * (on Speel nu) first sinking a little deeper into the tunnel, like a wind-up, then shooting back out
- * toward you (together with the purple opening up and the chips) and coming down onto the penalty spot
- * in one smooth curve, rolling forward, while the camera pulls back from close to the goal to where you
+ * (on Speel nu) first swinging a little deeper into the tunnel, like a wind-up, then back out toward
+ * you (as the purple opens up and the chips burst) and down onto the penalty spot, all in one smooth curve, rolling forward, while the camera pulls back from close to the goal to where you
  * shoot from; it comes to rest softly, no bounce. "Menu" on the end screen
  * lifts it back up. It only moves the ball's mesh; physics keeps its ball on the spot the whole
  * time, so the first shot starts exactly as before.
@@ -53,8 +54,7 @@ export class IntroBall {
   private readonly restQuaternion = new THREE.Quaternion();
   private readonly ray = new THREE.Vector3();
   private readonly forward = new THREE.Vector3();
-  private readonly floatView = new THREE.Vector3(); // where it floated, as seen from the camera
-  private readonly fromView = new THREE.Vector3(); // where the flight starts (sunk into the tunnel), as seen from the camera
+  private readonly fromView = new THREE.Vector3(); // where it floated, as seen from the camera
   private readonly toView = new THREE.Vector3(); // the spot, as seen from the camera at rest
   private readonly matrix = new THREE.Matrix4();
   private readonly one = new THREE.Vector3(1, 1, 1);
@@ -82,7 +82,7 @@ export class IntroBall {
     if (this.state === 'float') return 0;
     if (this.state === 'lift') return 1 - easeInOutCubic(Math.min(1, this.time / LIFT_TIME));
     if (this.reducedMotion) return Math.min(1, this.time / STILL_WAIT);
-    return easeOutCubic(Math.min(1, this.launched / REVEAL_TIME));
+    return glide(Math.min(1, this.turned / REVEAL_TIME));
   }
 
   /**
@@ -95,24 +95,30 @@ export class IntroBall {
     return 1 - this.flight;
   }
 
-  /** Seconds since the ball shot out of the tunnel (0 while it still sinks in). */
-  private get launched() {
-    return Math.max(0, this.time - WIND_UP);
+  /** Seconds since the ball turned back toward you, out of the tunnel (0 while it still swings in). */
+  private get turned() {
+    return Math.max(0, this.time - TURN_TIME);
   }
 
-  /** How far along the flight down to the spot is (0..1, eased): what the ball and the camera follow. */
+  /**
+   * How far along the flight down to the spot is (0..1): what the ball and the camera follow. It starts
+   * gently, while the ball still swings into the tunnel, speeds up and slows down softly onto the spot.
+   */
   private get flight() {
-    return easeOut(Math.min(1, this.launched / FLY_TIME));
+    return glide(Math.min(1, Math.max(0, this.time - FLY_DELAY) / FLY_TIME));
   }
 
-  /** How far the ball has sunk into the tunnel for its wind-up (0..1), before it shoots out. */
-  private get sunk() {
-    return easeInOutCubic(Math.min(1, this.time / WIND_IN));
+  /**
+   * How much further from the camera than its flight the ball is, as a share of how far away it floated:
+   * first deeper into the tunnel, then (without stopping) back out past where it floated, toward you.
+   */
+  private get swing() {
+    return SINK_DEPTH * bump(this.time / SINK_TIME) - COME_NEAR * bump((this.time - TURN_TIME) / COME_TIME);
   }
 
-  /** True while the ball sinks into the tunnel on Speel nu, before anything else starts. */
+  /** True while the ball swings into the tunnel on Speel nu, before it turns back toward you. */
   get windingUp() {
-    return this.state === 'land' && !this.reducedMotion && this.time < WIND_UP;
+    return this.state === 'land' && !this.reducedMotion && this.time < TURN_TIME;
   }
 
   /** True from Speel nu until the ball rests on the spot (its wind-up included). */
@@ -146,9 +152,8 @@ export class IntroBall {
     this.time = 0;
     this.onDone = onDone;
     this.camera.updateMatrixWorld();
-    this.floatView.copy(this.ball.position).applyMatrix4(this.camera.matrixWorldInverse);
-    this.fromView.copy(this.floatView).multiplyScalar(1 + WIND_DEPTH);
-    this.rollFrom = this.reducedMotion ? this.roll : this.roll + SPIN_SPEED * WIND_UP + WIND_ROLL;
+    this.fromView.copy(this.ball.position).applyMatrix4(this.camera.matrixWorldInverse);
+    this.rollFrom = this.roll;
     const turn = 2 * Math.PI;
     this.rollTo = this.reducedMotion ? this.roll : Math.ceil((this.rollFrom + FLY_TURNS * turn) / turn) * turn;
     setShadow(this.ball, true); // it grows and sharpens as the ball comes down
@@ -190,17 +195,6 @@ export class IntroBall {
         this.finish();
         return;
       }
-      if (this.windingUp) {
-        // Sinks straight away from the camera, along the line through the middle of the tunnel (so it
-        // stays put on screen and just gets smaller), still rolling forward, a little faster.
-        this.camera.updateMatrixWorld();
-        const p = this.ball.position.copy(this.floatView).multiplyScalar(1 + WIND_DEPTH * this.sunk);
-        p.applyMatrix4(this.camera.matrixWorld);
-        const start = this.rollFrom - SPIN_SPEED * WIND_UP - WIND_ROLL;
-        this.roll = start + SPIN_SPEED * this.time + WIND_ROLL * this.sunk;
-        this.rolled(this.base);
-        return;
-      }
       if (this.flight === 1) {
         this.ball.position.copy(this.target);
         this.ball.quaternion.copy(this.restQuaternion);
@@ -209,18 +203,25 @@ export class IntroBall {
       }
       // The flight is worked out as seen from the camera, which is still pulling back past the spot:
       // from the middle of the screen to where the spot will be once the camera is back, in one smooth
-      // curve. Both arrive at the same moment, gently.
+      // curve. Both arrive at the same moment, gently. Its distance from the camera has its own curve:
+      // first a little deeper into the tunnel, then back out toward you, and only then far off to the
+      // spot (sliding it along its line from the camera keeps it in the same place on screen).
       this.matrix.compose(this.cameraRest.position, this.cameraRest.quaternion, this.one).invert();
       this.toView.copy(this.target).applyMatrix4(this.matrix);
       this.camera.updateMatrixWorld();
       const s = this.flight;
       const p = this.ball.position.lerpVectors(this.fromView, this.toView, s);
+      const near = -this.fromView.z;
+      const far = -this.toView.z;
+      p.multiplyScalar((near * (1 + this.swing) + (far - near) * s ** 3) / -p.z);
       const halfHeight = -p.z * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2);
       p.y += RISE * halfHeight * Math.sin(Math.PI * s);
       p.applyMatrix4(this.camera.matrixWorld);
       // Rolls forward faster on the way, slowing down with the flight, and stops after whole turns: so
-      // it ends up exactly as it rests on the spot, without ever turning another way.
-      this.roll = this.rollFrom + (this.rollTo - this.rollFrom) * s;
+      // it ends up exactly as it rests on the spot, without ever turning another way. It carries on
+      // with its floating spin at first, which fades out as the flight takes over.
+      const spin = SPIN_SPEED * this.time * (1 - s);
+      this.roll = this.rollFrom + spin + (this.rollTo - this.rollFrom) * s;
       this.rolled(this.turn.slerpQuaternions(this.base, this.restQuaternion, s));
     }
   }
@@ -278,9 +279,14 @@ export function easeOutCubic(t: number) {
   return 1 - (1 - t) ** 3;
 }
 
-/** Moves off straight away and slows down softly into the end. */
-function easeOut(t: number) {
-  return 1 - (1 - t) ** 2.4;
+/** 0 outside 0..1, rising smoothly to 1 halfway and smoothly back down. */
+function bump(t: number) {
+  return t > 0 && t < 1 ? Math.sin(Math.PI * t) ** 2 : 0;
+}
+
+/** Starts gently, is quickest a third of the way along, and slows down softly into the end. */
+function glide(t: number) {
+  return 1 - (1 - t) ** 3 * (1 + 3 * t);
 }
 
 /** The floating ball casts no shadow: one high up in front of the camera would look odd on the grass. */

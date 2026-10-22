@@ -127,7 +127,7 @@ describe('IntroBall', () => {
     }
   });
 
-  it('sinks into the tunnel first, then shoots out with everything else, only ever rolling forward', () => {
+  it('swings into the tunnel and back out toward you in one smooth curve, only ever rolling forward', () => {
     for (const [w, h] of SCREENS) {
       const { camera, ball, slot, intro, frame } = setUp(w, h);
       intro.float(slot);
@@ -139,33 +139,39 @@ describe('IntroBall', () => {
         expect(Math.hypot(q.y, q.z)).toBeLessThan(1e-9);
         return 2 * Math.atan2(q.x, q.w);
       };
+      const dt = 1 / 240;
       let last = rolled(ball.quaternion);
-      let depth = start.depth;
       let lastPosition = ball.position.clone();
-      let windUp = 0;
-      for (let i = 1; i < 400 && intro.active; i++) {
-        frame();
+      let lastVelocity = new THREE.Vector3();
+      let deepest = start.depth;
+      let deepestAt = 0;
+      let nearest = Infinity;
+      let biggestKick = 0;
+      for (let i = 1; i < 1000 && intro.active; i++) {
+        frame(dt);
         const now = onScreen(ball, camera, w, h);
+        if (i * dt < 0.5 && now.depth > deepest) [deepest, deepestAt] = [now.depth, i * dt];
+        if (i * dt > deepestAt && i * dt < 1.2) nearest = Math.min(nearest, now.depth);
         if (intro.windingUp) {
-          windUp++;
-          // It only goes further away, staying in the middle of the screen; nothing else has started yet.
-          expect(now.depth).toBeGreaterThanOrEqual(depth - 1e-9);
-          expect(Math.hypot(now.x - start.x, now.y - start.y)).toBeLessThan(1e-6);
+          // Nothing else has started yet, and it stays about in the middle of the screen.
           expect(intro.reveal).toBe(0);
-          expect(intro.cameraIntro).toBe(1);
-          depth = now.depth;
-        } else {
-          expect(ball.position.distanceTo(lastPosition)).toBeLessThan(0.5); // no jump as it shoots out
+          expect(Math.hypot(now.x - start.x, now.y - start.y)).toBeLessThan(0.05 * h);
         }
+        // No jumps and no kinks: its speed changes only a little from one moment to the next.
+        const velocity = ball.position.clone().sub(lastPosition).divideScalar(dt);
+        if (i > 1 && intro.active) biggestKick = Math.max(biggestKick, velocity.distanceTo(lastVelocity));
         const angle = rolled(ball.quaternion);
         const step = THREE.MathUtils.euclideanModulo(angle - last + Math.PI, 2 * Math.PI) - Math.PI;
         expect(step).toBeGreaterThan(-1e-9); // forward only
-        expect(Math.abs(step)).toBeLessThan(Math.PI / 2);
         last = angle;
         lastPosition = ball.position.clone();
+        lastVelocity = velocity;
       }
-      expect(windUp).toBeGreaterThan(15); // about a third of a second
-      expect(depth).toBeGreaterThan(start.depth * 1.25); // about 23% smaller at its deepest
+      expect(deepest).toBeGreaterThan(start.depth * 1.15); // first clearly deeper into the tunnel
+      expect(deepestAt).toBeGreaterThan(0.2);
+      expect(deepestAt).toBeLessThan(0.4);
+      expect(nearest).toBeLessThan(start.depth); // then back out, closer to you than where it floated
+      expect(biggestKick).toBeLessThan(0.5); // metres a second, between samples 1/240 s apart: no sudden starts
       expect(ball.quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(1e-6);
     }
   });
