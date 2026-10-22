@@ -192,6 +192,15 @@ const replay = new Replay({
   trail,
   aura,
   hide: [effects.group, markers.group],
+  crowd: {
+    get clock() {
+      return crowd.clock;
+    },
+    show(time, clock) {
+      crowd.show(time, clock);
+      crowdFlags.update(time); // the flags move with their bearers
+    },
+  },
 });
 const wipe = new Wipe(document.querySelector<HTMLElement>('#hud')!, REPLAY_SETTINGS);
 // Add ?replayAngle=follow, behind or high to the address to see every replay from that one angle.
@@ -561,6 +570,7 @@ renderer.setAnimationLoop((time) => {
   effects.update(dt);
   ballFade.update(dt);
   stadiumMotion.update(dt);
+  if (phase === 'aiming') crowd.waitAround(realDt, reducedMotion); // now and then a Mexican wave
   crowd.update(gameTime, realDt);
   crowdFlags.update(gameTime);
   sky.update(gameTime);

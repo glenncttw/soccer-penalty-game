@@ -59,15 +59,15 @@ export interface CrowdSettings {
   frownShare: number;
   /** 0..1: how much each person smiles at rest, at most (everyone a bit differently). */
   restSmile: number;
-  /** 0..1: chance a goal gets a Mexican wave rather than everyone jumping. */
-  waveChance: number;
+  /** About how many seconds between Mexican waves while you aim or wait (each gap a bit shorter or longer). */
+  waveEvery: number;
   /** How many jumps each person makes after a goal. */
   jumps: number;
   /** Seconds per jump. */
   jumpTime: number;
   /** How high they jump, in metres, at most (each person a bit differently). */
   jumpHeight: number;
-  /** Seconds the Mexican wave takes from one end of the stands to the other. */
+  /** Seconds a Mexican wave takes from one end of the stands to the other. A goal or a save stops it. */
   waveLap: number;
   /** How many times it goes round. */
   waveLaps: number;
@@ -121,7 +121,7 @@ export const CROWD_SETTINGS: CrowdSettings = {
   saveSulk: 2,
   frownShare: 0.6,
   restSmile: 0.3,
-  waveChance: 0.5,
+  waveEvery: 15,
   jumps: 3,
   jumpTime: 0.45,
   jumpHeight: 0.22,

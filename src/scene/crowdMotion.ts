@@ -124,7 +124,10 @@ export function motionUniforms(s: CrowdSettings) {
     uReactAt: { value: -1e4 },
     uReactEnd: { value: 1e9 },
     uMood: { value: Mood.None as number },
-    uParty: { value: Party.None as number },
+    uJump: { value: 0 },
+    // A Mexican wave (see Crowd.wave), on the same clock: when it started and when a goal or save stopped it.
+    uWaveAt: { value: -1e4 },
+    uWaveEnd: { value: 1e9 },
     uWaveDir: { value: 1 },
     uReactDelay: { value: s.reactDelay },
     uGoalShout: { value: s.goalShout },
@@ -145,41 +148,43 @@ export function motionUniforms(s: CrowdSettings) {
 /** How the crowd feels about the last shot: their faces. */
 export const Mood = { None: 0, Goal: 1, Save: 2 } as const;
 export type Mood = (typeof Mood)[keyof typeof Mood];
-/** How they celebrate a goal. */
-export const Party = { None: 0, Jump: 1, Wave: 2 } as const;
-export type Party = (typeof Party)[keyof typeof Party];
 
 /**
- * How high someone is lifted (metres) `since` seconds after their reaction started (a goal), and how far
- * their arms are up (0..1): the same as the shader. `around` is where they stand along the stands (0..1),
- * `own` their own random number (0..1) and `wave` the seconds since the goal, for the Mexican wave.
+ * How high someone is lifted (metres) `since` seconds after their reaction to a goal started, and how far
+ * their arms are up (0..1): the same as the shader. `own` is their own random number (0..1).
  */
-export function partyLift(
-  party: Party,
-  since: number,
+export function jumpLift(since: number, own: number, s: CrowdSettings): { lift: number; arms: number } {
+  const jumping = s.jumps * s.jumpTime;
+  if (since <= 0 || since >= jumping) return { lift: 0, arms: 0 };
+  const u = (since / s.jumpTime) % 1;
+  const arms = smoothstep(0, 0.1, since) * (1 - smoothstep(jumping - 0.15, jumping, since));
+  return { lift: s.jumpHeight * (0.6 + 0.4 * own) * 4 * u * (1 - u), arms };
+}
+
+/** Seconds each person takes to drop out of a Mexican wave once a goal or a save stops it. */
+const WAVE_STOP = 0.25;
+
+/**
+ * The Mexican wave `wave` seconds after it started, for someone at `around` along the stands (0..1), as in the
+ * shader: how high they're lifted and how far their arms are up. `stopped` is the seconds since a goal or a
+ * save stopped it, for this person (null while it goes on): they drop out of it.
+ */
+export function waveLift(
   wave: number,
   around: number,
   own: number,
   dir: 1 | -1,
   s: CrowdSettings,
+  stopped: number | null = null,
 ): { lift: number; arms: number } {
-  if (party === Party.Jump) {
-    const jumping = s.jumps * s.jumpTime;
-    if (since <= 0 || since >= jumping) return { lift: 0, arms: 0 };
-    const u = (since / s.jumpTime) % 1;
-    const arms = smoothstep(0, 0.1, since) * (1 - smoothstep(jumping - 0.15, jumping, since));
-    return { lift: s.jumpHeight * (0.6 + 0.4 * own) * 4 * u * (1 - u), arms };
-  }
-  if (party === Party.Wave) {
-    const laps = wave / s.waveLap;
-    if (laps <= 0 || laps >= s.waveLaps) return { lift: 0, arms: 0 };
-    // It comes in from beyond one end and goes out past the other.
-    const u = laps % 1;
-    const front = -s.waveWidth + (dir > 0 ? u : 1 - u) * (1 + 2 * s.waveWidth);
-    const bump = 1 - smoothstep(0, s.waveWidth, Math.abs(around + 0.02 * own - front));
-    return { lift: s.waveRise * bump, arms: bump };
-  }
-  return { lift: 0, arms: 0 };
+  const laps = wave / s.waveLap;
+  if (laps <= 0 || laps >= s.waveLaps) return { lift: 0, arms: 0 };
+  // It comes in from beyond one end and goes out past the other.
+  const u = laps % 1;
+  const front = -s.waveWidth + (dir > 0 ? u : 1 - u) * (1 + 2 * s.waveWidth);
+  let bump = 1 - smoothstep(0, s.waveWidth, Math.abs(around + 0.02 * own - front));
+  if (stopped !== null) bump *= 1 - smoothstep(0, WAVE_STOP, stopped);
+  return { lift: s.waveRise * bump, arms: bump };
 }
 
 function smoothstep(a: number, b: number, x: number) {
@@ -198,7 +203,7 @@ export function addMotion(
       'void main() {',
       `uniform float uCrowdTime, uCrowdMotion, uBob, uBobSpeed, uSway, uHeadTurn, uHeadNod, uCheerEvery, uArmRaise, uArmForward;
       uniform float uHoldRaise, uHoldForward;
-      uniform float uCrowdClock, uReactAt, uReactEnd, uMood, uParty, uWaveDir, uReactDelay, uGoalShout, uShoutShare;
+      uniform float uCrowdClock, uReactAt, uReactEnd, uMood, uJump, uWaveAt, uWaveEnd, uWaveDir, uReactDelay, uGoalShout, uShoutShare;
       uniform float uSaveSulk, uFrownShare, uRestSmile, uJumps, uJumpTime, uJumpHeight, uWaveLap, uWaveLaps, uWaveWidth;
       uniform float uWaveRise;
       // Where the part moves about, and its kind (Limb) * 16 + the vertex's colour slot (see crowd.ts).
@@ -262,30 +267,30 @@ export function addMotion(
         else if (crowdR2 > 0.9) crowdFace.z = crowdReacting * crowdAfter;
       }
       crowdFace.z = max(crowdFace.z, uRestSmile * crowdR3 * (1.0 - crowdReacting));
-      // A goal: everyone jumps, arms up, or a Mexican wave goes round the stands (flag bearers keep still).
+      // A Mexican wave going round the stands, until a goal or a save stops it: then each person drops out of it
+      // as they react. Flag bearers keep still.
       float crowdLift = 0.0;
       float crowdPartyArms = 0.0;
-      if (uParty == ${Party.Jump}.0) {
-        float crowdJumping = uJumps * uJumpTime;
-        if (crowdSince > 0.0 && crowdSince < crowdJumping) {
-          float crowdU = fract(crowdSince / uJumpTime);
-          crowdLift = uJumpHeight * (0.6 + 0.4 * crowdR3) * 4.0 * crowdU * (1.0 - crowdU);
-          crowdPartyArms = smoothstep(0.0, 0.1, crowdSince) * (1.0 - smoothstep(crowdJumping - 0.15, crowdJumping, crowdSince));
-        }
-      } else if (uParty == ${Party.Wave}.0) {
-        float crowdLaps = (uCrowdClock - uReactAt) / uWaveLap;
-        if (crowdLaps > 0.0 && crowdLaps < uWaveLaps) {
-          float crowdU = fract(crowdLaps);
-          float crowdFront = -uWaveWidth + (uWaveDir > 0.0 ? crowdU : 1.0 - crowdU) * (1.0 + 2.0 * uWaveWidth);
-          float crowdBump = 1.0 - smoothstep(0.0, uWaveWidth, abs(aSkin.w + 0.02 * crowdR3 - crowdFront));
-          crowdLift = uWaveRise * crowdBump;
-          crowdPartyArms = crowdBump;
-          crowdFace.w = max(crowdFace.w, crowdBump); // shouting as it passes
-        }
+      float crowdLaps = (uCrowdClock - uWaveAt) / uWaveLap;
+      if (crowdLaps > 0.0 && crowdLaps < uWaveLaps) {
+        float crowdU = fract(crowdLaps);
+        float crowdFront = -uWaveWidth + (uWaveDir > 0.0 ? crowdU : 1.0 - crowdU) * (1.0 + 2.0 * uWaveWidth);
+        float crowdBump = 1.0 - smoothstep(0.0, uWaveWidth, abs(aSkin.w + 0.02 * crowdR3 - crowdFront));
+        crowdBump *= (1.0 - crowdHolds) * (1.0 - smoothstep(0.0, ${WAVE_STOP.toFixed(2)}, uCrowdClock - uWaveEnd - uReactDelay * crowdR1));
+        crowdLift = uWaveRise * crowdBump;
+        crowdPartyArms = crowdBump;
+        crowdFace.w = max(crowdFace.w, crowdBump); // shouting as it passes
       }
-      float crowdPartyOn = (1.0 - crowdHolds) * (1.0 - smoothstep(uReactEnd, uReactEnd + 0.4, uCrowdClock));
-      crowdLift *= crowdPartyOn * aHair.w;
-      crowdPartyArms *= crowdPartyOn;
+      // A goal: everyone jumps, arms up.
+      float crowdJumping = uJumps * uJumpTime;
+      if (uJump > 0.0 && crowdSince > 0.0 && crowdSince < crowdJumping) {
+        float crowdJumpOn = (1.0 - crowdHolds) * (1.0 - smoothstep(uReactEnd, uReactEnd + 0.4, uCrowdClock));
+        float crowdU = fract(crowdSince / uJumpTime);
+        crowdLift += crowdJumpOn * uJumpHeight * (0.6 + 0.4 * crowdR3) * 4.0 * crowdU * (1.0 - crowdU);
+        crowdPartyArms = max(crowdPartyArms, crowdJumpOn * smoothstep(0.0, 0.1, crowdSince)
+          * (1.0 - smoothstep(crowdJumping - 0.15, crowdJumping, crowdSince)));
+      }
+      crowdLift *= aHair.w;
       if (crowdKind == 1.0 && aHold.x * crowdPivot.x > 0.0) {
         crowdLimb = crowdRotX(-uHoldForward) * crowdRotZ(sign(crowdPivot.x) * uHoldRaise);
       } else if (crowdKind == 1.0) {
