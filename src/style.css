@@ -493,6 +493,44 @@ body {
   background: rgba(255, 255, 255, 0.15);
 }
 
+/*
+ * The end of a round: no tint over the game, the camera moves in close to the keeper dancing (src/scene/gameCamera.ts)
+ * and the score sits beside it: on the right, or under it on screens taller than wide.
+ */
+.screen.end {
+  background: none;
+  grid-template-columns: 1fr 1fr;
+}
+
+.screen.end .screen-body {
+  grid-column: 2;
+}
+
+@media (max-aspect-ratio: 1/1) {
+  .screen.end {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+
+  .screen.end .screen-body {
+    grid-column: 1;
+    grid-row: 2;
+  }
+}
+
+/* Without the tint, the white text and outline button get a shadow and a soft fill to stand out from the stadium. */
+.screen.end .end-best {
+  text-shadow: 0 3px 0 #3b1f4f;
+}
+
+.screen.end .btn-secondary {
+  background: rgba(59, 31, 79, 0.45);
+}
+
+.screen.end .btn-secondary:hover {
+  background: rgba(59, 31, 79, 0.65);
+}
+
 .end-balls {
   display: flex;
   gap: 10px;

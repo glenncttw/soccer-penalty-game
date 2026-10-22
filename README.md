@@ -18,7 +18,9 @@ stands still, the camera doesn't move and the purple fades). Croky chips come at
 terms, the cookie policy and a Dutch/French switch. The menu's words are in `src/ui/texts.ts`; give the prizes,
 terms and cookie policy a web address in `src/ui/links.ts` and they open that page instead of a placeholder text. A round is 5 penalties; the balls in the top right corner fill in as you go (✓ goal,
 ✕ saved or missed). After the fifth penalty (and its replay) the end screen shows how many you scored and your
-record on this device, with **Speel opnieuw** and **Menu**. The screens are in Dutch; their words are all in
+record on this device, with **Speel opnieuw** and **Menu**: the camera moves in close to the keeper dancing in front
+of its goal on the left, with the score on the right (on a phone held upright: the keeper above, the score below;
+framing in `END_FRAME`, `src/scene/gameCamera.ts`). The screens are in Dutch; their words are all in
 `src/ui/texts.ts`, the round itself in `src/gameplay/round.ts` (`ROUND_SHOTS`).
 
 1. **Aim**: move the mouse over the goal (on a phone, press where you want the ball to go). The target stays inside the goal frame.

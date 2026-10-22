@@ -118,6 +118,11 @@ export class Screens {
     return !this.intro.hidden || !this.end.hidden;
   }
 
+  /** True while the end of a round shows. */
+  get endShown() {
+    return !this.end.hidden;
+  }
+
   /** True while the intro is up (and not on its way out). */
   get introShown() {
     return !this.intro.hidden && !this.intro.classList.contains('leaving');

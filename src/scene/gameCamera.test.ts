@@ -146,4 +146,33 @@ describe('game camera', () => {
     settle(view, still, 6);
     expect(view.camera.position.y).toBeCloseTo(0.94, 3);
   });
+
+  it('moves in close to the keeper at the end of a round: on the left of a wide screen, at the top of a tall one', () => {
+    const keeper = new THREE.Vector3(0, 0, 0.35);
+    for (const [aspect, side] of [
+      [16 / 9, 'left'],
+      [9 / 19, 'top'],
+    ] as const) {
+      const view = createGameCamera(world, settings, keeper);
+      view.fit(aspect);
+      settle(view, { ...still, ending: true });
+      const feet = screen(view.camera, keeper);
+      const head = screen(view.camera, keeper.clone().setY(1.6));
+      expect(view.camera.position.z).toBeLessThan(6); // well in front of the penalty spot
+      expect(head.y).toBeLessThan(1); // all of it in view
+      expect(feet.y).toBeGreaterThan(-1);
+      const middle = screen(view.camera, keeper.clone().setY(0.8));
+      expect(head.y - feet.y).toBeGreaterThan(side === 'left' ? 1.1 : 0.6); // big, filling much of the height
+      if (side === 'left') {
+        expect(middle.x).toBeCloseTo(-0.48, 2);
+        expect(middle.y).toBeCloseTo(-0.05, 2);
+      } else {
+        expect(middle.x).toBeCloseTo(0, 2);
+        expect(middle.y).toBeCloseTo(0.45, 2);
+      }
+      // And back to the rest view once the screen goes.
+      settle(view);
+      expect(view.camera.position.z).toBeCloseTo(16.03, 6);
+    }
+  });
 });

@@ -19,6 +19,15 @@ const TRAUMA_FADE = 1.3; // trauma lost per second
 // The intro: the camera starts close to the goal and pulls straight back to the rest view.
 const INTRO_FORWARD = 10; // metres toward the goal along the view at the start (about 6 m from the goal line)
 const INTRO_RISE = 0.3; // metres higher at the start
+// The end of a round: the camera moves in close to the keeper dancing in front of its goal, with the keeper on
+// the left (the score goes on the right, src/style.css) or, on screens taller than wide, at the top.
+const END_TIME = 1.4; // seconds to move in (and back out)
+const KEEPER_SIZE = 1.6; // metres: the keeper's height, to frame it
+const END_HEIGHT = 1.1; // metres up: a little above the keeper's middle, looking slightly down at it
+const END_FRAME = {
+  wide: { x: -0.48, y: -0.05, height: 0.62 }, // the keeper's middle on screen (-1..1 across and up) and its share of the height
+  tall: { x: 0, y: 0.45, height: 0.34 },
+};
 
 export interface CameraState {
   /** True while the player holds a shot. */
@@ -27,6 +36,8 @@ export interface CameraState {
   swayTarget: { x: number; y: number } | null;
   /** How close to the goal the intro has the camera: 1 close up, 0 (or left out) the normal view. */
   intro?: number;
+  /** True while the end of a round shows: the camera moves in close to the keeper (see `keeper`). */
+  ending?: boolean;
 }
 
 /**
@@ -36,7 +47,11 @@ export interface CameraState {
  * view. On top of that rest pose it pushes in while charging, sways with the
  * mouse (sideways and up and down) and shakes on impacts.
  */
-export function createGameCamera(config: WorldConfig, settings: CameraSettings = CAMERA_SETTINGS) {
+export function createGameCamera(
+  config: WorldConfig,
+  settings: CameraSettings = CAMERA_SETTINGS,
+  keeper: { x: number; y: number; z: number } = { x: 0, y: config.groundY, z: config.goal.lineZ },
+) {
   const camera = new THREE.PerspectiveCamera(settings.fov, DESIGN_ASPECT, 0.05, 400);
   const restPosition = new THREE.Vector3();
   const restQuaternion = new THREE.Quaternion();
@@ -45,6 +60,10 @@ export function createGameCamera(config: WorldConfig, settings: CameraSettings =
   let designFov = settings.fov;
   let goalHalfAngle = 0;
   let restFov = designFov;
+  const endPosition = new THREE.Vector3();
+  const endQuaternion = new THREE.Quaternion();
+  const aimer = new THREE.PerspectiveCamera();
+  let ending = 0; // 0..1 of the way in
 
   let charge = 0;
   const sway = { x: 0, y: 0 };
@@ -63,6 +82,26 @@ export function createGameCamera(config: WorldConfig, settings: CameraSettings =
     restFov = Math.max(designFov, THREE.MathUtils.radToDeg(neededVertical));
     camera.fov = restFov;
     camera.updateProjectionMatrix();
+    // Close enough that the keeper fills its share of the height, slid sideways toward where the frame has it,
+    // then turned (a few small corrections) until its middle sits exactly there.
+    const frame = aspect >= 1 ? END_FRAME.wide : END_FRAME.tall;
+    const tanV = Math.tan(THREE.MathUtils.degToRad(restFov) / 2);
+    const distance = KEEPER_SIZE / (2 * frame.height * tanV);
+    const middle = new THREE.Vector3(keeper.x, keeper.y + KEEPER_SIZE / 2, keeper.z);
+    endPosition.set(keeper.x - frame.x * distance * tanV * aspect, keeper.y + END_HEIGHT, keeper.z + distance);
+    aimer.position.copy(endPosition);
+    aimer.fov = restFov;
+    aimer.aspect = aspect;
+    aimer.updateProjectionMatrix();
+    const look = middle.clone();
+    for (let i = 0; i < 6; i++) {
+      aimer.lookAt(look);
+      aimer.updateMatrixWorld();
+      const seen = middle.clone().project(aimer);
+      look.x += (seen.x - frame.x) * distance * tanV * aspect;
+      look.y += (seen.y - frame.y) * distance * tanV;
+    }
+    endQuaternion.copy(aimer.quaternion);
   }
 
   /** Moves the rest view to new settings straight away (the settings editor uses this). */
@@ -98,6 +137,7 @@ export function createGameCamera(config: WorldConfig, settings: CameraSettings =
     sway.x = THREE.MathUtils.damp(sway.x, target.x, rate, dt);
     sway.y = THREE.MathUtils.damp(sway.y, target.y, rate, dt);
     trauma = Math.max(0, trauma - TRAUMA_FADE * dt);
+    ending = THREE.MathUtils.clamp(ending + (state.ending ? dt : -dt) / END_TIME, 0, 1);
 
     const push = charge * charge * (3 - 2 * charge); // smoothstep
     // Pointer right or up: the camera circles the goal to the left or down, so the view turns toward it.
@@ -121,6 +161,11 @@ export function createGameCamera(config: WorldConfig, settings: CameraSettings =
     );
     shake.setFromEuler(euler);
     camera.quaternion.copy(turn).multiply(restQuaternion).multiply(shake);
+    if (ending > 0) {
+      const k = ending < 0.5 ? 4 * ending ** 3 : 1 - (-2 * ending + 2) ** 3 / 2; // ease in and out
+      camera.position.lerp(endPosition, k);
+      camera.quaternion.slerp(endQuaternion, k);
+    }
 
     const fov = restFov * (1 - PUSH_ZOOM * push);
     if (Math.abs(camera.fov - fov) > 1e-4) {
