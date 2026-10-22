@@ -35,6 +35,9 @@ const PARTS: { name: string; bone: string; covers: string[]; capsule: boolean }[
   { name: 'foot_L', bone: 'foot_L', covers: ['shin_L', 'foot_L', 'toe_L'], capsule: true },
   { name: 'foot_R', bone: 'foot_R', covers: ['shin_R', 'foot_R', 'toe_R'], capsule: true },
 ];
+// Where a caught ball sits: between the gloves, a little lower and further out. Measured in
+// catch_chest's hold, where a 0.175 m ball fits between the hands and the chest.
+const HOLD_OFFSET = { x: 0, y: -0.035, z: 0.015 };
 const FIT = 0.85; // share of the skin a part's size takes in: the outermost fluff and feather tips stay soft
 const SAMPLE_RATE = 60; // samples a second in each clip's measured track
 
@@ -313,6 +316,11 @@ export class KeeperRig {
     return samples;
   }
 
+  /** Where a caught ball sits now, between the gloves. */
+  get holdSpot(): Vec3 {
+    return holdSpot([this.partCentre(0), this.partCentre(1)]);
+  }
+
   /** Where the centre of part `i` is now. */
   partCentre(i: number): Vec3 {
     const { position, rotation } = this.parts[i];
@@ -320,6 +328,15 @@ export class KeeperRig {
     this.p.set(o.x, o.y, o.z).applyQuaternion(this.q.set(rotation.x, rotation.y, rotation.z, rotation.w));
     return { x: position.x + this.p.x, y: position.y + this.p.y, z: position.z + this.p.z };
   }
+}
+
+/** Where a caught ball sits between gloves at `gloves` (see HOLD_OFFSET). */
+export function holdSpot(gloves: readonly [Vec3, Vec3]): Vec3 {
+  return {
+    x: (gloves[0].x + gloves[1].x) / 2 + HOLD_OFFSET.x,
+    y: (gloves[0].y + gloves[1].y) / 2 + HOLD_OFFSET.y,
+    z: (gloves[0].z + gloves[1].z) / 2 + HOLD_OFFSET.z,
+  };
 }
 
 /**

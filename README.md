@@ -234,7 +234,7 @@ It plays the animations in the file (`src/ai/keeperMotion.ts` picks them, `src/s
 | `idle` | before you aim |
 | `ready` | while you aim and charge, standing still |
 | `shuffle_L` / `shuffle_R` | side steps toward where you aim (`shuffle_L` when you aim right); the steps play on the spot and the game moves the bird along at the speed they travel |
-| `catch_chest` / `punch` | a ball at it: softer shots are caught, harder ones (over 24 m/s) punched |
+| `catch_chest` / `punch` | a ball at it: softer shots are caught, harder ones (over 24 m/s) punched. A caught ball stays in its hands (`src/gameplay/ballCatch.ts`): once the hands start closing, a ball heading within 0.4 m of the spot between them is taken, slides into the hands and follows the hug to its chest |
 | `tuck_jump` | a ball at it, above 1.05 m |
 | `dive_low_L/R`, `dive_high_L/R` | a ball to the side, below or above 0.9 m |
 | `celebrate` | after the last penalty, on the end screen |
