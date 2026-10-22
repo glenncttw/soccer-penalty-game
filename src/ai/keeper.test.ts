@@ -107,7 +107,7 @@ describe('KeeperMotion', async () => {
     const motion = fresh();
     run(motion, 0.5);
     expect(rig.playing).toBe('idle');
-    motion.aimX = 0;
+    motion.ready = true;
     run(motion, 0.5);
     expect(rig.playing).toBe('ready');
   });
@@ -117,12 +117,45 @@ describe('KeeperMotion', async () => {
     [-2, 'shuffle_R'],
   ])('steps across toward where you aim (%s)', (aimX, clip) => {
     const motion = fresh();
+    motion.ready = true;
     motion.aimX = aimX;
     run(motion, 0.2);
     expect(rig.playing).toBe(clip);
     run(motion, 3);
     expect(rig.object.position.x).toBeCloseTo(aimX * KEEPER_SKILL.lean, 1);
     expect(rig.playing).toBe('ready');
+  });
+
+  it('moves between standing, getting ready and side-stepping without a jump', () => {
+    const motion = fresh();
+    // The most any part of it changes speed in one step: a jump shows up as a spike.
+    let last: number[] = [];
+    let before: number[] = [];
+    let worst = 0;
+    const watch = (aimX: number | null, ready: boolean, seconds: number) => {
+      motion.aimX = aimX;
+      motion.ready = ready;
+      for (let t = 0; t < seconds; t += 1 / 120) {
+        motion.step(1 / 120);
+        const now = rig.parts.flatMap((_, i) => {
+          const c = rig.partCentre(i);
+          return [c.x, c.y, c.z];
+        });
+        if (before.length) now.forEach((v, i) => (worst = Math.max(worst, Math.abs(v - 2 * last[i] + before[i]))));
+        before = last;
+        last = now;
+      }
+    };
+    watch(null, false, 0.3);
+    watch(null, true, 0.6);
+    watch(null, false, 0.6);
+    watch(1.5, true, 0.15);
+    watch(-1.5, true, 0.15);
+    watch(0.4, true, 0.3);
+    watch(1.2, true, 0.1);
+    watch(0.2, true, 0.5);
+    // Side-stepping itself goes up to about 12 mm; a blend snapping from at ease went to 50.
+    expect(worst).toBeLessThan(0.015);
   });
 
   it('waits for its reaction time before moving', () => {

@@ -2,12 +2,15 @@ import type { Vec3 } from '../physics/ballForces';
 import { holdSpot, type ClipSample, type KeeperClip, type KeeperRig } from '../scene/keeperRig';
 import type { KeeperSkill, ShotRead } from './keeper';
 
-const SHUFFLE_PLAY = 1.5; // the side steps play this much faster than in Blender: a keeper on its toes
-const SHUFFLE_START = 0.05; // metres off its spot before it steps across
-const SHUFFLE_STOP = 0.01; // close enough: back to its ready stance
 const MAX_SHIFT = 0.6; // metres it edges off the middle at most while you aim
-const BLEND = 0.2; // seconds between two waiting animations
-const SAVE_BLEND = 0.08; // seconds into a save: it has to go at once
+const FOLLOW = 6; // how briskly it follows your aim (a spring: speeds up, then slows down to stop on the spot)
+const MAX_STEP = 2; // fastest side-stepping, as a share of the speed the shuffle was made for
+const STEP_BLEND = 0.1; // seconds the side steps take to blend in and out as it speeds up and slows down
+const BLEND = 0.3; // seconds between idle, ready and celebrating
+const SAVE_BLEND = 0.15; // seconds into a save from the ready stance
+const SAVE_BLEND_IDLE = 0.2; // the same from idle, which is further from where the saves start
+const SPEED_EASE = 0.15; // seconds a sped-up save takes to ease back to its own speed after full stretch
+const CARRY = 0.08; // seconds its side-step speed carries on into a save
 const STAND_REACH = 0.55; // balls this close to its middle (sideways) are caught, punched or jumped over
 const TUCK_HEIGHT = 1.05; // metres: a ball at it this high is jumped at (tuck jump)
 const HIGH_DIVE = 0.9; // metres: a ball this high to the side gets a high dive, lower ones a low dive
@@ -49,8 +52,8 @@ interface Save {
 export class KeeperMotion {
   /** Where the player aims (x on the goal), or null if they aren't aiming. */
   aimX: number | null = null;
-  /** True while the player charges a shot. */
-  set = false;
+  /** True while the player aims or charges a shot: it gets ready (and stands at ease otherwise). */
+  ready = false;
   /** The spot it went for after the last kick, or null. */
   wentFor: { x: number; y: number } | null = null;
   /** True if it guessed instead of reading the last shot. */
@@ -59,6 +62,9 @@ export class KeeperMotion {
   private readonly at: Vec3;
   private save: Save | null = null;
   private saveFrom = 0; // where it stood (x) when it went for the ball
+  private carry = 0; // its side-step speed (m/s) at the kick, carried on a moment into the save
+  private velocity = 0; // its side-step speed (m/s) while waiting
+  private readiness = 0; // 0 at ease .. 1 ready, eased so the arms come up (and go down) gently
   private since = 0; // seconds since the kick
   private celebrating = false;
 
@@ -76,6 +82,8 @@ export class KeeperMotion {
     this.save = null;
     this.wentFor = null;
     this.celebrating = false;
+    this.velocity = 0;
+    this.readiness = 0;
     Object.assign(this.at, this.home);
     this.rig.play('idle', { fade: 0, from: 0 });
     this.place();
@@ -86,6 +94,8 @@ export class KeeperMotion {
   celebrate() {
     this.save = null;
     this.celebrating = true;
+    this.velocity = 0;
+    this.readiness = 0;
     Object.assign(this.at, this.home);
     this.place();
     this.rig.play('celebrate', { fade: BLEND });
@@ -107,6 +117,10 @@ export class KeeperMotion {
    */
   react(read: ShotRead) {
     this.celebrating = false;
+    // Its side-step carries on a moment: plan from where that takes it.
+    this.carry = this.velocity;
+    this.velocity = 0;
+    this.at.x += this.carry * CARRY;
     let delay = read.read ? this.skill.reaction : 0;
     let spot = read.spot(delay);
     let save = this.plan(spot, delay, read.time, read.speed);
@@ -117,11 +131,12 @@ export class KeeperMotion {
       save = this.plan(spot, delay, read.time, read.speed);
     }
     this.save = save;
-    this.saveFrom = this.at.x;
+    this.saveFrom = this.at.x - this.carry * CARRY;
     this.wentFor = spot;
     this.guessed = !read.read;
     this.since = 0;
-    if (this.rig.playing !== 'ready' && this.rig.playing !== 'idle') this.rig.play('ready', { fade: BLEND });
+    // Steady on its feet until it goes.
+    if (this.rig.playing !== 'idle') this.rig.play('ready', { fade: SAVE_BLEND });
   }
 
   /**
@@ -199,13 +214,20 @@ export class KeeperMotion {
     const save = this.save;
     if (save) {
       this.since += dt;
+      // The side-step it was in eases out over the first moment.
+      const carried = this.carry * CARRY * (1 - Math.exp(-this.since / CARRY));
+      this.at.x = this.saveFrom + carried;
       if (this.since >= save.start) {
-        if (rig.playing !== save.clip) rig.play(save.clip, { fade: SAVE_BLEND, once: true, speed: save.speed });
-        else if (rig.time >= save.at) rig.speed = 1; // at full stretch: the rest of it plays as made
-        // Shift across (quick at first, like a push off the ground), and up and back down by the landing.
+        if (rig.playing !== save.clip) {
+          const fade = rig.playing === 'idle' ? SAVE_BLEND_IDLE : SAVE_BLEND;
+          rig.play(save.clip, { fade, once: true, speed: save.speed });
+        } else if (rig.time >= save.at) {
+          // Past full stretch: eases back to the speed it was made at.
+          rig.speed = save.speed + (1 - save.speed) * smoothstep((rig.time - save.at) / SPEED_EASE);
+        }
+        // Shift across and up to meet the ball, and back down by the landing.
         const t = rig.time;
-        const across = Math.min(1, t / save.at);
-        this.at.x = this.saveFrom + save.slide * (1 - (1 - across) ** 2);
+        this.at.x += save.slide * smoothstep(t / save.at);
         const up =
           t < save.at ? smoothstep(t / save.at) : 1 - smoothstep((t - save.at) / Math.max(0.05, save.land - save.at));
         this.at.y = this.home.y + save.lift * up;
@@ -217,21 +239,38 @@ export class KeeperMotion {
     rig.update(dt);
   }
 
-  /** Before the kick: at ease, ready while you aim, stepping across toward where you aim. */
+  /**
+   * Before the kick: at ease, ready while you aim, and side-stepping toward where you aim. It
+   * follows like a spring, speeding up and slowing down, and the side steps blend in with its
+   * speed (and play at its speed, so the feet keep up), so it never starts or stops with a jolt.
+   */
   private wait(dt: number) {
     const rig = this.rig;
-    const aiming = this.aimX !== null || this.set;
     const shift = this.aimX === null ? 0 : clamp(this.aimX * this.skill.lean, -MAX_SHIFT, MAX_SHIFT);
     const gap = this.home.x + shift - this.at.x;
-    const stepping = rig.playing === 'shuffle_L' || rig.playing === 'shuffle_R';
-    if (Math.abs(gap) > (stepping ? SHUFFLE_STOP : SHUFFLE_START)) {
-      // Its own left (shuffle_L) is toward +x, the shooter's right.
-      rig.play(gap > 0 ? 'shuffle_L' : 'shuffle_R', { fade: BLEND, speed: SHUFFLE_PLAY });
-      const step = rig.shuffleSpeed * SHUFFLE_PLAY * dt;
-      this.at.x += clamp(gap, -step, step);
-    } else {
-      rig.play(aiming ? 'ready' : 'idle', { fade: BLEND });
-    }
+    const fastest = rig.shuffleSpeed * MAX_STEP;
+    this.velocity += (FOLLOW * FOLLOW * gap - 2 * FOLLOW * this.velocity) * dt;
+    this.velocity = clamp(this.velocity, -fastest, fastest);
+    this.at.x += this.velocity * dt;
+    // Its own left (shuffle_L) is toward +x, the shooter's right.
+    const stepping = Math.min(1, Math.abs(this.velocity) / rig.shuffleSpeed);
+    const pace = Math.max(0.5, Math.abs(this.velocity) / rig.shuffleSpeed);
+    rig.setSpeed('shuffle_L', pace);
+    rig.setSpeed('shuffle_R', pace);
+    // At ease to ready takes BLEND, and the side steps grow out of the ready stance: straight from
+    // at ease to stepping would swing the arms up in a flash.
+    const toward = this.ready ? 1 : 0;
+    this.readiness += clamp(toward - this.readiness, -dt / BLEND, dt / BLEND);
+    const r = smoothstep(this.readiness);
+    rig.mix(
+      {
+        idle: 1 - r,
+        ready: r * (1 - stepping),
+        shuffle_L: this.velocity > 0 ? r * stepping : 0,
+        shuffle_R: this.velocity < 0 ? r * stepping : 0,
+      },
+      STEP_BLEND,
+    );
   }
 
   private place() {

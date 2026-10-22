@@ -49,9 +49,8 @@ function play(aimX: number, aimY: number, power: number, curl = 0, random = () =
   ballCatch.reset();
   outcome.reset();
   keeper.aimX = aimX;
-  keeper.set = false;
+  keeper.ready = true;
   for (let t = 0; t < 1; t += FIXED_STEP) keeper.step(FIXED_STEP);
-  keeper.set = true;
   for (let t = 0; t < 0.5; t += FIXED_STEP) keeper.step(FIXED_STEP);
   physics.poseKeeper(rig.parts, true);
 

@@ -203,6 +203,9 @@ const BALL_START = world.ballStart;
 type Phase = 'aiming' | 'charging' | 'flight' | 'result' | 'wipe' | 'replay';
 let phase: Phase = 'aiming';
 let phaseTime = 0;
+/** aim.x when the keeper was last centred, until you move the aim away from it (then null: it follows). */
+let aimAtReset: number | null = null;
+const KEEPER_FOLLOW_AFTER = 0.1; // metres the aim must move before the keeper follows it again
 const aim = new THREE.Vector3(0, 1.2, world.goal.lineZ);
 let lastQuality: StrikeQuality = 'good';
 
@@ -309,6 +312,7 @@ function endReplay() {
   if (phase !== 'replay' || wipe.running) return;
   wipe.run(() => {
     replay.stop();
+    centreKeeper(); // the replay posed the keeper: put it back while the wipe covers the screen
     wipe.showReplayTag(false);
     setPhase('wipe');
   }, nextShot);
@@ -319,12 +323,21 @@ function resetShot() {
   physics.resetBall();
   ballCatch.reset();
   ballFade.reset();
-  keeper.reset();
-  physics.poseKeeper(keeperRig.parts, true);
+  centreKeeper();
   trail.clear();
   aura.begin(false);
   hud.hideBanner();
   if (autoSharpness?.applyPending()) resize(); // a sharpness step, unseen behind the wipe
+}
+
+/**
+ * The keeper back in the middle, standing at ease, at once. It stays there until you move the aim
+ * (or start a shot): the aim left over from the last shot shouldn't pull it straight back across.
+ */
+function centreKeeper() {
+  keeper.reset();
+  physics.poseKeeper(keeperRig.parts, true);
+  aimAtReset = aim.x;
 }
 
 function nextShot() {
@@ -348,8 +361,7 @@ function startRound() {
 }
 
 function beginRound() {
-  keeper.reset();
-  physics.poseKeeper(keeperRig.parts, true);
+  centreKeeper();
   hud.showScore(round.results, round.shots);
   playing = true;
   input.enabled = phase === 'aiming';
@@ -467,8 +479,11 @@ renderer.setAnimationLoop((time) => {
 
   // The keeper gets ready and steps across toward where you aim while you line up the shot.
   const aiming = playing && phase === 'aiming' && (input.hasPointer || input.usingKeys);
-  keeper.aimX = phase === 'charging' || aiming ? aim.x : null;
-  keeper.set = phase === 'charging';
+  if (aimAtReset !== null && (phase === 'charging' || Math.abs(aim.x - aimAtReset) > KEEPER_FOLLOW_AFTER)) {
+    aimAtReset = null;
+  }
+  keeper.ready = phase === 'charging' || aiming;
+  keeper.aimX = aimAtReset === null && keeper.ready ? aim.x : null;
 
   accumulator += dt;
   let caught: Contact | null = null;
