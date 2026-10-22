@@ -112,7 +112,10 @@ grass.lookFrom(view.restPosition);
 const floodlights = new FloodlightGlow(stadium.environment, view.restPosition);
 scene.add(floodlights.group);
 // The crowd, in rows behind the stand barriers; tweak it in src/scene/crowdSettings.ts.
-const crowd = new Crowd(stadium.environment, await crowdParts, envMap);
+// Placing everyone keeps the page busy for a couple of seconds, so the loading bar moves on by itself.
+const parts = await crowdParts;
+await preloader.step(0.78, 2.5);
+const crowd = new Crowd(stadium.environment, parts, envMap);
 scene.add(crowd.group);
 // Big flags waving in the crowd; tweak them in src/scene/crowdFlagSettings.ts.
 const crowdFlags = new CrowdFlags(crowd, envMap, await flagLogo);
@@ -162,7 +165,7 @@ const introBall = new IntroBall(
   { position: view.restPosition, quaternion: view.restQuaternion },
   reducedMotion,
 );
-const introBackdrop = new IntroBackdrop(ballMesh); // the solid purple behind it, opening up from the ball
+const introBackdrop = new IntroBackdrop(ballMesh); // the purple tunnel behind it, opening up from the ball
 // Croky chips swirling out from behind the ball on the intro (fewer on phones; none with reduced motion).
 const introChips = new IntroChips(await chipAsset, touchScreen ? 24 : 40);
 lightMovingObject(introChips.mesh, envMap);
@@ -372,6 +375,7 @@ window.addEventListener('resize', resize);
 // Turning a phone: some browsers only know the new size a moment after the turn.
 screen.orientation?.addEventListener('change', () => requestAnimationFrame(resize));
 resize();
+await preloader.step(0.86, 1);
 replay.warmUp(camera); // sets up the replay's drawing now, so starting one later doesn't stutter
 
 // Add ?edit to the game's address to open the settings editor (see the README).
@@ -408,7 +412,10 @@ let accumulator = 0;
 let gameTime = 0;
 const PREVIEW_POWER = (PERFECT_MIN + PERFECT_MAX) / 2; // the preview shows a well-struck shot
 
-preloader.done();
+// Prepares every shader now, so the first frames of the intro don't stutter.
+await preloader.step(0.97, 1.2);
+await renderer.compileAsync(scene, camera);
+await preloader.done();
 screens.showIntro();
 
 renderer.setAnimationLoop((time) => {
@@ -515,7 +522,7 @@ renderer.setAnimationLoop((time) => {
     replay.render(realDt);
     if (replay.finished) endReplay();
   } else {
-    introBackdrop.render(renderer, scene, camera, introBall.reveal, reducedMotion);
+    introBackdrop.render(renderer, scene, camera, introBall.reveal, reducedMotion, realDt);
   }
   perf.end(time);
 });
