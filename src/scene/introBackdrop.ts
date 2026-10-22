@@ -9,14 +9,17 @@ export const OVER_PURPLE_LAYER = 7;
 // The tunnel, in shares of how far the ball is from the camera (so it looks the same on every screen).
 const TUNNEL_RADIUS = 0.85; // its walls: just past the ball, so they fill the screen around it
 const TUNNEL_LENGTH = 9; // how far back it goes (the far end is lost in the dark)
+const RING_SPACING = 0.32; // one rounded ring of the wall to the next
+const RING_DEPTH = 0.07; // how far the rings stand out of the wall
 const SEGMENTS = 48; // round the tunnel
-const DEEP = '#1d1140'; // the purple far down the tunnel
-const FOG_FROM = 2.5; // where it starts to get darker
-const FOG_TO = 9; // and where it's all dark
+const DRIFT = 0.12; // how fast the rings come toward the camera, in ring spacings a second
+const DEEP = '#38257a'; // the purple far down the tunnel
+const FOG_FROM = 4; // where it starts to get darker
+const FOG_TO = 12; // and where it's as dark as it gets
 
 /**
- * The purple behind the intro: a smooth purple tunnel with soft light painted on, like the stadium's
- * baked light, running from the camera past the ball into the dark.
+ * The purple behind the intro: a tunnel of rounded purple rings with soft light painted on, like the
+ * stadium's baked light, running from the camera past the ball into the dark, its rings slowly coming toward you.
  * It's drawn in WebGL so the real ball can sit in it. On Speel nu a round hole with a gold rim opens up
  * from the ball and grows past the corners, showing the pitch; Menu closes it again. Each frame it draws
  * the stadium (skipped while it is all purple), then the tunnel with its hole, then the ball once more
@@ -25,6 +28,7 @@ const FOG_TO = 9; // and where it's all dark
 export class IntroBackdrop {
   private readonly tunnelScene = new THREE.Scene();
   private readonly tunnel = new THREE.Group();
+  private readonly rings: THREE.Mesh;
   private readonly fog = new THREE.Fog(DEEP, 1, 2);
   private readonly uniforms = {
     uRim: { value: new THREE.Color(RIM_COLOR) },
@@ -37,6 +41,7 @@ export class IntroBackdrop {
   private readonly toBall = new THREE.Vector3();
   private lightsOnLayer = false;
   private stadiumDrawn = false;
+  private drift = 0;
 
   constructor(private readonly ball: THREE.Object3D) {
     ball.traverse((o) => o.layers.enable(OVER_PURPLE_LAYER));
@@ -71,8 +76,8 @@ export class IntroBackdrop {
           #include <premultiplied_alpha_fragment>`,
         );
     };
-    const wall = new THREE.Mesh(tunnelGeometry(), material);
-    wall.frustumCulled = false;
+    this.rings = new THREE.Mesh(tunnelGeometry(), material);
+    this.rings.frustumCulled = false;
     // The far end, in the dark.
     const end = new THREE.Mesh(new THREE.CircleGeometry(TUNNEL_RADIUS * 1.1, SEGMENTS), material);
     end.geometry.setAttribute(
@@ -81,14 +86,15 @@ export class IntroBackdrop {
     );
     end.position.z = TUNNEL_LENGTH;
     end.frustumCulled = false;
-    this.tunnel.add(wall, end);
+    this.tunnel.add(this.rings, end);
     this.tunnelScene.add(this.tunnel);
     this.tunnelScene.fog = this.fog;
   }
 
   /**
    * Draws one frame. `reveal` is how far the purple has gone: 0 all purple, 1 gone (then only the
-   * stadium is drawn). With `fade` the purple fades out instead of opening up (reduced motion).
+   * stadium is drawn). With `fade` the purple fades out instead of opening up, and the tunnel stands
+   * still (reduced motion). `dt` moves the tunnel's rings on.
    */
   render(
     renderer: THREE.WebGLRenderer,
@@ -96,6 +102,7 @@ export class IntroBackdrop {
     camera: THREE.PerspectiveCamera,
     reveal: number,
     fade: boolean,
+    dt = 0,
   ) {
     if (reveal >= 1) {
       renderer.render(scene, camera);
@@ -134,6 +141,8 @@ export class IntroBackdrop {
     this.tunnel.up.copy(camera.up).applyQuaternion(camera.quaternion);
     this.tunnel.lookAt(this.ball.position);
     this.tunnel.scale.setScalar(away);
+    if (!fade) this.drift = (this.drift + DRIFT * dt) % 1;
+    this.rings.position.z = -this.drift * RING_SPACING;
     this.fog.near = FOG_FROM * away;
     this.fog.far = FOG_TO * away;
 
@@ -155,19 +164,32 @@ export class IntroBackdrop {
 }
 
 /**
- * The tunnel's wall, a smooth tube round the z axis from just behind the camera to TUNNEL_LENGTH. Its
- * light is painted into the vertex colours the way the stadium's is baked: the top a little lighter
- * than the bottom, the sides in between. On average it's exactly the purple.
+ * The tunnel's wall, round the z axis from just behind the camera to TUNNEL_LENGTH: rounded rings
+ * standing out of it every RING_SPACING. Its light is painted into the vertex colours the way the
+ * stadium's is baked: soft shade in the grooves, the rings' fronts (facing you) a little lighter and
+ * the top a little lighter than the bottom. On average it's exactly the purple.
  */
 function tunnelGeometry() {
-  const geometry = new THREE.CylinderGeometry(TUNNEL_RADIUS, TUNNEL_RADIUS, TUNNEL_LENGTH + 1, SEGMENTS, 1, true);
-  geometry.rotateX(Math.PI / 2); // its axis along z
-  geometry.translate(0, 0, (TUNNEL_LENGTH - 1) / 2); // from 1 behind the camera to the far end
+  const steps = 12; // points across one ring
+  const rings = Math.ceil(TUNNEL_LENGTH / RING_SPACING) + 2;
+  const profile: THREE.Vector2[] = [];
+  const across: number[] = [];
+  for (let i = 0; i <= rings * steps; i++) {
+    const z = -RING_SPACING + (i / steps) * RING_SPACING;
+    const u = (i % steps) / steps; // 0..1 across one ring
+    const bump = Math.sin(Math.PI * u) ** 0.6; // rounded ring, narrow groove at its ends
+    profile.push(new THREE.Vector2(TUNNEL_RADIUS - RING_DEPTH * bump, z));
+    const front = u < 0.5 ? Math.sin(2 * Math.PI * u) : 0; // the side of the ring that faces you
+    across.push((0.84 + 0.16 * bump) * (1 + 0.35 * front));
+  }
+  const geometry = new THREE.LatheGeometry(profile, SEGMENTS);
+  geometry.rotateX(Math.PI / 2); // its axis along z (and the lathe's half turn on top)
   const position = geometry.attributes.position;
   const shade = new Float32Array(position.count);
   for (let k = 0; k < position.count; k++) {
-    const top = (position.getY(k) / TUNNEL_RADIUS + 1) / 2; // 1 at the top of the tunnel, 0 at the bottom
-    shade[k] = 0.8 + 0.4 * top * top;
+    const angle = (Math.floor(k / profile.length) / SEGMENTS) * 2 * Math.PI;
+    const top = (1 - Math.cos(angle)) / 2; // 1 at the top of the tunnel, 0 at the bottom
+    shade[k] = across[k % profile.length] * (0.88 + 0.24 * top);
   }
   // Scaled so the wall's average is the purple itself.
   const mean = shade.reduce((a, b) => a + b, 0) / shade.length;

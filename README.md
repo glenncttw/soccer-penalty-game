@@ -9,8 +9,8 @@ See [docs/PLAN.md](docs/PLAN.md) for the gameplay scope, tech stack and mileston
 
 ## How to play
 
-The game opens on the **Croky Cup** intro screen: a smooth Croky purple tunnel (soft painted light like the stadium,
-getting darker deeper in) with the real ball slowly spinning in the middle. **Speel nu & Win** opens the purple up in a growing circle from the ball, the camera pulls back from close to
+The game opens on the **Croky Cup** intro screen: a Croky purple tunnel of rounded rings (soft painted light like the
+stadium, slowly drifting towards you) with the real ball slowly spinning in the middle. **Speel nu & Win** opens the purple up in a growing circle from the ball, the camera pulls back from close to
 the goal to where you shoot from, and the ball comes down onto the penalty spot in one smooth curve, rolling forward; then a round starts
 (`src/scene/introBall.ts`, `src/scene/introBackdrop.ts`; with reduced motion turned on in the device settings the ball
 stands still, the camera doesn't move and the purple fades). Croky chips come at you in a tunnel from behind the ball

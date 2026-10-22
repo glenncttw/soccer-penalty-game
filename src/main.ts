@@ -522,7 +522,7 @@ renderer.setAnimationLoop((time) => {
     replay.render(realDt);
     if (replay.finished) endReplay();
   } else {
-    introBackdrop.render(renderer, scene, camera, introBall.reveal, reducedMotion);
+    introBackdrop.render(renderer, scene, camera, introBall.reveal, reducedMotion, realDt);
   }
   perf.end(time);
 });
