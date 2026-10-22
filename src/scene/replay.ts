@@ -203,7 +203,7 @@ export class Replay {
     if (this.trailStop !== null && t >= this.trailStop) this.trail.stop(this.trailStop);
 
     this.aim(realDt);
-    this.trail.update(t, this.camera.position);
+    this.trail.update(t, this.camera.position, realDt);
     renderer.setRenderTarget(this.target);
     renderer.render(scene, this.camera);
     renderer.setRenderTarget(null);

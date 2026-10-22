@@ -509,7 +509,7 @@ renderer.setAnimationLoop((time) => {
   introBall.place(physics.ball.translation(), physics.ball.rotation());
   const chipsMode = reducedMotion ? 'off' : introBall.floating ? 'swirl' : introBall.landing ? 'burst' : 'off';
   introChips.update(realDt, camera, ballMesh, chipsMode);
-  trail.update(gameTime, camera.position);
+  trail.update(gameTime, camera.position, realDt);
   keeperModel.update(keeper.pose, dt);
   effects.update(dt);
   ballFade.update(dt);
