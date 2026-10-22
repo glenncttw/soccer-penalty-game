@@ -164,7 +164,7 @@ const introBall = new IntroBall(
 );
 const introBackdrop = new IntroBackdrop(ballMesh); // the solid purple behind it, opening up from the ball
 // Croky chips swirling out from behind the ball on the intro (fewer on phones; none with reduced motion).
-const introChips = new IntroChips(await chipAsset, touchScreen ? 14 : 24);
+const introChips = new IntroChips(await chipAsset, touchScreen ? 24 : 40);
 lightMovingObject(introChips.mesh, envMap);
 introChips.mesh.castShadow = false;
 scene.add(introChips.mesh);

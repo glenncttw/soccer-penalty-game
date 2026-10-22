@@ -13,7 +13,7 @@ The game opens on the **Croky Cup** intro screen: solid Croky purple with the re
 middle. **Speel nu & Win** opens the purple up in a growing circle from the ball, the camera pulls back from close to
 the goal to where you shoot from, and the ball swoops and spins down onto the penalty spot; then a round starts
 (`src/scene/introBall.ts`, `src/scene/introBackdrop.ts`; with reduced motion turned on in the device settings the ball
-stands still, the camera doesn't move and the purple fades). Croky chips swirl out from behind the ball
+stands still, the camera doesn't move and the purple fades). Croky chips come at you in a tunnel from behind the ball
 (`src/scene/introChips.ts`), and the menu button in the top right corner opens **Speel nu & Win**, the prizes, the
 terms, the cookie policy and a Dutch/French switch. The menu's words are in `src/ui/texts.ts`; give the prizes,
 terms and cookie policy a web address in `src/ui/links.ts` and they open that page instead of a placeholder text. A round is 5 penalties; the balls in the top right corner fill in as you go (✓ goal,
@@ -249,9 +249,10 @@ npx @gltf-transform/cli webp a.glb b.glb --quality 85
 npx @gltf-transform/cli meshopt b.glb public/assets/chips/chip.glb
 ```
 
-How they move is set at the top of `src/scene/introChips.ts`: `LIFE` (seconds for one chip's way round: bigger is
-slower), `CHIP_SIZE` (how big), `REACH` (how far out from the ball the circles go) and `MAX_TILT` (how far the
-circles are tipped apart).
+They make a tunnel: each chip comes out small, deep behind the ball, and comes toward the camera circling round the
+ball until it leaves the screen. How it moves is set at the top of `src/scene/introChips.ts`: `LIFE` (seconds for one
+chip's way down the tunnel: bigger is slower), `TURNS` (how much it twists), `REACH` (how wide the tunnel is), `FAR`
+(how deep it goes) and `CHIP_SIZE` (how big). How many there are is set in `src/main.ts` (40, or 24 on phones).
 
 ## The lighting
 

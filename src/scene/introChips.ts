@@ -9,25 +9,22 @@ export const CHIP_URL = `${import.meta.env.BASE_URL}assets/chips/chip.glb`;
 
 // Sizes and distances are shares of how far the floating ball is from the camera, so the chips look
 // the same next to the ball on every screen (the ball is closer on an upright phone).
-const CHIP_SIZE = 0.1; // along a chip's longest side: about half the ball across
-const LIFE = 11; // seconds from coming out behind the ball to fading away again
-const TURNS = 1.25; // circles around the ball over that time
-const BEHIND = 0.3; // how far behind the ball a chip comes out
-const TOWARD = 0.25; // how far in front of the ball it has come when it fades away
-const NEAREST = 0.6; // how close to the camera a chip may come (so it never fills the screen)
-const REACH = 0.9; // how far out from the ball it ends up, in halves of the screen's short side (close round the ball)
-const MAX_TILT = 0.5; // radians (about 30 degrees) the circle of each chip is tipped out of the screen
-const POP_IN = 0.12; // share of its life a chip takes to grow to full size as it comes out
-const FADE_OUT = 0.15; // share of its life a chip takes to shrink away at the end
-const BURST_TIME = 0.7; // Speel nu & Win: seconds the chips take to fly out and shrink away
-const BURST_REACH = 2.5; // how much further out they fly in that time
+const CHIP_SIZE = 0.1; // along a chip's longest side: about half the ball across as it passes the ball
+const LIFE = 9; // seconds from coming out far behind the ball to leaving the screen
+const TURNS = 1.2; // turns of the tunnel over that time
+const FAR = 4; // how far away a chip comes out (deep behind the ball, hidden by it)
+const NEAR = 0.35; // how close it has come when it leaves the screen
+const REACH = 1.25; // how far out it is by then, in halves of the screen's diagonal (so past the corners)
+const SPREAD = 0.2; // how much wider or narrower than that each chip's circle is
+const POP_IN = 0.1; // share of its life a chip takes to grow to full size as it comes out
+const BURST_TIME = 1; // Speel nu & Win: seconds the chips take to rush out and shrink away
+const BURST_SPEED = 5; // how much faster they come down the tunnel then
 
 interface Chip {
   age: number;
   size: number;
   start: number; // angle around the ball where it comes out
-  way: number; // 1 or -1: which way round it circles
-  tilt: THREE.Quaternion; // how its circle is tipped
+  wide: number; // how wide its circle is, as a share of REACH
   spinAxis: THREE.Vector3;
   spinSpeed: number;
   turn: THREE.Quaternion; // how it starts out turned
@@ -48,11 +45,11 @@ export async function loadChipModel(): Promise<THREE.Mesh> {
 }
 
 /**
- * Chips swirling out from behind the ball on the intro: each one comes out small from the middle,
- * slowly circles round the ball in its own tipped circle toward the camera, rolling, and shrinks away
- * near the end, then comes round again. On Speel nu & Win they all fly out and shrink away. One instanced draw, drawn over the
- * purple together with the ball (see introBackdrop.ts), and worked out as seen from the camera so they
- * stay with the ball while the camera moves.
+ * A tunnel of chips on the intro: each one comes out small, deep behind the ball, and comes down the
+ * tunnel toward the camera, circling round the ball and rolling, until it leaves the screen past the
+ * edge; then it starts again at the back. On Speel nu & Win they rush out and shrink away. One instanced
+ * draw, drawn over the purple together with the ball (see introBackdrop.ts), and worked out as seen from
+ * the camera so they stay with the ball while the camera moves.
  */
 export class IntroChips {
   readonly mesh: THREE.InstancedMesh;
@@ -87,7 +84,7 @@ export class IntroChips {
   }
 
   /**
-   * Call every frame after the ball has been placed (and the camera moved). 'swirl' while the intro
+   * Call every frame after the ball has been placed (and the camera moved). 'swirl' (the tunnel) while the intro
    * waits, 'burst' as the ball flies down, 'off' otherwise.
    */
   update(dt: number, camera: THREE.PerspectiveCamera, ball: THREE.Object3D, mode: ChipsMode) {
@@ -101,27 +98,26 @@ export class IntroChips {
     if (mode === 'swirl' || !this.mesh.visible) this.anchor.copy(ball.position).applyMatrix4(camera.matrixWorldInverse);
     this.mesh.visible = true;
     const halfHeight = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-    const halfSide = halfHeight * Math.min(1, camera.aspect); // the short side, so phones get the same ring
+    const halfDiagonal = halfHeight * Math.hypot(1, camera.aspect);
     const away = -this.anchor.z; // the ball's distance
     this.burst = mode === 'burst' ? this.burst + dt : 0;
-    const out = smoothstep(0, BURST_TIME, this.burst); // 0 while swirling, 1 once they've all flown off
+    const out = smoothstep(0, BURST_TIME, this.burst); // 0 while swirling, 1 once they've all rushed off
 
     this.chips.forEach((chip, i) => {
-      chip.age += dt;
+      chip.age += dt * (1 + BURST_SPEED * out);
       if (chip.age >= LIFE) this.respawn(chip);
       const u = chip.age / LIFE;
-      const depth = -away * (1 + BEHIND - (BEHIND + TOWARD) * u);
-      const radius = REACH * halfSide * -depth * u * (1 + BURST_REACH * out);
-      const angle = chip.start + chip.way * TURNS * 2 * Math.PI * u;
-      this.p.set(Math.cos(angle) * radius, Math.sin(angle) * radius, 0).applyQuaternion(chip.tilt);
-      this.p.x += this.anchor.x;
-      this.p.y += this.anchor.y;
-      this.p.z = Math.min(-NEAREST * away, this.p.z + depth);
+      // Down the tunnel at a steady speed, so a chip seems to speed up and grow as it comes close.
+      const depth = away * (FAR + (NEAR - FAR) * u);
+      // The tunnel's wall: the same width all the way, so seen from the camera the circles open up.
+      const radius = REACH * chip.wide * halfDiagonal * NEAR * away;
+      const angle = chip.start + TURNS * 2 * Math.PI * u;
+      this.p.set(this.anchor.x + Math.cos(angle) * radius, this.anchor.y + Math.sin(angle) * radius, -depth);
       this.p.applyMatrix4(camera.matrixWorld);
 
       this.spin.setFromAxisAngle(chip.spinAxis, chip.spinSpeed * chip.age);
       this.q.copy(camera.quaternion).multiply(this.spin).multiply(chip.turn);
-      const pop = smoothstep(0, POP_IN, u) * (1 - smoothstep(1 - FADE_OUT, 1, u)) * (1 - out);
+      const pop = smoothstep(0, POP_IN, u) * (1 - out);
       this.s.setScalar(chip.size * away * pop);
       this.mesh.setMatrixAt(i, this.matrix.compose(this.p, this.q, this.s));
     });
@@ -133,9 +129,7 @@ export class IntroChips {
     chip.age = 0;
     chip.size = CHIP_SIZE * (0.8 + 0.4 * r());
     chip.start = r() * 2 * Math.PI;
-    chip.way = r() < 0.5 ? 1 : -1;
-    const tiltAxis = new THREE.Vector3(Math.cos(r() * 2 * Math.PI), Math.sin(r() * 2 * Math.PI), 0).normalize();
-    chip.tilt = new THREE.Quaternion().setFromAxisAngle(tiltAxis, (r() * 2 - 1) * MAX_TILT);
+    chip.wide = 1 + (r() * 2 - 1) * SPREAD;
     chip.spinAxis = new THREE.Vector3(r() - 0.5, r() - 0.5, r() - 0.5).normalize();
     chip.spinSpeed = 0.5 + r(); // radians a second: a lazy roll
     chip.turn = new THREE.Quaternion().setFromEuler(new THREE.Euler(r() * 6.28, r() * 6.28, r() * 6.28));
