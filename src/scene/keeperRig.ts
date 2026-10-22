@@ -86,6 +86,9 @@ export class KeeperRig {
   private readonly chest: THREE.Object3D;
   private readonly restPelvisY: number;
   private current: THREE.AnimationAction | null = null;
+  /** How much of each clip shows now and what it is heading for (see `update`). */
+  private readonly weights = new Map<THREE.AnimationAction, { now: number; target: number }>();
+  private fadeRate = 5; // shares per second
   private readonly lastTurns: Float32Array;
   private readonly p = new THREE.Vector3();
   private readonly q = new THREE.Quaternion();
@@ -131,7 +134,6 @@ export class KeeperRig {
 
     // Measure where the gloves go in each clip, for the keeper's planning.
     for (const name of this.clips.keys()) this.tracks.set(name, this.measure(name));
-    this.mixer.stopAllAction();
     this.play('idle', { fade: 0 });
     this.update(0);
     this.restPelvisY = this.pelvis.getWorldPosition(this.a).y - this.object.position.y;
@@ -146,7 +148,7 @@ export class KeeperRig {
     return this.clip(name).duration;
   }
 
-  /** What's playing now (the one blending in, during a blend). */
+  /** What's playing now (the one blending in, or the main one in a mix). */
   get playing(): KeeperClip | null {
     return (this.current?.getClip().name as KeeperClip) ?? null;
   }
@@ -156,25 +158,40 @@ export class KeeperRig {
     return this.current?.time ?? 0;
   }
 
-  /** Blends to `name` (or restarts it when `from` is given). */
+  /**
+   * Blends to `name` over `fade` seconds. Whatever was showing fades out from where it is, so
+   * switching back and forth never jumps. A clip still showing carries on from where it is, unless
+   * `from` restarts it (a save played `once` always starts from the beginning).
+   */
   play(name: KeeperClip, { fade = 0.2, speed = 1, once = false, from }: PlayOptions = {}) {
-    const action = this.actions.get(name) ?? this.mixer.clipAction(this.clip(name));
-    this.actions.set(name, action);
+    const action = this.action(name);
     action.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
     action.clampWhenFinished = once;
     action.timeScale = speed;
-    if (action === this.current && from === undefined) return;
-    const previous = this.current;
-    action.reset();
-    action.time = from ?? 0;
-    action.setEffectiveWeight(1);
-    action.play();
-    if (previous && previous !== action && fade > 0) {
-      action.crossFadeFrom(previous, fade, false);
-    } else {
-      for (const other of this.actions.values()) if (other !== action) other.stop();
-    }
+    const restart = from !== undefined || (once && action !== this.current);
+    if (action === this.current && !restart) return;
+    if (restart) this.forget(action);
+    this.blendTo(new Map([[action, 1]]), fade);
+    if (from !== undefined) action.time = from;
     this.current = action;
+  }
+
+  /**
+   * Blends to a mix of looping clips over `fade` seconds, such as mostly ready with a little
+   * side-stepping: `weights` add up to 1. Clips already showing carry on, so nothing restarts.
+   */
+  mix(weights: Partial<Record<KeeperClip, number>>, fade: number) {
+    const targets = new Map<THREE.AnimationAction, number>();
+    let main: THREE.AnimationAction | null = null;
+    for (const [name, weight] of Object.entries(weights) as [KeeperClip, number][]) {
+      const action = this.action(name);
+      action.setLoop(THREE.LoopRepeat, Infinity);
+      action.clampWhenFinished = false;
+      targets.set(action, weight);
+      if (!main || weight > (targets.get(main) ?? 0)) main = action;
+    }
+    this.blendTo(targets, fade);
+    this.current = main;
   }
 
   /** Changes how fast what's playing runs. */
@@ -182,10 +199,64 @@ export class KeeperRig {
     if (this.current) this.current.timeScale = speed;
   }
 
+  /** Changes how fast `name` runs. */
+  setSpeed(name: KeeperClip, speed: number) {
+    this.action(name).timeScale = speed;
+  }
+
   /** Plays the animations on by `dt` seconds and moves the solid parts to match. */
   update(dt: number) {
+    // Each clip's share moves toward where it's heading, and the shares always add up to 1.
+    const step = dt * this.fadeRate;
+    let sum = 0;
+    for (const [action, w] of this.weights) {
+      w.now = w.target > w.now ? Math.min(w.target, w.now + step) : Math.max(w.target, w.now - step);
+      if (w.now <= 0 && w.target <= 0) {
+        action.stop();
+        this.weights.delete(action);
+      } else {
+        sum += w.now;
+      }
+    }
+    for (const [action, w] of this.weights) action.setEffectiveWeight(sum > 0 ? w.now / sum : 0);
     this.mixer.update(dt);
     this.sync();
+  }
+
+  private action(name: KeeperClip) {
+    let action = this.actions.get(name);
+    if (!action) {
+      action = this.mixer.clipAction(this.clip(name));
+      this.actions.set(name, action);
+    }
+    return action;
+  }
+
+  /** Heads every clip for its share in `targets` (the rest for 0), starting the new ones from their beginning. */
+  private blendTo(targets: Map<THREE.AnimationAction, number>, fade: number) {
+    for (const w of this.weights.values()) w.target = 0;
+    for (const [action, target] of targets) {
+      const w = this.weights.get(action);
+      if (w) {
+        w.target = target;
+      } else if (target > 0) {
+        action.reset();
+        action.setEffectiveWeight(0);
+        action.play();
+        this.weights.set(action, { now: 0, target });
+      }
+    }
+    if (fade > 0) {
+      this.fadeRate = 1 / fade;
+    } else {
+      for (const w of this.weights.values()) w.now = w.target;
+    }
+  }
+
+  /** Takes `action` out of the mix at once. */
+  private forget(action: THREE.AnimationAction) {
+    action.stop();
+    this.weights.delete(action);
   }
 
   /** Floats in a pose snapshot: where the keeper stands, every bone and the shape keys. */
@@ -299,8 +370,10 @@ export class KeeperRig {
     const keep = this.object.position.clone();
     this.object.position.set(0, 0, 0);
     this.mixer.stopAllAction();
-    const action = this.mixer.clipAction(this.clip(name));
-    action.reset().play();
+    this.weights.clear();
+    this.current = null;
+    const action = this.action(name);
+    action.reset().setEffectiveWeight(1).play();
     const samples: ClipSample[] = [];
     const duration = this.clip(name).duration;
     const steps = Math.ceil(duration * SAMPLE_RATE);

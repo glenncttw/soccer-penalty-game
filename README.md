@@ -246,6 +246,13 @@ animation it can shift across by up to 0.4 m in a dive (`lunge`) and 0.25 m when
 so its gloves meet the ball. The save rate is the same as the keeper before the animations (about 35% goals and 43%
 saves over 1,512 simulated shots).
 
+Going from one animation to the next is always a blend, never a cut: whatever shows fades out from where it is while
+the next fades in (0.3 s between `idle`, `ready` and `celebrate`, 0.15-0.2 s into a save). It follows your aim like a
+spring, speeding up and slowing down, and the side steps blend in with its speed. A save starts from where it stands
+and keeps a little of its side-step speed, and a sped-up save eases back to normal speed after the ball arrives. After
+each shot (and after the replay) it is put back in the middle while the wipe covers the screen, and it stays there
+until you move the aim.
+
 What saves shots is what you see: solid balls fitted to the bird's skin (gloves, arms, head, beak, body, feet) move
 with its bones every physics step. A new export with other bone names needs the list at the top of
 `src/scene/keeperRig.ts` updated.
