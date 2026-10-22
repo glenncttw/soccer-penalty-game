@@ -127,36 +127,45 @@ describe('IntroBall', () => {
     }
   });
 
-  it('pulls back first, then only ever rolls forward round one line, and ends as it rests', () => {
+  it('sinks into the tunnel first, then shoots out with everything else, only ever rolling forward', () => {
     for (const [w, h] of SCREENS) {
       const { camera, ball, slot, intro, frame } = setUp(w, h);
       intro.float(slot);
       for (let i = 0; i < 90; i++) frame();
-      const start = ball.position.clone();
-      const away = () => ball.position.distanceTo(camera.position);
-      const startAway = away();
+      const start = onScreen(ball, camera, w, h);
       intro.land(() => {});
-      frame();
-      expect(ball.position.distanceTo(start)).toBeGreaterThan(0.002); // no waiting
-      expect(away()).toBeLessThan(startAway); // it pulls back toward you first
-      expect(intro.cameraIntro).toBeLessThan(1); // while the camera already pulls back too
       // The ball's turn (from how it rests) is always round the line across the screen (x).
       const rolled = (q: THREE.Quaternion) => {
         expect(Math.hypot(q.y, q.z)).toBeLessThan(1e-9);
         return 2 * Math.atan2(q.x, q.w);
       };
       let last = rolled(ball.quaternion);
-      let back = 0;
+      let depth = start.depth;
+      let lastPosition = ball.position.clone();
+      let windUp = 0;
       for (let i = 1; i < 400 && intro.active; i++) {
         frame();
+        const now = onScreen(ball, camera, w, h);
+        if (intro.windingUp) {
+          windUp++;
+          // It only goes further away, staying in the middle of the screen; nothing else has started yet.
+          expect(now.depth).toBeGreaterThanOrEqual(depth - 1e-9);
+          expect(Math.hypot(now.x - start.x, now.y - start.y)).toBeLessThan(1e-6);
+          expect(intro.reveal).toBe(0);
+          expect(intro.cameraIntro).toBe(1);
+          depth = now.depth;
+        } else {
+          expect(ball.position.distanceTo(lastPosition)).toBeLessThan(0.5); // no jump as it shoots out
+        }
         const angle = rolled(ball.quaternion);
         const step = THREE.MathUtils.euclideanModulo(angle - last + Math.PI, 2 * Math.PI) - Math.PI;
-        if (i < 0.2 * 60) back = Math.min(back, step); // a little back during the wind-up
-        else expect(step).toBeGreaterThan(-1e-9); // then forward only
+        expect(step).toBeGreaterThan(-1e-9); // forward only
         expect(Math.abs(step)).toBeLessThan(Math.PI / 2);
         last = angle;
+        lastPosition = ball.position.clone();
       }
-      expect(back).toBeLessThan(0);
+      expect(windUp).toBeGreaterThan(15); // about a third of a second
+      expect(depth).toBeGreaterThan(start.depth * 1.25); // about 23% smaller at its deepest
       expect(ball.quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(1e-6);
     }
   });
@@ -193,8 +202,9 @@ describe('reveal', () => {
     frame();
     expect(intro.reveal).toBe(0);
     intro.land(() => {});
+    while (intro.windingUp) frame();
     frame();
-    expect(intro.reveal).toBeGreaterThan(0); // opens up straight away, with the chips and the ball
+    expect(intro.reveal).toBeGreaterThan(0); // opens up as soon as the ball shoots out, with the chips
     let last = 0;
     for (let i = 0; i < 50; i++) {
       frame();
