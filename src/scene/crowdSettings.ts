@@ -47,6 +47,34 @@ export interface CrowdSettings {
   armRaise: number;
   /** How far the raised arms lean forward, in degrees. */
   armForward: number;
+  /** Seconds the crowd takes to react, at most (each person a bit sooner or later). */
+  reactDelay: number;
+  /** Seconds they shout after a goal before their faces go back to rest. */
+  goalShout: number;
+  /** 0..1: share of people who shout with their mouths wide open after a goal (the rest grin). */
+  shoutShare: number;
+  /** Seconds they look disappointed after a save. */
+  saveSulk: number;
+  /** 0..1: share of people who frown after a save (a few others smile: they're for the keeper). */
+  frownShare: number;
+  /** 0..1: how much each person smiles at rest, at most (everyone a bit differently). */
+  restSmile: number;
+  /** 0..1: chance a goal gets a Mexican wave rather than everyone jumping. */
+  waveChance: number;
+  /** How many jumps each person makes after a goal. */
+  jumps: number;
+  /** Seconds per jump. */
+  jumpTime: number;
+  /** How high they jump, in metres, at most (each person a bit differently). */
+  jumpHeight: number;
+  /** Seconds the Mexican wave takes from one end of the stands to the other. */
+  waveLap: number;
+  /** How many times it goes round. */
+  waveLaps: number;
+  /** How wide the wave is, as a share of the stands' length. */
+  waveWidth: number;
+  /** How far people rise as the wave passes, in metres. */
+  waveRise: number;
   /**
    * The head pieces (files in public/assets/crowd/, made to fit the body in crowd_base.glb), and
    * how often each is picked compared with the others. Neighbours in a row get different ones
@@ -87,6 +115,20 @@ export const CROWD_SETTINGS: CrowdSettings = {
   cheerEvery: 4,
   armRaise: 150,
   armForward: 20,
+  reactDelay: 0.35,
+  goalShout: 3,
+  shoutShare: 0.75,
+  saveSulk: 2,
+  frownShare: 0.6,
+  restSmile: 0.3,
+  waveChance: 0.5,
+  jumps: 3,
+  jumpTime: 0.45,
+  jumpHeight: 0.22,
+  waveLap: 3,
+  waveLaps: 2,
+  waveWidth: 0.08,
+  waveRise: 0.2,
   heads: [
     { file: 'hp_hair_short.glb', share: 1 },
     { file: 'hp_cap.glb', share: 1 },

@@ -291,6 +291,7 @@ function showResult() {
   hud.showScore(round.results, round.shots);
   setPhase('result');
   events.emit('result', { result: outcome.result!, quality: lastQuality, woodwork: outcome.hitFrame });
+  if (outcome.result === 'goal' || outcome.result === 'saved') crowd.react(outcome.result, { still: reducedMotion });
 }
 
 /** Ends the shot behind a wipe: a replay first if it was a big moment, then the next shot. */
@@ -344,6 +345,7 @@ function centreKeeper() {
 function nextShot() {
   if (phase !== 'wipe') return;
   setPhase('aiming');
+  crowd.calm();
   if (round.over) endRound();
   else input.enabled = true;
 }
@@ -363,6 +365,7 @@ function startRound() {
 
 function beginRound() {
   centreKeeper();
+  crowd.calm();
   hud.showScore(round.results, round.shots);
   playing = true;
   input.enabled = phase === 'aiming';
@@ -413,6 +416,7 @@ if (new URLSearchParams(location.search).has('edit')) {
     sky,
     floodlights,
     wipe: { play: () => wipe.run(() => {}) },
+    crowd,
   });
 }
 
@@ -557,7 +561,7 @@ renderer.setAnimationLoop((time) => {
   effects.update(dt);
   ballFade.update(dt);
   stadiumMotion.update(dt);
-  crowd.update(gameTime);
+  crowd.update(gameTime, realDt);
   crowdFlags.update(gameTime);
   sky.update(gameTime);
 

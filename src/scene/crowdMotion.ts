@@ -119,7 +119,72 @@ export function motionUniforms(s: CrowdSettings) {
     uArmForward: { value: deg(s.armForward) },
     uHoldRaise: { value: deg(HOLD_POSE.raise) },
     uHoldForward: { value: deg(HOLD_POSE.forward) },
+    // Reacting to a shot (see Crowd.react), on the real clock so a goal's slow motion doesn't slow them.
+    uCrowdClock: { value: 0 },
+    uReactAt: { value: -1e4 },
+    uReactEnd: { value: 1e9 },
+    uMood: { value: Mood.None as number },
+    uParty: { value: Party.None as number },
+    uWaveDir: { value: 1 },
+    uReactDelay: { value: s.reactDelay },
+    uGoalShout: { value: s.goalShout },
+    uShoutShare: { value: s.shoutShare },
+    uSaveSulk: { value: s.saveSulk },
+    uFrownShare: { value: s.frownShare },
+    uRestSmile: { value: s.restSmile },
+    uJumps: { value: s.jumps },
+    uJumpTime: { value: s.jumpTime },
+    uJumpHeight: { value: s.jumpHeight },
+    uWaveLap: { value: s.waveLap },
+    uWaveLaps: { value: s.waveLaps },
+    uWaveWidth: { value: s.waveWidth },
+    uWaveRise: { value: s.waveRise },
   };
+}
+
+/** How the crowd feels about the last shot: their faces. */
+export const Mood = { None: 0, Goal: 1, Save: 2 } as const;
+export type Mood = (typeof Mood)[keyof typeof Mood];
+/** How they celebrate a goal. */
+export const Party = { None: 0, Jump: 1, Wave: 2 } as const;
+export type Party = (typeof Party)[keyof typeof Party];
+
+/**
+ * How high someone is lifted (metres) `since` seconds after their reaction started (a goal), and how far
+ * their arms are up (0..1): the same as the shader. `around` is where they stand along the stands (0..1),
+ * `own` their own random number (0..1) and `wave` the seconds since the goal, for the Mexican wave.
+ */
+export function partyLift(
+  party: Party,
+  since: number,
+  wave: number,
+  around: number,
+  own: number,
+  dir: 1 | -1,
+  s: CrowdSettings,
+): { lift: number; arms: number } {
+  if (party === Party.Jump) {
+    const jumping = s.jumps * s.jumpTime;
+    if (since <= 0 || since >= jumping) return { lift: 0, arms: 0 };
+    const u = (since / s.jumpTime) % 1;
+    const arms = smoothstep(0, 0.1, since) * (1 - smoothstep(jumping - 0.15, jumping, since));
+    return { lift: s.jumpHeight * (0.6 + 0.4 * own) * 4 * u * (1 - u), arms };
+  }
+  if (party === Party.Wave) {
+    const laps = wave / s.waveLap;
+    if (laps <= 0 || laps >= s.waveLaps) return { lift: 0, arms: 0 };
+    // It comes in from beyond one end and goes out past the other.
+    const u = laps % 1;
+    const front = -s.waveWidth + (dir > 0 ? u : 1 - u) * (1 + 2 * s.waveWidth);
+    const bump = 1 - smoothstep(0, s.waveWidth, Math.abs(around + 0.02 * own - front));
+    return { lift: s.waveRise * bump, arms: bump };
+  }
+  return { lift: 0, arms: 0 };
+}
+
+function smoothstep(a: number, b: number, x: number) {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
 }
 
 /** Adds the moves to a material's vertex shader (MeshStandardMaterial's, as three.js builds it). */
@@ -133,12 +198,25 @@ export function addMotion(
       'void main() {',
       `uniform float uCrowdTime, uCrowdMotion, uBob, uBobSpeed, uSway, uHeadTurn, uHeadNod, uCheerEvery, uArmRaise, uArmForward;
       uniform float uHoldRaise, uHoldForward;
-      attribute vec3 aPivot;
-      attribute float aLimb;
+      uniform float uCrowdClock, uReactAt, uReactEnd, uMood, uParty, uWaveDir, uReactDelay, uGoalShout, uShoutShare;
+      uniform float uSaveSulk, uFrownShare, uRestSmile, uJumps, uJumpTime, uJumpHeight, uWaveLap, uWaveLaps, uWaveWidth;
+      uniform float uWaveRise;
+      // Where the part moves about, and its kind (Limb) * 16 + the vertex's colour slot (see crowd.ts).
+      attribute vec4 aPivot;
+      // The face's shape keys (expressions), as made in Blender: how far each one moves this vertex, packed
+      // (an O, a frown, a smile, a shout: three numbers each).
+      attribute vec4 aFace0, aFace1, aFace2;
+      // The person's skin colour, and where they stand along the stands: 0 left near the camera, 1 right.
+      attribute vec4 aSkin;
+      // The person's hair colour, and how much of a jump they have room for (0..1).
+      attribute vec4 aHair;
+      float crowdKind, crowdRegion;
+      vec3 crowdPivot;
       attribute vec4 aMotion; // phase, speed, how much (1 cheer, 0 move, -1 calm), arms (-1 right, 1 left, 0 both)
       // For a flag bearer: the side of the pole (1 left, -1 right; 0 for everyone else), how far, how often (per
       // second) and from where (0..1) they lift the flag up and down (the same as the flag's own lifting).
       attribute vec4 aHold;
+      vec4 crowdFace;
       mat3 crowdRotX(float a) { float c = cos(a), s = sin(a); return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c); }
       mat3 crowdRotY(float a) { float c = cos(a), s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }
       mat3 crowdRotZ(float a) { float c = cos(a), s = sin(a); return mat3(c, s, 0.0, -s, c, 0.0, 0.0, 0.0, 1.0); }
@@ -147,6 +225,9 @@ export function addMotion(
     .replace(
       '#include <beginnormal_vertex>',
       `#include <beginnormal_vertex>
+      crowdKind = floor(aPivot.w / 16.0 + 0.01);
+      crowdRegion = aPivot.w - crowdKind * 16.0;
+      crowdPivot = aPivot.xyz;
       float crowdT = uCrowdTime * aMotion.y + aMotion.x * 10.0;
       // Arms go up for about a third of each cheer, with smooth starts and ends.
       float crowdU = fract(crowdT / uCheerEvery + aMotion.x);
@@ -157,11 +238,60 @@ export function addMotion(
       float crowdHolds = abs(aHold.x);
       crowdMoves *= 1.0 - crowdHolds;
       crowdCheer *= 1.0 - crowdHolds;
-      if (aLimb == 1.0 && aHold.x * aPivot.x > 0.0) {
-        crowdLimb = crowdRotX(-uHoldForward) * crowdRotZ(sign(aPivot.x) * uHoldRaise);
-      } else if (aLimb == 1.0 && (aMotion.w == 0.0 || aMotion.w * aPivot.x > 0.0)) {
-        crowdLimb = crowdRotX(-uArmForward * crowdCheer) * crowdRotZ(sign(aPivot.x) * uArmRaise * crowdCheer);
-      } else if (aLimb == 2.0) {
+
+      // Reacting to the last shot: each person a little sooner or later, all of it easing away once the next
+      // shot starts. Their own random numbers come from their phase.
+      float crowdR1 = fract(aMotion.x * 7.13 + 0.31);
+      float crowdR2 = fract(aMotion.x * 13.71 + 0.57);
+      float crowdR3 = fract(aMotion.x * 3.77 + 0.11);
+      float crowdSince = uCrowdClock - uReactAt - uReactDelay * crowdR1;
+      float crowdOn = smoothstep(0.0, 0.15, crowdSince) * (1.0 - smoothstep(uReactEnd, uReactEnd + 0.4, uCrowdClock));
+      // Their faces: shouting (mouth wide open) or grinning after a goal; after a save an "ooh!" (an O),
+      // then most frown and a few smile (they're for the keeper). At rest, a faint smile of their own.
+      crowdFace = vec4(0.0); // O, frown, smile, shout
+      float crowdReacting = 0.0;
+      if (uMood == ${Mood.Goal}.0) {
+        crowdReacting = crowdOn * (1.0 - smoothstep(uGoalShout, uGoalShout + 0.4, crowdSince));
+        if (crowdR2 < uShoutShare) crowdFace.w = crowdReacting * (0.75 + 0.25 * sin(crowdSince * 15.0 + aMotion.x * 40.0));
+        else crowdFace.z = crowdReacting;
+      } else if (uMood == ${Mood.Save}.0) {
+        float crowdAfter = smoothstep(0.5, 0.8, crowdSince);
+        crowdReacting = crowdOn * (1.0 - smoothstep(uSaveSulk, uSaveSulk + 0.4, crowdSince));
+        crowdFace.x = crowdReacting * (1.0 - crowdAfter);
+        if (crowdR2 < uFrownShare) crowdFace.y = crowdReacting * crowdAfter;
+        else if (crowdR2 > 0.9) crowdFace.z = crowdReacting * crowdAfter;
+      }
+      crowdFace.z = max(crowdFace.z, uRestSmile * crowdR3 * (1.0 - crowdReacting));
+      // A goal: everyone jumps, arms up, or a Mexican wave goes round the stands (flag bearers keep still).
+      float crowdLift = 0.0;
+      float crowdPartyArms = 0.0;
+      if (uParty == ${Party.Jump}.0) {
+        float crowdJumping = uJumps * uJumpTime;
+        if (crowdSince > 0.0 && crowdSince < crowdJumping) {
+          float crowdU = fract(crowdSince / uJumpTime);
+          crowdLift = uJumpHeight * (0.6 + 0.4 * crowdR3) * 4.0 * crowdU * (1.0 - crowdU);
+          crowdPartyArms = smoothstep(0.0, 0.1, crowdSince) * (1.0 - smoothstep(crowdJumping - 0.15, crowdJumping, crowdSince));
+        }
+      } else if (uParty == ${Party.Wave}.0) {
+        float crowdLaps = (uCrowdClock - uReactAt) / uWaveLap;
+        if (crowdLaps > 0.0 && crowdLaps < uWaveLaps) {
+          float crowdU = fract(crowdLaps);
+          float crowdFront = -uWaveWidth + (uWaveDir > 0.0 ? crowdU : 1.0 - crowdU) * (1.0 + 2.0 * uWaveWidth);
+          float crowdBump = 1.0 - smoothstep(0.0, uWaveWidth, abs(aSkin.w + 0.02 * crowdR3 - crowdFront));
+          crowdLift = uWaveRise * crowdBump;
+          crowdPartyArms = crowdBump;
+          crowdFace.w = max(crowdFace.w, crowdBump); // shouting as it passes
+        }
+      }
+      float crowdPartyOn = (1.0 - crowdHolds) * (1.0 - smoothstep(uReactEnd, uReactEnd + 0.4, uCrowdClock));
+      crowdLift *= crowdPartyOn * aHair.w;
+      crowdPartyArms *= crowdPartyOn;
+      if (crowdKind == 1.0 && aHold.x * crowdPivot.x > 0.0) {
+        crowdLimb = crowdRotX(-uHoldForward) * crowdRotZ(sign(crowdPivot.x) * uHoldRaise);
+      } else if (crowdKind == 1.0) {
+        float crowdUp = aMotion.w == 0.0 || aMotion.w * crowdPivot.x > 0.0 ? max(crowdCheer, crowdPartyArms) : crowdPartyArms;
+        crowdLimb = crowdRotX(-uArmForward * crowdUp) * crowdRotZ(sign(crowdPivot.x) * uArmRaise * crowdUp);
+      } else if (crowdKind == 2.0) {
         crowdLimb = crowdRotY(crowdMoves * uHeadTurn * sin(6.2832 * (crowdT * 0.11 + aMotion.x)))
           * crowdRotX(crowdMoves * uHeadNod * sin(6.2832 * (crowdT * 0.29 + aMotion.x * 2.0)));
       }
@@ -174,6 +304,8 @@ export function addMotion(
     .replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
-      transformed = crowdBody * (crowdLimb * (transformed - aPivot) + aPivot) + vec3(0.0, crowdBob, 0.0);`,
+      transformed += aFace0.xyz * crowdFace.x + vec3(aFace0.w, aFace1.xy) * crowdFace.y
+        + vec3(aFace1.zw, aFace2.x) * crowdFace.z + aFace2.yzw * crowdFace.w;
+      transformed = crowdBody * (crowdLimb * (transformed - crowdPivot) + crowdPivot) + vec3(0.0, crowdBob + crowdLift, 0.0);`,
     );
 }

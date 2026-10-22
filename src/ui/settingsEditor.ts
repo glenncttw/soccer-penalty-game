@@ -1,5 +1,6 @@
 import GUI from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import { CAMERA_SETTINGS, type CameraSettings } from '../scene/cameraSettings';
+import { CROWD_SETTINGS, type CrowdSettings } from '../scene/crowdSettings';
 import { FLOODLIGHT_SETTINGS, type FloodlightSettings } from '../scene/floodlightSettings';
 import { GRASS_SETTINGS, type GrassSettings } from '../scene/grassSettings';
 import { REPLAY_SETTINGS, type ReplaySettings } from '../scene/replaySettings';
@@ -67,9 +68,24 @@ const GLOW_ROWS: Row<FloodlightSettings>[] = [
   ['glowEdgeColor', 'Halo colour'],
 ];
 
-const WIPE_ROWS: Row<ReplaySettings>[] = [
-  ['wipeTime', 'Sweep time (s)', 0.3, 2, 0.01],
+const CROWD_ROWS: Row<CrowdSettings>[] = [
+  ['reactDelay', 'Reaction spread (s)', 0, 1, 0.01],
+  ['goalShout', 'Shouting after a goal (s)', 0.5, 6, 0.1],
+  ['shoutShare', 'Share shouting', 0, 1, 0.01],
+  ['saveSulk', 'Sulking after a save (s)', 0.5, 5, 0.1],
+  ['frownShare', 'Share frowning', 0, 1, 0.01],
+  ['restSmile', 'Smile at rest', 0, 1, 0.01],
+  ['waveChance', 'Chance of a wave', 0, 1, 0.01],
+  ['jumps', 'Jumps', 1, 6, 1],
+  ['jumpTime', 'Time per jump (s)', 0.2, 1, 0.01],
+  ['jumpHeight', 'Jump height (m)', 0, 0.3, 0.01],
+  ['waveLap', 'Wave time (s)', 1, 8, 0.1],
+  ['waveLaps', 'Wave rounds', 1, 4, 1],
+  ['waveWidth', 'Wave width', 0.02, 0.3, 0.01],
+  ['waveRise', 'Wave rise (m)', 0, 0.3, 0.01],
 ];
+
+const WIPE_ROWS: Row<ReplaySettings>[] = [['wipeTime', 'Sweep time (s)', 0.3, 2, 0.01]];
 
 export interface EditorTargets {
   camera: { setSettings(settings: CameraSettings): void };
@@ -80,6 +96,12 @@ export interface EditorTargets {
   floodlights: { update(settings: FloodlightSettings): void };
   /** Plays the wipe once, to try its timing. */
   wipe: { play(): void };
+  /** The crowd's reactions, to tune and try. */
+  crowd: {
+    tune(settings: CrowdSettings): void;
+    react(result: 'goal' | 'saved', options: { party: 1 | 2 }): void;
+    calm(): void;
+  };
 }
 
 /**
@@ -96,7 +118,9 @@ export function openSettingsEditor(targets: EditorTargets) {
   const cameraFolder = gui.addFolder('Camera');
   const applyCamera = () => targets.camera.setSettings(camera);
   for (const row of CAMERA_ROWS) addRow(cameraFolder, camera, row).onChange(applyCamera);
-  addCopyButton(cameraFolder, 'Copy camera settings', () => settingsSnippet('CAMERA_SETTINGS', 'CameraSettings', camera));
+  addCopyButton(cameraFolder, 'Copy camera settings', () =>
+    settingsSnippet('CAMERA_SETTINGS', 'CameraSettings', camera),
+  );
   cameraFolder.add({ reset: () => cameraFolder.reset() }, 'reset').name('Reset camera');
   const useBlender = () => {
     Object.assign(camera, targets.blenderCamera);
@@ -129,6 +153,16 @@ export function openSettingsEditor(targets: EditorTargets) {
     settingsSnippet('FLOODLIGHT_SETTINGS', 'FloodlightSettings', glow),
   );
   glowFolder.add({ reset: () => glowFolder.reset() }, 'reset').name('Reset glow');
+
+  const crowd = { ...CROWD_SETTINGS };
+  const crowdFolder = gui.addFolder('Crowd reactions');
+  for (const row of CROWD_ROWS) addRow(crowdFolder, crowd, row).onChange(() => targets.crowd.tune(crowd));
+  crowdFolder.add({ jump: () => targets.crowd.react('goal', { party: 1 }) }, 'jump').name('Goal: jump');
+  crowdFolder.add({ wave: () => targets.crowd.react('goal', { party: 2 }) }, 'wave').name('Goal: Mexican wave');
+  crowdFolder.add({ save: () => targets.crowd.react('saved', { party: 1 }) }, 'save').name('Save');
+  crowdFolder.add({ calm: () => targets.crowd.calm() }, 'calm').name('Calm down');
+  addCopyButton(crowdFolder, 'Copy crowd settings', () => settingsSnippet('CROWD_SETTINGS', 'CrowdSettings', crowd));
+  crowdFolder.add({ reset: () => crowdFolder.reset() }, 'reset').name('Reset crowd reactions');
 
   // The wipe reads its timing each time it plays, so these sliders change it straight away.
   const wipeFolder = gui.addFolder('Wipe');

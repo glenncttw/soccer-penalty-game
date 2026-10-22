@@ -2,11 +2,23 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CrowdParts } from './crowdAsset';
 import { CROWD_SETTINGS, type CrowdSettings } from './crowdSettings';
-import { addMotion, holdingPose, Limb, limbAt, motionOf, motionUniforms, reachablePoses } from './crowdMotion';
+import {
+  addMotion,
+  holdingPose,
+  Limb,
+  limbAt,
+  Mood,
+  motionOf,
+  motionUniforms,
+  Party,
+  reachablePoses,
+} from './crowdMotion';
 import {
   concat,
   findCrowdSpots,
   shapeOf,
+  rectsOverlap,
+  TriangleIndex,
   type CrowdSpot,
   type Moves,
   type PersonBox,
@@ -19,6 +31,26 @@ const STAND_NODE = 'STATIC_Concrete';
 const NOT_IN_THE_WAY = /^(PITCH_|GROUND_|STATIC_Markings|Football_Ball|CAM_|SUN_)/;
 /** The node in the crowd person's body that the head pieces sit on. */
 const HEAD_NODE = 'Head';
+/** Anything this far above a step's floor is in the way of the people on it (as when they're put there). */
+const FLOOR_GAP = 0.02;
+/** The uniforms that come from the reaction settings (see `tune`). */
+const REACTION_UNIFORMS = [
+  'uReactDelay',
+  'uGoalShout',
+  'uShoutShare',
+  'uSaveSulk',
+  'uFrownShare',
+  'uRestSmile',
+  'uJumps',
+  'uJumpTime',
+  'uJumpHeight',
+  'uWaveLap',
+  'uWaveLaps',
+  'uWaveWidth',
+  'uWaveRise',
+] as const;
+/** The face's shape keys in crowd_base.glb (on the head), in the order crowdMotion.ts reads them. */
+const FACES = ['Surprised_O', 'Frown', 'Smile_Closed', 'Cheer_Open'];
 /**
  * The colour slots in the person's `_REGION` attribute, and each one's colour in the texture
  * (crowd_manifest.json): a slot's texels are painted this colour, and each person's own colour for
@@ -62,6 +94,7 @@ export class Crowd {
   private readonly motion: ReturnType<typeof motionUniforms>;
   /** Where each person's flag-bearing numbers are: their look's `aHold` and their place in it. */
   private readonly holds: { attribute: THREE.InstancedBufferAttribute; k: number }[] = [];
+  private waveChance: number;
 
   constructor(
     stadium: THREE.Object3D,
@@ -110,6 +143,7 @@ export class Crowd {
       material.envMapIntensity = 1;
     }
     this.motion = motionUniforms(s);
+    this.waveChance = s.waveChance;
     dress(material, s, this.motion);
     // Everyone's own timing and colours, drawn from the same random numbers every time.
     const pick = (list: string[], fallback: string) => list[Math.floor(random() * list.length)] ?? fallback;
@@ -119,6 +153,8 @@ export class Crowd {
       hair: new THREE.Color(pick(s.hairColors, SLOT_TEXTURE_COLORS[Slot.Hair])),
       shirt: new THREE.Color(pick(s.shirtColors, SLOT_TEXTURE_COLORS[Slot.Shirt])),
     }));
+    const around = aroundTheStands(this.spots);
+    const headroom = roomToJump(this.spots, this.room, Math.max(s.jumpHeight, s.waveRise));
     const matrix = new THREE.Matrix4();
     const turn = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
@@ -129,14 +165,16 @@ export class Crowd {
       const geometry = l.geometry;
       const motion = new Float32Array(people.length * 4);
       const colors = {
-        aSkin: new Float32Array(people.length * 3),
-        aHair: new Float32Array(people.length * 3),
+        aSkin: new Float32Array(people.length * 4), // and where they stand along the stands
+        aHair: new Float32Array(people.length * 4), // and how much of a jump they have room for
         aShirt: new Float32Array(people.length * 3),
       };
       people.forEach(({ i }, k) => {
         motion.set(own[i].motion, k * 4);
-        own[i].skin.toArray(colors.aSkin, k * 3);
-        own[i].hair.toArray(colors.aHair, k * 3);
+        own[i].skin.toArray(colors.aSkin, k * 4);
+        colors.aSkin[k * 4 + 3] = around[i];
+        own[i].hair.toArray(colors.aHair, k * 4);
+        colors.aHair[k * 4 + 3] = headroom[i];
         own[i].shirt.toArray(colors.aShirt, k * 3);
       });
       geometry.setAttribute('aMotion', new THREE.InstancedBufferAttribute(motion, 4));
@@ -144,7 +182,7 @@ export class Crowd {
       geometry.setAttribute('aHold', hold);
       people.forEach(({ i }, k) => (this.holds[i] = { attribute: hold, k }));
       for (const [name, values] of Object.entries(colors))
-        geometry.setAttribute(name, new THREE.InstancedBufferAttribute(values, 3));
+        geometry.setAttribute(name, new THREE.InstancedBufferAttribute(values, values.length / people.length));
       const mesh = new THREE.InstancedMesh(geometry, material, people.length);
       mesh.name = `Crowd_${s.heads[look]?.file ?? look}`;
       people.forEach(({ p }, k) => {
@@ -171,10 +209,103 @@ export class Crowd {
     h.attribute.needsUpdate = true;
   }
 
-  /** Moves the crowd along to the game's time (so slow motion slows them too). */
-  update(time: number) {
-    this.motion.uCrowdTime.value = time;
+  /**
+   * The crowd reacts to a shot: after a goal they shout, and jump or do a Mexican wave (`party`: picked at random
+   * unless given; none with `still`, for people who'd rather not see much moving); after a save they go "ooh!" and
+   * most look disappointed.
+   */
+  react(result: 'goal' | 'saved', { still = false, party }: { still?: boolean; party?: Party } = {}) {
+    const u = this.motion;
+    u.uReactAt.value = u.uCrowdClock.value;
+    u.uReactEnd.value = 1e9;
+    u.uMood.value = result === 'goal' ? Mood.Goal : Mood.Save;
+    u.uParty.value =
+      result !== 'goal' || still ? Party.None : (party ?? (Math.random() < this.waveChance ? Party.Wave : Party.Jump));
+    u.uWaveDir.value = Math.random() < 0.5 ? 1 : -1;
   }
+
+  /** Changes how they react (the reaction settings in `s`), from the next reaction on. */
+  tune(s: CrowdSettings) {
+    const fresh = motionUniforms(s);
+    for (const key of REACTION_UNIFORMS) this.motion[key].value = fresh[key].value;
+    this.waveChance = s.waveChance;
+  }
+
+  /** Back to how they were before the shot, easing out of whatever they're doing. */
+  calm() {
+    const u = this.motion;
+    if (u.uReactEnd.value > u.uCrowdClock.value) u.uReactEnd.value = u.uCrowdClock.value;
+  }
+
+  /**
+   * Moves the crowd along: their own moves to the game's time (so slow motion slows them too), their reactions
+   * to the real time (so a goal's slow motion doesn't make them float).
+   */
+  update(time: number, realDt: number) {
+    this.motion.uCrowdTime.value = time;
+    this.motion.uCrowdClock.value += realDt;
+  }
+}
+
+/**
+ * How much of a jump `highest` metres high each person has room for (0..1): a few have something just above
+ * them (a rail, someone in the row behind), so they jump less high.
+ */
+function roomToJump(
+  spots: CrowdSpot[],
+  room: { stadium: Triangles; shapes: Record<Moves, PersonBox[]>[] },
+  highest: number,
+): number[] {
+  if (highest <= 0) return spots.map(() => 1);
+  const stadium = new TriangleIndex(room.stadium);
+  const placed = spots.map((p) =>
+    room.shapes[p.look][p.moves].map((b) => ({
+      rect: {
+        x: p.x,
+        z: p.z,
+        angle: p.angle,
+        x0: b.x0 * p.size,
+        x1: b.x1 * p.size,
+        z0: b.z0 * p.size,
+        z1: b.z1 * p.size,
+      },
+      // Their feet stand on the step: only what's above it can get in the way, as when they were put there.
+      lo: Math.max(p.y + b.y0 * p.size, p.y + FLOOR_GAP),
+      hi: p.y + b.y1 * p.size,
+      feet: p.y + b.y0 * p.size,
+    })),
+  );
+  const step = 0.01; // and the room they keep from anyone above
+  return spots.map((p, i) => {
+    let most = highest;
+    // Someone in a row higher up right above part of them (people in the same row jump with them).
+    for (const [j, q] of spots.entries()) {
+      if (q.y <= p.y || Math.abs(q.x - p.x) > 1.5 || Math.abs(q.z - p.z) > 1.5) continue;
+      for (const a of placed[i])
+        for (const b of placed[j])
+          if (b.feet >= a.hi && rectsOverlap(a.rect, b.rect)) most = Math.min(most, b.feet - a.hi - step);
+    }
+    // The stadium: all the way up in one go (the space they pass through), else a centimetre at a time.
+    const hits = (lift: number) => placed[i].some((b) => stadium.touches(b.rect, b.lo, b.hi + lift));
+    if (most > 0 && hits(most)) {
+      let free = 0;
+      while (!hits(Math.min(free + step, most))) free += step;
+      return free / highest;
+    }
+    return Math.max(0, most) / highest;
+  });
+}
+
+/**
+ * Where each person stands along the stands, from 0 (the left side near the camera) round behind the goal to 1
+ * (the right side): by the direction they're in, seen from the middle of the crowd.
+ */
+function aroundTheStands(spots: CrowdSpot[]): number[] {
+  const middleZ = spots.reduce((sum, p) => sum + p.z, 0) / Math.max(spots.length, 1);
+  const angles = spots.map((p) => Math.atan2(p.x, middleZ - p.z));
+  const lo = Math.min(...angles);
+  const hi = Math.max(...angles);
+  return angles.map((a) => (hi > lo ? (a - lo) / (hi - lo) : 0.5));
 }
 
 /** Parts already measured, by their mesh's geometry: every look has the same body, so it's only measured once. */
@@ -258,15 +389,25 @@ function mergePerson(
       parts.push(known.part);
       return;
     }
-    // Only the shape itself (and its colour slots): the face's shape keys (expressions) aren't used yet.
+    // The shape itself, its colour slots and the face's shape keys (expressions), as offsets the shader adds.
     const g = new THREE.BufferGeometry();
     for (const name of ['position', 'normal', 'uv', '_region']) {
-      const attribute = o.geometry.getAttribute(name);
-      if (!attribute) throw new Error(`Crowd person: part "${o.name}" has no ${name}`);
-      g.setAttribute(name, attribute.clone());
+      if (!o.geometry.getAttribute(name)) throw new Error(`Crowd person: part "${o.name}" has no ${name}`);
+      if (name !== '_region') g.setAttribute(name, o.geometry.getAttribute(name).clone());
     }
     g.setIndex(o.geometry.index);
-    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(toPerson, o.matrixWorld));
+    const toPart = new THREE.Matrix4().multiplyMatrices(toPerson, o.matrixWorld);
+    // The four faces' offsets, packed into three vec4s (a graphics card takes only 16 attributes).
+    const faces = FACES.map((key) => faceOffsets(o, key, toPart));
+    const packed = [0, 1, 2].map(() => new Float32Array((faces[0].length / 3) * 4));
+    faces.forEach((face, f) =>
+      face.forEach((v, i) => {
+        const at = Math.floor(i / 3) * 12 + f * 3 + (i % 3); // the vertex's 12 numbers, face after face
+        packed[Math.floor((at % 12) / 4)][Math.floor(at / 12) * 4 + (at % 4)] = v;
+      }),
+    );
+    packed.forEach((values, n) => g.setAttribute(`aFace${n}`, new THREE.Float32BufferAttribute(values, 4)));
+    g.applyMatrix4(toPart);
     // A part moves about the origin of the outermost part it sits in (the hair moves with the head).
     let outer: THREE.Object3D = o;
     for (let a = o.parent; a && a !== person; a = a.parent) if (a instanceof THREE.Mesh) outer = a;
@@ -275,11 +416,15 @@ function mergePerson(
     );
     const limb = limbAt(pivot);
     const count = g.getAttribute('position').count;
+    // Where it moves about, and (packed, see crowdMotion.ts) the kind of part and each vertex's colour slot.
+    const region = o.geometry.getAttribute('_region');
     g.setAttribute(
       'aPivot',
-      new THREE.Float32BufferAttribute(Array.from({ length: count }, () => pivot.toArray()).flat(), 3),
+      new THREE.Float32BufferAttribute(
+        Array.from({ length: count }, (_, i) => [...pivot.toArray(), limb * 16 + Math.round(region.getX(i))]).flat(),
+        4,
+      ),
     );
-    g.setAttribute('aLimb', new THREE.Float32BufferAttribute(new Array<number>(count).fill(limb), 1));
     const triangles = worldTriangles(new THREE.Mesh(g));
     const own = {
       part: g,
@@ -300,6 +445,31 @@ function mergePerson(
   const geometry = mergeGeometries(parts);
   if (!geometry) throw new Error('Crowd person: its parts could not be put together');
   return { geometry, shapes, still, arms };
+}
+
+/**
+ * How far the shape key `key` moves each of `part`'s vertices, turned and sized into the person's space by
+ * `toPerson` (none for parts without it: only the head has the face's).
+ */
+function faceOffsets(part: THREE.Mesh, key: string, toPerson: THREE.Matrix4): Float32Array {
+  const count = part.geometry.getAttribute('position').count;
+  const out = new Float32Array(count * 3);
+  const index = part.morphTargetDictionary?.[key];
+  const target = index === undefined ? undefined : part.geometry.morphAttributes.position?.[index];
+  if (!target) {
+    if (part.name === HEAD_NODE) throw new Error(`Crowd person: the head has no "${key}" shape key`);
+    return out;
+  }
+  const turn = new THREE.Matrix3().setFromMatrix4(toPerson);
+  const v = new THREE.Vector3();
+  const base = part.geometry.getAttribute('position');
+  for (let i = 0; i < count; i++) {
+    v.fromBufferAttribute(target, i);
+    // Blender's shape keys come as offsets; some exports give the moved positions instead.
+    if (!part.geometry.morphTargetsRelative) v.sub(new THREE.Vector3().fromBufferAttribute(base, i));
+    v.applyMatrix3(turn).toArray(out, i * 3);
+  }
+  return out;
 }
 
 /** The body wearing a head piece: the piece sits on the head, as made in the head's own space (it moves with it). */
@@ -361,8 +531,7 @@ function dress(material: THREE.MeshStandardMaterial, s: CrowdSettings, motion: R
     shader.vertexShader = shader.vertexShader
       .replace(
         'void main() {',
-        `attribute float _region;
-        attribute vec3 aSkin, aHair, aShirt;
+        `attribute vec3 aShirt; // aSkin and aHair are with the moves (see crowdMotion.ts)
         uniform float uSlotBrightness[${SLOT_TEXTURE_COLORS.length}];
         uniform vec3 uSock, uAccent;
         varying vec3 vCrowdColor;
@@ -372,9 +541,9 @@ function dress(material: THREE.MeshStandardMaterial, s: CrowdSettings, motion: R
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-        int crowdSlot = int(_region + 0.5);
-        vCrowdColor = crowdSlot == ${Slot.Skin} ? aSkin
-          : crowdSlot == ${Slot.Hair} ? aHair
+        int crowdSlot = int(crowdRegion + 0.5);
+        vCrowdColor = crowdSlot == ${Slot.Skin} ? aSkin.rgb
+          : crowdSlot == ${Slot.Hair} ? aHair.rgb
           : crowdSlot == ${Slot.Sock} ? uSock
           : crowdSlot == ${Slot.Accent} ? uAccent
           : aShirt; // shirt, shorts, shoes and hats
