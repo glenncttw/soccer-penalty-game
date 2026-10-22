@@ -127,6 +127,33 @@ describe('IntroBall', () => {
     }
   });
 
+  it('starts moving on the first frame, only ever rolls forward round one line, and ends as it rests', () => {
+    for (const [w, h] of SCREENS) {
+      const { ball, slot, intro, frame } = setUp(w, h);
+      intro.float(slot);
+      for (let i = 0; i < 90; i++) frame();
+      const start = ball.position.clone();
+      intro.land(() => {});
+      frame();
+      expect(ball.position.distanceTo(start)).toBeGreaterThan(0.002); // no waiting
+      expect(intro.cameraIntro).toBeLessThan(1); // the camera already pulls back too
+      // The ball's turn (from how it rests) is always round the line across the screen (x).
+      const rolled = (q: THREE.Quaternion) => {
+        expect(Math.hypot(q.y, q.z)).toBeLessThan(1e-9);
+        return 2 * Math.atan2(q.x, q.w);
+      };
+      let last = rolled(ball.quaternion);
+      for (let i = 0; i < 400 && intro.active; i++) {
+        frame();
+        const angle = rolled(ball.quaternion);
+        const step = THREE.MathUtils.euclideanModulo(angle - last, 2 * Math.PI);
+        expect(step).toBeLessThan(Math.PI / 2); // forward only, never back
+        last = angle;
+      }
+      expect(ball.quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(1e-6);
+    }
+  });
+
   it('rises from the spot back into the slot', () => {
     const { camera, ball, slot, size, intro, frame } = setUp(1280, 720);
     intro.float(slot, true);
@@ -159,8 +186,8 @@ describe('reveal', () => {
     frame();
     expect(intro.reveal).toBe(0);
     intro.land(() => {});
-    frame(0.1);
-    expect(intro.reveal).toBe(0); // the title and button move away first
+    frame();
+    expect(intro.reveal).toBeGreaterThan(0); // opens up straight away, with the chips and the ball
     let last = 0;
     for (let i = 0; i < 50; i++) {
       frame();
