@@ -98,7 +98,7 @@ describe('IntroBall', () => {
     }
   });
 
-  it('swoops down onto the spot as the camera pulls back: always in view, no bounce, ending exactly at rest', () => {
+  it('comes down onto the spot in one smooth curve as the camera pulls back: no zig-zag, no bounce, ending exactly at rest', () => {
     for (const [w, h] of SCREENS) {
       const { view, camera, ball, slot, intro, frame } = setUp(w, h);
       intro.float(slot);
@@ -110,7 +110,7 @@ describe('IntroBall', () => {
         frame();
         const seen = onScreen(ball, camera, w, h);
         expect(seen.depth).toBeGreaterThan(0.4);
-        expect(Math.abs(seen.x - w / 2)).toBeLessThan(w / 2);
+        expect(Math.abs(seen.x - w / 2)).toBeLessThan(w * 0.01); // straight down the middle: no swinging side to side
         expect(Math.abs(seen.y - h / 2)).toBeLessThan(h / 2);
         expect(ball.position.y).toBeGreaterThan(RADIUS - 1e-6);
         heights.push(ball.position.y);

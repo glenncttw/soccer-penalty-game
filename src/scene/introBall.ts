@@ -4,10 +4,9 @@ const SPIN_SPEED = 0.5; // radians per second while it floats on the intro, abou
 const SPIN_AXIS = new THREE.Vector3(0.15, 1, 0.36).normalize(); // mostly upright, tipped toward the camera
 const FLY_DELAY = 0.15; // seconds the intro's words and button get to move away first
 const FLY_TIME = 1.6; // seconds from the middle of the screen down onto the penalty spot, as the camera pulls back
-const SWING = 0.3; // how far the ball swings out to each side on the way, as a share of half the view's width
-const RISE = 0.15; // and how far it lifts in the middle, as a share of half the view's height
+const RISE = 0.15; // how far it lifts in the middle of its curve, as a share of half the view's height
 const FLY_TURNS = 2.5; // extra turns the ball spins on the way, slowing down
-const FLY_SPIN_AXIS = new THREE.Vector3(1, 0.35, 0.25).normalize(); // topspin with a bit of sidespin
+const FLY_SPIN_AXIS = new THREE.Vector3(1, 0, 0); // topspin only: it rolls forward the way it flies, no tilted spin
 const SETTLE_FROM = 0.75; // share of the flight after which the spin turns into the ball's resting turn
 const FLY_ARC = 0.3; // metres the ball rises above a straight line halfway up (Menu)
 const LIFT_TIME = 0.8; // seconds back up from the spot into the intro (Menu on the end screen)
@@ -173,14 +172,13 @@ export class IntroBall {
         return;
       }
       // The flight is worked out as seen from the camera, which is still pulling back past the spot:
-      // from the middle of the screen to where the spot will be once the camera is back, swinging
-      // out to one side and then the other on the way. Both arrive at the same moment, gently.
+      // from the middle of the screen to where the spot will be once the camera is back, in one smooth
+      // curve. Both arrive at the same moment, gently.
       this.matrix.compose(this.cameraRest.position, this.cameraRest.quaternion, this.one).invert();
       this.toView.copy(this.target).applyMatrix4(this.matrix);
       this.camera.updateMatrixWorld();
       const p = this.ball.position.lerpVectors(this.fromView, this.toView, s);
       const halfHeight = -p.z * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2);
-      p.x += SWING * halfHeight * this.camera.aspect * Math.sin(2 * Math.PI * s);
       p.y += RISE * halfHeight * Math.sin(Math.PI * s);
       p.applyMatrix4(this.camera.matrixWorld);
       // Spins faster on the way, slowing down, then settles into exactly how the ball rests on the spot.
