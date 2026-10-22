@@ -1,5 +1,5 @@
 import type { Vec3 } from '../physics/ballForces';
-import type { KeeperPose, Quat } from '../physics/keeperBody';
+import type { Quat } from '../physics/keeperBody';
 
 /** Everything the replay needs to redraw one moment of a shot. */
 export interface ReplayFrame {
@@ -9,7 +9,8 @@ export interface ReplayFrame {
   spin: Quat;
   /** 1 = solid, 0 = faded out into the stands. */
   ballOpacity: number;
-  keeper: KeeperPose;
+  /** The keeper's pose (see KeeperRig.snapshot). */
+  keeper: Float32Array;
 }
 
 const MAX_FRAMES = 2400; // 10 s at 240 frames a second: more than any shot lasts
@@ -30,7 +31,7 @@ export class ReplayRecorder {
     this.resultAt = null;
   }
 
-  record(t: number, ball: Vec3, spin: Quat, ballOpacity: number, keeper: KeeperPose) {
+  record(t: number, ball: Vec3, spin: Quat, ballOpacity: number, keeper: Float32Array) {
     if (this.frames.length >= MAX_FRAMES) return;
     const last = this.frames[this.frames.length - 1];
     if (last && t <= last.t) return; // a frame where game time stood still adds nothing
@@ -39,7 +40,7 @@ export class ReplayRecorder {
       ball: { ...ball },
       spin: { x: spin.x, y: spin.y, z: spin.z, w: spin.w },
       ballOpacity,
-      keeper: copyPose(keeper),
+      keeper: keeper.slice(),
     });
   }
 
@@ -73,10 +74,8 @@ export class ReplayRecorder {
     lerpPoint(out.ball, a.ball, b.ball, k);
     slerp(out.spin, a.spin, b.spin, k);
     out.ballOpacity = a.ballOpacity + (b.ballOpacity - a.ballOpacity) * k;
-    lerpPoint(out.keeper.pivot, a.keeper.pivot, b.keeper.pivot, k);
-    out.keeper.tilt = a.keeper.tilt + (b.keeper.tilt - a.keeper.tilt) * k;
-    out.keeper.crouch = a.keeper.crouch + (b.keeper.crouch - a.keeper.crouch) * k;
-    for (const i of [0, 1] as const) lerpPoint(out.keeper.gloves[i], a.keeper.gloves[i], b.keeper.gloves[i], k);
+    if (out.keeper.length !== a.keeper.length) out.keeper = new Float32Array(a.keeper.length);
+    for (let i = 0; i < a.keeper.length; i++) out.keeper[i] = a.keeper[i] + (b.keeper[i] - a.keeper[i]) * k;
     return out;
   }
 }
@@ -89,7 +88,7 @@ export function blankFrame(): ReplayFrame {
     ball: zero(),
     spin: { x: 0, y: 0, z: 0, w: 1 },
     ballOpacity: 1,
-    keeper: { pivot: zero(), tilt: 0, gloves: [zero(), zero()], crouch: 0 },
+    keeper: new Float32Array(0),
   };
 }
 
@@ -110,10 +109,6 @@ export function replayWindow(
   const start = Math.max(kickAt, end - s.duration * s.fastest);
   const rate = Math.max(s.slowest, (end - start) / s.duration);
   return { start, end, rate, length: (end - start) / rate };
-}
-
-function copyPose(p: KeeperPose): KeeperPose {
-  return { pivot: { ...p.pivot }, tilt: p.tilt, gloves: [{ ...p.gloves[0] }, { ...p.gloves[1] }], crouch: p.crouch };
 }
 
 function lerpPoint(out: Vec3, a: Vec3, b: Vec3, k: number) {

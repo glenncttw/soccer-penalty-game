@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { KeeperPose } from '../physics/keeperBody';
 import { blankFrame, ReplayRecorder, replayWindow } from './replayRecorder';
 
 const SETTINGS = { duration: 2.5, slowest: 0.3, fastest: 0.7, afterResult: 0.45, afterImpact: 0.3 };
 
-function pose(x: number): KeeperPose {
-  return { pivot: { x, y: 0, z: 0 }, tilt: x, gloves: [{ x: -0.4, y: 1, z: 0 }, { x: 0.4, y: 1, z: 0 }], crouch: 0 };
+/** A keeper pose snapshot (see KeeperRig.snapshot): where it stands, then the bones. */
+function pose(x: number) {
+  return Float32Array.of(x, 0, 0, x, 1, 0.5);
 }
 
 describe('ReplayRecorder', () => {
@@ -17,8 +17,9 @@ describe('ReplayRecorder', () => {
     const f = r.sample(10.25, blankFrame());
     expect(f.ball).toEqual({ x: 1, y: 0.5, z: 7 });
     expect(f.ballOpacity).toBeCloseTo(0.5);
-    expect(f.keeper.pivot.x).toBeCloseTo(0.5);
-    expect(f.keeper.tilt).toBeCloseTo(0.5);
+    expect(f.keeper[0]).toBeCloseTo(0.5);
+    expect(f.keeper[3]).toBeCloseTo(0.5);
+    expect(f.keeper[4]).toBe(1);
   });
 
   it('holds the first and last frames outside the recording', () => {
@@ -35,10 +36,10 @@ describe('ReplayRecorder', () => {
     const live = pose(0);
     r.start(0);
     r.record(0, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0, w: 1 }, 1, live);
-    live.pivot.x = 5;
-    live.gloves[0].y = 9;
-    expect(r.frames[0].keeper.pivot.x).toBe(0);
-    expect(r.frames[0].keeper.gloves[0].y).toBe(1);
+    live[0] = 5;
+    live[4] = 9;
+    expect(r.frames[0].keeper[0]).toBe(0);
+    expect(r.frames[0].keeper[4]).toBe(1);
   });
 
   it('turns the ball the short way round between frames', () => {

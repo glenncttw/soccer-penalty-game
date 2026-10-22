@@ -3,7 +3,7 @@ import { AERO_RADIUS, BALL_MASS } from '../dimensions';
 import type { WorldConfig } from '../worldConfig';
 import { aeroForce, type Vec3 } from './ballForces';
 import { BALL_SPIN_DAMPING, FIXED_STEP } from './flight';
-import { KEEPER_BODY, keeperParts, type KeeperPose, type Quat } from './keeperBody';
+import type { KeeperPartPose, KeeperPartShape } from './keeperBody';
 
 /** What the ball can touch. */
 export type Surface = 'ground' | 'woodwork' | 'net' | 'keeper' | 'boards';
@@ -27,15 +27,15 @@ export interface PhysicsWorld {
   resetBall(): void;
   kick(velocity: RAPIER.Vector, spin: RAPIER.Vector): void;
   /**
-   * Moves the keeper's body to `pose` over the next step (or at once with `jump`).
-   * Does nothing in a world made without a keeper.
+   * Moves the keeper's parts to `parts` (one pose per part, in the order of its shapes) over the
+   * next step, or at once with `jump`. Does nothing in a world made without a keeper.
    */
-  poseKeeper(pose: KeeperPose, jump?: boolean): void;
+  poseKeeper(parts: readonly KeeperPartPose[], jump?: boolean): void;
 }
 
 export interface WorldOptions {
-  /** Adds a keeper, standing in this pose. */
-  keeper?: KeeperPose;
+  /** Adds a keeper made of these parts, standing in this pose. */
+  keeper?: { shapes: readonly KeeperPartShape[]; parts: readonly KeeperPartPose[] };
 }
 
 export async function createPhysicsWorld(config: WorldConfig, options: WorldOptions = {}): Promise<PhysicsWorld> {
@@ -139,7 +139,7 @@ export async function createPhysicsWorld(config: WorldConfig, options: WorldOpti
     ball,
   );
 
-  const keeper = options.keeper ? createKeeper(world, add, options.keeper) : null;
+  const keeper = options.keeper ? createKeeper(world, add, options.keeper.shapes, options.keeper.parts) : null;
 
   const events = new RAPIER.EventQueue(true);
   let contacts: Contact[] = [];
@@ -180,68 +180,53 @@ export async function createPhysicsWorld(config: WorldConfig, options: WorldOpti
       ball.setLinvel(velocity, true);
       ball.setAngvel(spin, true);
     },
-    poseKeeper(pose, jump = false) {
-      keeper?.pose(pose, jump);
+    poseKeeper(parts, jump = false) {
+      keeper?.pose(parts, jump);
     },
   };
 }
 
 /**
- * The keeper as moving (kinematic) bodies: one for the legs, body and head, and
- * one for each arm and glove. Moving them step by step gives them real speed,
- * so a diving glove pushes the ball away like a real save.
+ * The keeper as moving (kinematic) bodies, one for each part of the 3D model (gloves, arms, head,
+ * body, feet), each following its bone. Moving them step by step gives them real speed, so a
+ * diving glove pushes the ball away like a real save.
  */
 function createKeeper(
   world: RAPIER.World,
   add: (desc: RAPIER.ColliderDesc, surface: Surface, body?: RAPIER.RigidBody) => RAPIER.Collider,
-  pose: KeeperPose,
+  shapes: readonly KeeperPartShape[],
+  parts: readonly KeeperPartPose[],
 ) {
-  const b = KEEPER_BODY;
-  const body = () => world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
-  const springy = (desc: RAPIER.ColliderDesc) => desc.setRestitution(0.35).setFriction(0.7);
-
-  const core = body();
-  const part = (desc: RAPIER.ColliderDesc, x: number, y: number) =>
-    add(springy(desc.setTranslation(x, y, 0)), 'keeper', core);
-  const torsoHalf = (b.torso.top - b.torso.bottom) / 2;
-  part(RAPIER.ColliderDesc.capsule(torsoHalf, b.torso.radius), 0, b.torso.bottom + torsoHalf);
-  part(RAPIER.ColliderDesc.ball(b.head.radius), 0, b.head.y);
-  const legHalf = (b.legs.top - b.legs.bottom) / 2;
-  for (const x of [-b.legs.x, b.legs.x]) {
-    part(RAPIER.ColliderDesc.capsule(legHalf, b.legs.radius), x, b.legs.bottom + legHalf);
-  }
-
-  const arms = [0, 1].map(() => {
-    const arm = body();
-    const shape = add(springy(RAPIER.ColliderDesc.capsule(b.arm.length / 2, b.arm.radius)), 'keeper', arm);
-    const glove = body();
-    add(RAPIER.ColliderDesc.ball(b.glove.radius).setRestitution(0.25).setFriction(0.9), 'keeper', glove);
-    return { arm, shape, glove };
+  const bodies = shapes.map((shape) => {
+    const body = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
+    const glove = shape.name.startsWith('glove');
+    const desc =
+      shape.halfHeight > 0
+        ? RAPIER.ColliderDesc.capsule(shape.halfHeight, shape.radius)
+        : RAPIER.ColliderDesc.ball(shape.radius);
+    desc
+      .setTranslation(shape.offset.x, shape.offset.y, shape.offset.z)
+      .setRotation(shape.rotation)
+      .setRestitution(glove ? 0.25 : 0.35)
+      .setFriction(glove ? 0.9 : 0.7);
+    add(desc, 'keeper', body);
+    return body;
   });
 
-  const still: Quat = { x: 0, y: 0, z: 0, w: 1 };
-  const place = (target: RAPIER.RigidBody, at: Vec3, rotation: Quat, jump: boolean) => {
-    if (jump) {
-      target.setTranslation(at, true);
-      target.setRotation(rotation, true);
-    } else {
-      target.setNextKinematicTranslation(at);
-      target.setNextKinematicRotation(rotation);
-    }
-  };
-
   const keeper = {
-    pose(next: KeeperPose, jump: boolean) {
-      const parts = keeperParts(next);
-      place(core, parts.core.position, parts.core.rotation, jump);
-      parts.arms.forEach((part, i) => {
-        const { arm, shape, glove } = arms[i];
-        place(arm, part.middle, part.rotation, jump);
-        shape.setHalfHeight(Math.max(0.01, part.length / 2));
-        place(glove, part.glove, still, jump);
+    pose(next: readonly KeeperPartPose[], jump: boolean) {
+      bodies.forEach((body, i) => {
+        const { position, rotation } = next[i];
+        if (jump) {
+          body.setTranslation(position, true);
+          body.setRotation(rotation, true);
+        } else {
+          body.setNextKinematicTranslation(position);
+          body.setNextKinematicRotation(rotation);
+        }
       });
     },
   };
-  keeper.pose(pose, true);
+  keeper.pose(parts, true);
   return keeper;
 }

@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { blankFrame, ReplayRecorder, replayWindow, type ReplayFrame } from '../gameplay/replayRecorder';
 import type { Vec3 } from '../physics/ballForces';
-import type { KeeperPose, Quat } from '../physics/keeperBody';
+import type { Quat } from '../physics/keeperBody';
 import { palette } from '../theme';
 import type { WorldConfig } from '../worldConfig';
 import { BallTrail } from './ball';
 import type { BallAura } from './ballAura';
 import type { BallFade } from './ballFade';
-import type { KeeperModel } from './keeper';
+import type { KeeperRig } from './keeperRig';
 import { REPLAY_ANGLES, replayCameraPose, type ReplayAngle } from './replayCamera';
 import { REPLAY_SETTINGS, type ReplaySettings } from './replaySettings';
 
@@ -22,7 +22,7 @@ export interface ReplayParts {
   scene: THREE.Scene;
   ball: THREE.Object3D;
   ballFade: BallFade;
-  keeper: KeeperModel;
+  keeper: KeeperRig;
   /** The live trail: the replay copies its colours and when it stopped. */
   trail: BallTrail;
   /** The glow round the ball on a perfect strike: shown in the replay too, until the ball's first touch. */
@@ -41,6 +41,7 @@ export class Replay {
   readonly recorder = new ReplayRecorder();
   active = false;
   private readonly frame = blankFrame();
+  private readonly pose: Float32Array;
   private readonly trail = new BallTrail();
   private readonly overlay = new THREE.Scene();
   private readonly screen = new THREE.OrthographicCamera(0, 1, 1, 0, -10, 10);
@@ -69,6 +70,7 @@ export class Replay {
     private readonly parts: ReplayParts,
     private readonly settings: ReplaySettings = REPLAY_SETTINGS,
   ) {
+    this.pose = new Float32Array(parts.keeper.snapshotSize);
     this.trail.mesh.visible = false;
     parts.scene.add(this.trail.mesh);
 
@@ -113,8 +115,8 @@ export class Replay {
   }
 
   /** Call every frame while the ball is in play. */
-  record(gameTime: number, ball: Vec3, spin: Quat, keeper: KeeperPose) {
-    this.recorder.record(gameTime, ball, spin, this.parts.ballFade.shown, keeper);
+  record(gameTime: number, ball: Vec3, spin: Quat) {
+    this.recorder.record(gameTime, ball, spin, this.parts.ballFade.shown, this.parts.keeper.snapshot(this.pose));
   }
 
   /** True if the shot that just ended deserves a replay. */
@@ -236,7 +238,7 @@ export class Replay {
     ball.position.set(f.ball.x, f.ball.y, f.ball.z);
     ball.quaternion.set(f.spin.x, f.spin.y, f.spin.z, f.spin.w);
     ballFade.showAt(f.ballOpacity);
-    keeper.update(f.keeper, 0);
+    keeper.apply(f.keeper);
     this.ballNow.set(f.ball.x, f.ball.y, f.ball.z);
     return t;
   }

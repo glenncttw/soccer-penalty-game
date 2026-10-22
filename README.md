@@ -39,7 +39,7 @@ The keys are the physical ones, so on an AZERTY keyboard W A S D are the keys in
 speeds are at the top of `src/input/shootInput.ts`.
 
 A goalkeeper tries to stop you. It watches which way the ball is heading, so a curled shot fools it, and soft
-shots are easy saves. Its look is a placeholder made from simple shapes until there's a Blender model.
+shots are easy saves. It is Glenn's blue bird, playing the animations made for it in Blender (see "The keeper").
 
 On your first visit, tips at the top walk you through your first shots. With a mouse, the view turns a little
 toward where you point.
@@ -224,9 +224,31 @@ The keeper is Glenn's blue bird, a Blender export: `public/assets/keeper/BlueBir
 calls instead of 30, and scaled to 1.6 m on the rig's root `BB3_Rig`; meshopt-compressed, 1.0 MB). It is loaded by
 `src/scene/keeperAsset.ts` (origin between the feet, facing the shooter), which also measures it and scales it to
 `KEEPER_HEIGHT` (1.6 m), so an export at another size still stands 1.6 m tall.
-The game moves and leans it with the keeper's motion; its rig and animations (idle, ready, dives, catch, punch,
-celebrate and more) are in the file but nothing plays them yet. The bird has no textures yet. The
-physics body that saves shots is still the placeholder's (`src/physics/keeperBody.ts`, 1.52 m tall).
+The bird has no textures yet.
+
+It plays the animations in the file (`src/ai/keeperMotion.ts` picks them, `src/scene/keeperRig.ts` plays them).
+"L" in their names is the keeper's own left, which is the shooter's right:
+
+| Animation | When |
+| --- | --- |
+| `idle` | before you aim |
+| `ready` | while you aim and charge, standing still |
+| `shuffle_L` / `shuffle_R` | side steps toward where you aim (`shuffle_L` when you aim right); the steps play on the spot and the game moves the bird along at the speed they travel |
+| `catch_chest` / `punch` | a ball at it: softer shots are caught, harder ones (over 24 m/s) punched |
+| `tuck_jump` | a ball at it, above 1.05 m |
+| `dive_low_L/R`, `dive_high_L/R` | a ball to the side, below or above 0.9 m |
+| `celebrate` | after the last penalty, on the end screen |
+
+When the ball is struck the keeper waits its reaction time, then picks the moment in the save's animation where its
+gloves come closest to where it thinks the ball goes. It plays the save so that moment comes as the ball arrives: up
+to 1.1x faster than in Blender (`speedUp` in `src/ai/keeper.ts`), or starting later for a slow ball. On top of the
+animation it can shift across by up to 0.4 m in a dive (`lunge`) and 0.25 m when standing, and up or down a little,
+so its gloves meet the ball. The save rate is the same as the keeper before the animations (about 35% goals and 43%
+saves over 1,512 simulated shots).
+
+What saves shots is what you see: solid balls fitted to the bird's skin (gloves, arms, head, beak, body, feet) move
+with its bones every physics step. A new export with other bone names needs the list at the top of
+`src/scene/keeperRig.ts` updated.
 
 A new export is made lighter for the web with [glTF Transform](https://gltf-transform.dev) (the mesh and animations
 compressed with meshopt), unless it already is:
