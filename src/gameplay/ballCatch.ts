@@ -61,7 +61,8 @@ export class BallCatch {
 function distanceToSegment(p: Vec3, a: Vec3, b: Vec3) {
   const d = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z };
   const length = d.x * d.x + d.y * d.y + d.z * d.z;
-  const k = length > 0 ? Math.min(1, Math.max(0, ((p.x - a.x) * d.x + (p.y - a.y) * d.y + (p.z - a.z) * d.z) / length)) : 0;
+  const k =
+    length > 0 ? Math.min(1, Math.max(0, ((p.x - a.x) * d.x + (p.y - a.y) * d.y + (p.z - a.z) * d.z) / length)) : 0;
   return Math.hypot(a.x + d.x * k - p.x, a.y + d.y * k - p.y, a.z + d.z * k - p.z);
 }
 
