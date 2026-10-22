@@ -313,6 +313,7 @@ function endReplay() {
   wipe.run(() => {
     replay.stop();
     centreKeeper(); // the replay posed the keeper: put it back while the wipe covers the screen
+    aura.begin(false);
     wipe.showReplayTag(false);
     setPhase('wipe');
   }, nextShot);
@@ -325,7 +326,7 @@ function resetShot() {
   ballFade.reset();
   centreKeeper();
   trail.clear();
-  aura.begin(false);
+  if (!replay.active) aura.begin(false); // a replay of a perfect strike still shows its glow
   hud.hideBanner();
   if (autoSharpness?.applyPending()) resize(); // a sharpness step, unseen behind the wipe
 }
