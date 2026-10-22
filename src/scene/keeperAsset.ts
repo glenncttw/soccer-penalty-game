@@ -3,9 +3,9 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 /** Glenn's Blender keeper (the blue bird), made lighter for the web. Replace this file to update it. */
-export const KEEPER_URL = `${import.meta.env.BASE_URL}assets/keeper/BlueBird3_GK.glb`;
+export const KEEPER_URL = `${import.meta.env.BASE_URL}assets/keeper/BlueBird_GK.glb`;
 
-/** How tall the keeper stands in the game, in metres (the Blender export is 1.0 m). */
+/** How tall the keeper stands in the game, in metres (the export is already 1.6 m). */
 export const KEEPER_HEIGHT = 1.6;
 
 /**

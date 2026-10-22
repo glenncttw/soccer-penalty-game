@@ -219,18 +219,20 @@ goes through the bearer's own head or body. A place with no room near it gets no
 
 ## The keeper
 
-The keeper is Glenn's blue bird, a Blender export (`BlueBird3_v035_game.glb`): `public/assets/keeper/BlueBird3_GK.glb`,
-loaded by `src/scene/keeperAsset.ts` (origin between the feet, facing the shooter) and scaled to stand 1.6 m tall
-(`KEEPER_HEIGHT`; the export itself is 1.0 m).
+The keeper is Glenn's blue bird, a Blender export: `public/assets/keeper/BlueBird_GK.glb` (made from
+`BlueBird3_v035_game.glb` in Blender: its 30 parts joined into one skinned mesh `BB3_Body` with 4 materials, so 4 draw
+calls instead of 30, and scaled to 1.6 m on the rig's root `BB3_Rig`; meshopt-compressed, 1.0 MB). It is loaded by
+`src/scene/keeperAsset.ts` (origin between the feet, facing the shooter), which also measures it and scales it to
+`KEEPER_HEIGHT` (1.6 m), so an export at another size still stands 1.6 m tall.
 The game moves and leans it with the keeper's motion; its rig and animations (idle, ready, dives, catch, punch,
 celebrate and more) are in the file but nothing plays them yet. The bird has no textures yet. The
 physics body that saves shots is still the placeholder's (`src/physics/keeperBody.ts`, 1.52 m tall).
 
-The export was made lighter for the web with [glTF Transform](https://gltf-transform.dev) (the mesh and animations
-compressed with meshopt). To update the keeper, do the same with the new export:
+A new export is made lighter for the web with [glTF Transform](https://gltf-transform.dev) (the mesh and animations
+compressed with meshopt), unless it already is:
 
 ```sh
-npx @gltf-transform/cli meshopt in.glb public/assets/keeper/BlueBird3_GK.glb
+npx @gltf-transform/cli meshopt in.glb public/assets/keeper/BlueBird_GK.glb
 ```
 
 Once it has textures, shrink them first as for the parrot before it: `resize` to 1024 x 1024, colour and roughness as
