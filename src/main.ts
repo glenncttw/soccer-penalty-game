@@ -45,6 +45,7 @@ import { PerfStats } from './ui/perfStats';
 import { readBest, Round, saveBest } from './gameplay/round';
 import { ENTER_TIME, Screens } from './ui/screens';
 import { nextPaint, Preloader } from './ui/preloader';
+import { gameFilesIn, rememberFiles } from './ui/rememberFiles';
 import { Wipe } from './ui/wipe';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
@@ -85,6 +86,8 @@ renderer.toneMapping = THREE.NoToneMapping;
 const scene = new THREE.Scene();
 // The loading bar (in index.html) fills as the files below arrive.
 const preloader = new Preloader();
+// This device remembers the game's files, so the next visit doesn't download them again (public/sw.js).
+rememberFiles();
 
 // The landing comes first: it only needs the stadium (for its camera, ball and sun), the panorama's light on the
 // ball, the chips and the font. The rest of the game loads behind it (below).
@@ -696,5 +699,6 @@ renderer.setAnimationLoop((time) => {
 
 // The game is in: Speel nu plays now, or straight away if it was pressed already.
 screens.gameIn();
+void gameFilesIn();
 screens.onPlay = startRound;
 if (playSoon) startRound();
