@@ -43,5 +43,5 @@ export const REPLAY_SETTINGS: ReplaySettings = {
   wipeTime: 0.8,
   resolution: 0.75,
   panelSize: 0.8,
-  tunnelSpeed: 3,
+  tunnelSpeed: 1,
 };
