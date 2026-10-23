@@ -5,6 +5,7 @@ import { BallTrail } from './ball';
 import { BallAura } from './ballAura';
 import type { BallFade } from './ballFade';
 import type { Effects } from './effects';
+import { PurpleTunnel } from './introBackdrop';
 import type { KeeperRig } from './keeperRig';
 import { Replay } from './replay';
 
@@ -33,7 +34,12 @@ function setUp() {
   const ball = new THREE.Object3D();
   const replay = new Replay({
     world: { ballStart: { x: 0, y: 0.175, z: 12.4 }, groundY: 0, goal: { lineZ: 0 } } as unknown as WorldConfig,
-    renderer: { setRenderTarget() {}, render() {}, getPixelRatio: () => 1 } as unknown as THREE.WebGLRenderer,
+    renderer: {
+      setRenderTarget() {},
+      render() {},
+      clearDepth() {},
+      getPixelRatio: () => 1,
+    } as unknown as THREE.WebGLRenderer,
     scene: new THREE.Scene(),
     ball,
     ballFade: { shown: 1, showAt() {}, reset() {} } as unknown as BallFade,
@@ -43,6 +49,9 @@ function setUp() {
     hide: [],
     effects: fx.effects as unknown as Effects,
     crowd: { clock: 0, show() {} },
+    tunnel: new PurpleTunnel(),
+    camera: new THREE.PerspectiveCamera(),
+    still: false,
   });
   replay.resize(800, 450);
   return { replay, fx };
