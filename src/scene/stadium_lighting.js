@@ -25,19 +25,18 @@ const SHADOW_CASTERS = ["STATIC_Concrete", "GOAL_Frame", "CORNER_Flag_", "Footba
 const startsWithAny = (name, list) => list.some((p) => name === p || name.startsWith(p));
 
 /**
- * @param {THREE.WebGLRenderer} renderer
- * @param {THREE.Object3D} root        gltf.scene
- * @param {object} opts  { bakes: "bakes/", format: "ktx2" | "webp", standsHQ: false, basisPath: ".../libs/basis/",
- *                         sunShadowMapSize, showMarkings }
- *   standsHQ: load T_Stands_Combined_hq.ktx2 (UASTC, 2.1 MB) instead of the 0.45 MB ETC1S default
+ * Starts downloading the baked light (every texture at once, plus the panorama) without waiting for the
+ * stadium model; pass the result to setupStadiumLighting. Options as for setupStadiumLighting.
  */
-export async function setupStadiumLighting(renderer, root, opts = {}) {
+export function loadStadiumLighting(renderer, opts = {}) {
   const base = opts.bakes ?? "bakes/";
   const fmt = opts.format ?? "ktx2";
   let ktx2 = null;
   if (fmt === "ktx2") {
     ktx2 = new KTX2Loader().setTranscoderPath(opts.basisPath ??
       "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/basis/").detectSupport(renderer);
+    ktx2.init().catch(() => {});                       // fetch the decoder now, not after the first texture
+                                                       // (a failure shows when the textures load)
   }
   const loadTex = async (name, srgb = true) => {
     const file = fmt === "ktx2" && opts.standsHQ && name === "T_Stands_Combined" ? `${name}_hq` : name;
@@ -47,8 +46,26 @@ export async function setupStadiumLighting(renderer, root, opts = {}) {
     t.channel = 1;                                     // second UV set (Lightmap)
     t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
     t.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    return t;
+    return [name, t];
   };
+  const textures = [
+    ...Object.keys(ATLAS.A).map((atlas) => loadTex(`T_${atlas}_Combined`)),
+    ...Object.keys(ATLAS.B).flatMap((atlas) => [loadTex(`T_${atlas}_Lightmap`), loadTex(`T_${atlas}_AO`, false)]),
+  ];
+  const exr = new EXRLoader().loadAsync(`${base}ENV_BallSpot_equirect.exr`);
+  return Promise.all([Promise.all(textures), exr]).then(([t, exr]) => ({ textures: new Map(t), exr }));
+}
+
+/**
+ * @param {THREE.WebGLRenderer} renderer
+ * @param {THREE.Object3D} root        gltf.scene
+ * @param {object} opts  { bakes: "bakes/", format: "ktx2" | "webp", standsHQ: false, basisPath: ".../libs/basis/",
+ *                         sunShadowMapSize, showMarkings }
+ *   standsHQ: load T_Stands_Combined_hq.ktx2 (UASTC, 2.1 MB) instead of the 0.45 MB ETC1S default
+ * @param {Promise} loading  from loadStadiumLighting (started here if not given)
+ */
+export async function setupStadiumLighting(renderer, root, opts = {}, loading = loadStadiumLighting(renderer, opts)) {
+  const { textures, exr } = await loading;
   const meshesOf = (prefixes) => {
     const out = [];
     root.traverse((o) => {
@@ -81,7 +98,7 @@ export async function setupStadiumLighting(renderer, root, opts = {}) {
 
   // ---- group A: unlit baked texture
   for (const [atlas, prefixes] of Object.entries(ATLAS.A)) {
-    const map = await loadTex(`T_${atlas}_Combined`);
+    const map = textures.get(`T_${atlas}_Combined`);
     const mat = new THREE.MeshBasicMaterial({ map, name: `BAKED_${atlas}` });
     for (const m of meshesOf(prefixes)) {
       if (LAMP_MATERIALS.includes(m.material.name)) continue;      // group D stays emissive
@@ -99,8 +116,8 @@ export async function setupStadiumLighting(renderer, root, opts = {}) {
   }
   // ---- group B: PBR + realtime sun + baked indirect light
   for (const [atlas, prefixes] of Object.entries(ATLAS.B)) {
-    const lightMap = await loadTex(`T_${atlas}_Lightmap`);
-    const aoMap = await loadTex(`T_${atlas}_AO`, false);
+    const lightMap = textures.get(`T_${atlas}_Lightmap`);
+    const aoMap = textures.get(`T_${atlas}_AO`);
     for (const m of meshesOf(prefixes)) {
       const mat = own(m, "B");                         // MeshStandardMaterial from the GLB (own one per board)
       mat.lightMap = lightMap; mat.lightMapIntensity = LM_SCALE * Math.PI;   // three.js divides indirect by PI
@@ -111,7 +128,6 @@ export async function setupStadiumLighting(renderer, root, opts = {}) {
     }
   }
   // ---- group C: panorama as soft light + reflections
-  const exr = await new EXRLoader().loadAsync(`${base}ENV_BallSpot_equirect.exr`);
   exr.mapping = THREE.EquirectangularReflectionMapping;
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envMap = pmrem.fromEquirectangular(exr).texture;

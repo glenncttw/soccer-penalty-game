@@ -72,8 +72,17 @@ export const GRASS_TEXTURE_URLS = {
   normal: `${import.meta.env.BASE_URL}assets/grass/grass_normal.jpg`,
 };
 
-/** Loads the grass texture's two pictures, set up to repeat and to blur smoothly in the distance. */
-export async function loadGrassTextures(renderer: THREE.WebGLRenderer) {
+let grassTextures: ReturnType<typeof fetchGrassTextures> | undefined;
+
+/**
+ * Loads the grass texture's two pictures, set up to repeat and to blur smoothly in the distance.
+ * They load only once: call it early to start the download, `applyGrass` then gets the same pictures.
+ */
+export function loadGrassTextures(renderer: THREE.WebGLRenderer) {
+  return (grassTextures ??= fetchGrassTextures(renderer));
+}
+
+async function fetchGrassTextures(renderer: THREE.WebGLRenderer) {
   const loader = new THREE.TextureLoader();
   const [albedo, normal] = await Promise.all([
     loader.loadAsync(GRASS_TEXTURE_URLS.albedo),

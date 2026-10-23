@@ -1,10 +1,20 @@
 import * as THREE from 'three';
-import { setupStadiumLighting } from './stadium_lighting.js';
+import { loadStadiumLighting, setupStadiumLighting, type StadiumLightingOptions } from './stadium_lighting.js';
 
 /** The light baked in Blender: KTX2 pictures (with WebP copies as a fallback) and a panorama. */
 const BAKES_URL = `${import.meta.env.BASE_URL}assets/stadium/bakes/`;
 /** The KTX2 decoder, copied from node_modules/three/examples/jsm/libs/basis/ so it's served with the game. */
 const BASIS_URL = `${import.meta.env.BASE_URL}basis/`;
+
+const OPTIONS: StadiumLightingOptions = { bakes: BAKES_URL, format: 'ktx2', standsHQ: false, basisPath: BASIS_URL };
+
+/**
+ * Starts downloading the baked light (all of it at once). It doesn't need the stadium model, so it can
+ * download while the page is busy with other things; pass the result to `setUpLighting`.
+ */
+export function loadLighting(renderer: THREE.WebGLRenderer) {
+  return loadStadiumLighting(renderer, OPTIONS);
+}
 
 /**
  * Lights the stadium with the light baked in Blender (see public/assets/stadium/bakes/README.md):
@@ -16,14 +26,14 @@ const BASIS_URL = `${import.meta.env.BASE_URL}basis/`;
  *
  * Call it after applyGrass, so the baked light goes onto the grass's own material.
  * `model` is the glTF scene itself: the sun's shadow area is placed in its coordinates.
+ * `loading` is what `loadLighting` started.
  */
-export async function setUpLighting(renderer: THREE.WebGLRenderer, model: THREE.Object3D) {
-  return setupStadiumLighting(renderer, model, {
-    bakes: BAKES_URL,
-    format: 'ktx2',
-    standsHQ: false,
-    basisPath: BASIS_URL,
-  });
+export async function setUpLighting(
+  renderer: THREE.WebGLRenderer,
+  model: THREE.Object3D,
+  loading: ReturnType<typeof loadLighting> = loadLighting(renderer),
+) {
+  return setupStadiumLighting(renderer, model, OPTIONS, loading);
 }
 
 /** Gives something that moves (the ball, the keeper) the panorama's soft light and reflections, and live shadows. */

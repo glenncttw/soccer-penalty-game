@@ -48,8 +48,18 @@ export interface WorldOptions {
   keeper?: { shapes: readonly KeeperPartShape[]; parts: readonly KeeperPartPose[] };
 }
 
+let started: Promise<void> | undefined;
+
+/**
+ * Gets the physics engine ready (it unpacks and compiles itself, which takes a moment on a phone).
+ * Call it early, while files are still downloading; `createPhysicsWorld` waits for it.
+ */
+export function startPhysics() {
+  return (started ??= RAPIER.init());
+}
+
 export async function createPhysicsWorld(config: WorldConfig, options: WorldOptions = {}): Promise<PhysicsWorld> {
-  await RAPIER.init();
+  await startPhysics();
   const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   world.timestep = FIXED_STEP;
   const g = config.goal;

@@ -1,5 +1,6 @@
-// Types for stadium_lighting.js, which comes with the Blender stadium package
-// unchanged, so a new package can replace it as it is.
+// Types for stadium_lighting.js, which comes with the Blender stadium package. One change of ours:
+// loadStadiumLighting (download every bake at once, before the model is in), which setupStadiumLighting
+// takes as its last argument. Keep it when a new package replaces the file.
 import type * as THREE from 'three';
 
 export interface StadiumLightingOptions {
@@ -16,8 +17,20 @@ export interface StadiumLightingOptions {
   showMarkings?: boolean;
 }
 
+/** The baked textures (by name) and the panorama, downloaded. */
+export interface StadiumLightingFiles {
+  textures: Map<string, THREE.Texture>;
+  exr: THREE.DataTexture;
+}
+
+export function loadStadiumLighting(
+  renderer: THREE.WebGLRenderer,
+  opts?: StadiumLightingOptions,
+): Promise<StadiumLightingFiles>;
+
 export function setupStadiumLighting(
   renderer: THREE.WebGLRenderer,
   root: THREE.Object3D,
   opts?: StadiumLightingOptions,
+  loading?: Promise<StadiumLightingFiles>,
 ): Promise<{ sun: THREE.DirectionalLight | null; envMap: THREE.Texture }>;

@@ -25,12 +25,16 @@ const DRIFT_START = 2.5; // seconds for the drift to grow in, so it never starts
 const FOLLOW_X = 0.2; // how far it moves toward the mouse at the side of the screen, as a share of its size (64 px at 1440 x 800)
 const FOLLOW_Y = 0.12; // and at the top or bottom (38 px)
 const FOLLOW_SPEED = 4.5; // how quickly it catches up with the mouse (per second): calm, never twitchy
-// Clicking the ball: it squashes and stretches like a rubber ball, springs a little toward you and spins on.
-const BOUNCE_SQUASH = 0.16; // how much flatter it gets at first (and then taller, less and less)
+// Clicking the ball: it squashes and stretches like a rubber ball, the way it's hit. Hit near its edge, it's
+// pushed flat from that side and nudged away from it; hit in the middle, it's pushed deeper into the tunnel.
+const BOUNCE_SQUASH = 0.16; // how much flatter it gets at first when hit at its edge (and then taller, less and less)
+const BOUNCE_SQUASH_MIDDLE = 0.07; // and when hit right in the middle
 const BOUNCE_WOBBLES = 2.4; // squash-and-stretch wobbles a second
 const BOUNCE_DAMP = 5.5; // how quickly the wobble dies down (per second)
-const BOUNCE_NEAR = 0.12; // how much closer it springs (a share of its distance)
-const BOUNCE_SPIN = 7.5; // radians a second of extra roll at the start, dying down (about 0.4 turn in all)
+const BOUNCE_DEEP = 0.14; // how much deeper it's pushed when hit in the middle (a share of its distance)
+const BOUNCE_DEEP_EDGE = 0.04; // and when hit at its edge
+const BOUNCE_NUDGE = 0.07; // how far it's nudged away from where it's hit at its edge, as a share of its size
+const BOUNCE_SPIN = 7.5; // radians a second of extra roll when hit at the top (about 0.4 turn in all), back at the bottom
 const BOUNCE_TIME = 1.2; // seconds after which it's still again
 // The first time the intro shows (after loading): the ball flies out of the depth of the tunnel into place.
 const ENTER_DELAY = 0.15; // seconds before it sets off
@@ -76,6 +80,7 @@ export class IntroBall {
   readonly home = new THREE.Vector3();
   private readonly homeOffset = new THREE.Vector3(); // from the ball to its home as Speel nu is pressed
   private bounceTime = Infinity; // seconds since the ball was clicked
+  private readonly hit = { x: 0, y: 0, reach: 0, angle: 0 }; // where it was clicked (see bounce)
   private enterTime = Infinity; // seconds since the intro first showed (its fly-in)
   /** How much wider (x) and taller (y) the ball looks while it bounces: 1, 1 when it's round. */
   readonly squash = { x: 1, y: 1 };
@@ -195,9 +200,18 @@ export class IntroBall {
     return this.state === 'float' && !this.reducedMotion && this.enterTime >= ENTER_DELAY + ENTER_TIME;
   }
 
-  /** The ball was clicked: it bounces (again, if it still was: from where it is, with no jump). */
-  bounce() {
+  /**
+   * The ball was clicked at `x`, `y`: from its middle, in its radius on screen (so -1..1, y down). It bounces the
+   * way it's hit (again, if it still was: from where it is, with no jump).
+   */
+  bounce(x = 0, y = 0) {
     if (!this.bouncy) return;
+    const reach = Math.min(1, Math.hypot(x, y));
+    const k = reach > 0 ? reach / Math.hypot(x, y) : 0;
+    // The way it's squashed, as the camera sees it (y up): toward its middle from where it's hit; straight down
+    // when hit in the very middle.
+    const angle = reach > 0.05 ? Math.atan2(-y, x) : Math.PI / 2;
+    Object.assign(this.hit, { x: x * k, y: y * k, reach, angle });
     this.bounceTime = 0;
   }
 
@@ -227,7 +241,7 @@ export class IntroBall {
     // Rolling fast as it flies in, and a spin on when it's clicked.
     const entered = Math.min(1, Math.max(0, this.enterTime - ENTER_DELAY) / ENTER_TIME);
     if (this.state === 'float') this.roll += ENTER_SPIN * (1 - entered) ** 2 * dt;
-    if (this.bounceTime < BOUNCE_TIME) this.roll += BOUNCE_SPIN * Math.exp(-3 * this.bounceTime) * dt;
+    if (this.bounceTime < BOUNCE_TIME) this.roll -= BOUNCE_SPIN * this.hit.y * Math.exp(-3 * this.bounceTime) * dt;
     // It only follows the mouse while it floats; on Speel nu it eases back to the middle.
     const follow = this.state === 'float' && !this.reducedMotion;
     const k = 1 - Math.exp(-FOLLOW_SPEED * dt);
@@ -246,9 +260,16 @@ export class IntroBall {
     // Flying in from deep in the tunnel, slowing down softly into its place.
     const entered = Math.min(1, Math.max(0, this.enterTime - ENTER_DELAY) / ENTER_TIME);
     away += ENTER_DEPTH * (1 - entered) ** 3;
-    // Clicked: it springs toward you and back.
-    if (this.bounceTime < BOUNCE_TIME) away -= BOUNCE_NEAR * wobble(this.bounceTime, BOUNCE_WOBBLES * 0.6);
-    return { x: size * FOLLOW_X * this.lean.x, y: size * FOLLOW_Y * this.lean.y, away };
+    let x = size * FOLLOW_X * this.lean.x;
+    let y = size * FOLLOW_Y * this.lean.y;
+    // Clicked: pushed deeper and away from where it's hit, then springing back past where it was.
+    if (this.bounceTime < BOUNCE_TIME) {
+      const spring = wobble(this.bounceTime, BOUNCE_WOBBLES * 0.6);
+      away += THREE.MathUtils.lerp(BOUNCE_DEEP, BOUNCE_DEEP_EDGE, this.hit.reach) * spring;
+      x -= size * BOUNCE_NUDGE * this.hit.x * spring;
+      y -= size * BOUNCE_NUDGE * this.hit.y * spring;
+    }
+    return { x, y, away };
   }
 
   /**
@@ -264,15 +285,21 @@ export class IntroBall {
   }
 
   /**
-   * While it bounces the ball squashes and stretches up and down the screen (whichever way it's rolled): its
-   * matrix is worked out here, with the squash along the camera's up and down.
+   * While it bounces the ball squashes and stretches on screen, the way it was hit (whichever way it's rolled):
+   * its matrix is worked out here, with the squash in the camera's view.
    */
   private squashBall() {
     const bouncing = this.state !== 'off' && this.bounceTime < BOUNCE_TIME;
-    const flat = bouncing ? BOUNCE_SQUASH * wobble(this.bounceTime, BOUNCE_WOBBLES) : 0;
-    this.squash.y = 1 - flat;
-    this.squash.x = 1 / Math.sqrt(this.squash.y); // as much wider as it is flatter: it keeps its size
+    const most = THREE.MathUtils.lerp(BOUNCE_SQUASH_MIDDLE, BOUNCE_SQUASH, this.hit.reach);
+    const along = 1 - (bouncing ? most * wobble(this.bounceTime, BOUNCE_WOBBLES) : 0); // the way it's hit
+    const across = 1 / Math.sqrt(along); // as much wider as it is flatter: it keeps its size
+    // How wide and tall that looks on screen (the title's hole round it is an upright oval).
+    const c = Math.cos(this.hit.angle);
+    const sn = Math.sin(this.hit.angle);
+    this.squash.x = Math.hypot(along * c, across * sn);
+    this.squash.y = Math.hypot(along * sn, across * c);
     if (!bouncing) {
+      this.squash.x = this.squash.y = 1;
       this.ball.matrixAutoUpdate = true;
       return;
     }
@@ -282,7 +309,9 @@ export class IntroBall {
     this.camera.getWorldQuaternion(this.cameraTurn);
     this.squashed.compose(ORIGIN, b.quaternion, b.scale);
     this.squashed.premultiply(this.part.makeRotationFromQuaternion(this.cameraTurn.invert()));
-    this.squashed.premultiply(this.part.makeScale(this.squash.x, this.squash.y, this.squash.x));
+    this.squashed.premultiply(this.part.makeRotationZ(-this.hit.angle)); // the way it's hit along x
+    this.squashed.premultiply(this.part.makeScale(along, across, across));
+    this.squashed.premultiply(this.part.makeRotationZ(this.hit.angle));
     this.squashed.premultiply(this.part.makeRotationFromQuaternion(this.cameraTurn.invert())); // back again
     this.squashed.setPosition(b.position);
     b.matrixAutoUpdate = false;

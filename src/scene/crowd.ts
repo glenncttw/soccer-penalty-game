@@ -82,6 +82,7 @@ export class Crowd {
   /** How a person holds a flag (see `hold`), in their own space. */
   readonly holding: Holding;
   private readonly motion: ReturnType<typeof motionUniforms>;
+  private readonly material: THREE.MeshStandardMaterial;
   /** Where each person's flag-bearing numbers are: their look's `aHold` and their place in it. */
   private readonly holds: { attribute: THREE.InstancedBufferAttribute; k: number }[] = [];
   private waveEvery: number;
@@ -106,7 +107,7 @@ export class Crowd {
       obstacles.push(worldTriangles(o));
     });
 
-    const material = sharedMaterial(parts.base);
+    const material = (this.material = sharedMaterial(parts.base));
     const measured: Measured = new Map();
     const looks = parts.heads.map((head) => mergePerson(wearing(parts.base, head), s, measured));
     if (looks.length === 0)
@@ -132,10 +133,7 @@ export class Crowd {
       random,
     });
 
-    if (envMap) {
-      material.envMap = envMap;
-      material.envMapIntensity = 1;
-    }
+    if (envMap) this.light(envMap);
     this.motion = motionUniforms(s);
     this.waveEvery = s.waveEvery;
     this.untilWave = this.waveGap();
@@ -280,6 +278,13 @@ export class Crowd {
   }
 
   /** Seconds until the next Mexican wave: about `waveEvery`, a bit shorter or longer each time. */
+  /** Gives everyone the stadium panorama's soft light (it can come after the crowd is placed). */
+  light(envMap: THREE.Texture) {
+    this.material.envMap = envMap;
+    this.material.envMapIntensity = 1;
+    this.material.needsUpdate = true;
+  }
+
   private waveGap() {
     return this.waveEvery * (0.5 + Math.random());
   }

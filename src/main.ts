@@ -12,7 +12,7 @@ import { shapeShot } from './gameplay/shot';
 import { SlowMotion } from './gameplay/slowMotion';
 import { ShootInput } from './input/shootInput';
 import { FIXED_STEP, solveKick } from './physics/flight';
-import { createPhysicsWorld, type Contact } from './physics/world';
+import { createPhysicsWorld, startPhysics, type Contact } from './physics/world';
 import { AimMarkers } from './scene/aimMarkers';
 import { BallTrail, trailStyle } from './scene/ball';
 import { BallAura } from './scene/ballAura';
@@ -27,10 +27,10 @@ import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera'
 import { IntroBackdrop } from './scene/introBackdrop';
 import { IntroBall } from './scene/introBall';
 import { IntroChips, loadChipModel } from './scene/introChips';
-import { applyGrass } from './scene/grass';
+import { applyGrass, loadGrassTextures } from './scene/grass';
 import { loadKeeperModel } from './scene/keeperAsset';
 import { KeeperRig } from './scene/keeperRig';
-import { lightMovingObject, setUpLighting } from './scene/lighting';
+import { lightMovingObject, loadLighting, setUpLighting } from './scene/lighting';
 import { Replay } from './scene/replay';
 import { REPLAY_SETTINGS } from './scene/replaySettings';
 import { AutoResolution, type AutoMemory } from './scene/autoResolution';
@@ -85,19 +85,24 @@ const scene = new THREE.Scene();
 // The loading bar (in index.html) fills as the files below arrive.
 const preloader = new Preloader();
 
-// The keeper's and the crowd's Blender models load alongside the stadium.
-const keeperAsset = loadKeeperModel();
+// Loading is mostly waiting for files on a phone's connection, so the page does what it can meanwhile.
+// The physics engine unpacks itself, and the landing's font comes in now rather than at the very end.
+void startPhysics();
+void document.fonts.load('700 1em Bazinga');
+// The crowd's and the landing chips' small Blender models load alongside the stadium.
 const chipAsset = loadChipModel();
 const crowdParts = loadCrowdParts(CROWD_SETTINGS.heads.map((h) => h.file));
 const flagLogo = loadFlagLogo(renderer);
-// The Blender stadium is the whole environment: pitch, goal, stands, ball and sun.
+// The Blender stadium is the whole environment: pitch, goal, stands, ball and sun. It comes first, on its
+// own, because placing the crowd needs it.
 const stadium = await loadStadium((f) => preloader.file(f));
+preloader.stadiumLoaded();
+// The rest downloads while the crowd is placed: the keeper, the grass texture and the light baked in Blender.
+const keeperAsset = loadKeeperModel();
+const grassTextures = loadGrassTextures(renderer);
+const lighting = loadLighting(renderer);
 const world = stadium.config;
 scene.add(stadium.environment);
-// The pitch's grass: stripes, texture, shading and painted lines; tweak it in src/scene/grassSettings.ts.
-const grass = await applyGrass(stadium.environment, renderer);
-// The light baked in Blender, plus the live sun. After the grass, so the grass gets the baked light too.
-const { envMap } = await setUpLighting(renderer, stadium.model);
 // The stadium's own animations (the corner flags waving) loop for ever, slowed down with the game.
 const stadiumMotion = new THREE.AnimationMixer(stadium.model);
 for (const clip of stadium.animations) stadiumMotion.clipAction(clip).play();
@@ -111,18 +116,23 @@ const KEEPER_HOME = { x: 0, y: world.groundY, z: world.goal.lineZ + 0.35 };
 // At the end of a round it moves in close to the keeper.
 const view = createGameCamera(world, undefined, KEEPER_HOME);
 const camera = view.camera;
-// The grass texture's blades stand up as seen from where the camera usually is.
-grass.lookFrom(view.restPosition);
 // A soft glow around the floodlight lamps; tweak it in src/scene/floodlightSettings.ts.
 const floodlights = new FloodlightGlow(stadium.environment, view.restPosition);
 scene.add(floodlights.group);
 // The crowd, in rows behind the stand barriers; tweak it in src/scene/crowdSettings.ts.
 // Placing everyone keeps the page busy for a couple of seconds, so the loading bar moves on by itself.
 const parts = await crowdParts;
-await preloader.step(0.78, 2.5);
-const crowd = new Crowd(stadium.environment, parts, envMap);
+await preloader.step(0.7, 2.5);
+const crowd = new Crowd(stadium.environment, parts, null);
 scene.add(crowd.group);
-// Big flags waving in the crowd; tweak them in src/scene/crowdFlagSettings.ts.
+// The pitch's grass: stripes, texture, shading and painted lines; tweak it in src/scene/grassSettings.ts.
+preloader.filesUntil(0.78, [keeperAsset, grassTextures, lighting]);
+const grass = await applyGrass(stadium.environment, renderer);
+// The grass texture's blades stand up as seen from where the camera usually is.
+grass.lookFrom(view.restPosition);
+// The light baked in Blender, plus the live sun. After the grass, so the grass gets the baked light too.
+const { envMap } = await setUpLighting(renderer, stadium.model, lighting);
+crowd.light(envMap);
 const crowdFlags = new CrowdFlags(crowd, envMap, await flagLogo);
 scene.add(crowdFlags.mesh);
 
@@ -200,7 +210,8 @@ window.addEventListener('pointermove', (e) => {
   document.documentElement.classList.toggle('over-ball', introBall.bouncy && onIntroBall(e.clientX, e.clientY));
 });
 window.addEventListener('pointerdown', (e) => {
-  if (onIntroBall(e.clientX, e.clientY)) introBall.bounce();
+  const c = introBallCircle;
+  if (onIntroBall(e.clientX, e.clientY)) introBall.bounce((e.clientX - c.x) / c.radius, (e.clientY - c.y) / c.radius);
 });
 document.documentElement.addEventListener('pointerleave', () => introBall.pointAt(0, 0));
 const introBackdrop = new IntroBackdrop(ballMesh); // the purple tunnel behind it, opening up from the ball
@@ -447,9 +458,6 @@ window.addEventListener('resize', resize);
 // Turning a phone: some browsers only know the new size a moment after the turn.
 screen.orientation?.addEventListener('change', () => requestAnimationFrame(resize));
 resize();
-await preloader.step(0.86, 1);
-replay.warmUp(camera); // sets up the replay's drawing now, so starting one later doesn't stutter
-
 // Add ?edit to the game's address to open the settings editor (see the README).
 if (new URLSearchParams(location.search).has('edit')) {
   const { openSettingsEditor } = await import('./ui/settingsEditor');
@@ -485,9 +493,14 @@ let accumulator = 0;
 let gameTime = 0;
 const PREVIEW_POWER = (PERFECT_MIN + PERFECT_MAX) / 2; // the preview shows a well-struck shot
 
-// Prepares every shader now, so the first frames of the intro don't stutter.
-await preloader.step(0.97, 1.2);
+// Prepares every shader now, so the first frames of the intro don't stutter. The browser can prepare
+// them alongside each other, without holding the page up.
+await preloader.step(0.9, 1.2);
 await renderer.compileAsync(scene, camera);
+// Sets up the replay's drawing now, so starting one later doesn't stutter. After the shaders are ready,
+// or it would prepare them one by one, keeping the page busy.
+await preloader.step(0.97, 0.5);
+replay.warmUp(camera);
 await preloader.done();
 screens.showIntro(true); // with its entrance: the ball flies in, then the logo, the title and the button
 
