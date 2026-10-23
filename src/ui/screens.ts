@@ -103,8 +103,10 @@ export class Screens {
     clearTimeout(this.enterTimer);
     this.end.hidden = true;
     this.intro.classList.remove('leaving');
+    // Once in, it stays 'entered' (not back to plain), or the screens' own pop would start then, after the entrance.
+    this.intro.classList.remove('entered');
     this.intro.classList.toggle('entering', enter);
-    if (enter) this.enterTimer = setTimeout(() => this.intro.classList.remove('entering'), ENTER_TIME);
+    if (enter) this.enterTimer = setTimeout(() => this.intro.classList.replace('entering', 'entered'), ENTER_TIME);
     this.intro.hidden = false;
     this.focus(this.intro);
     this.onIntro();
