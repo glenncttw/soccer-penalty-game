@@ -46,6 +46,11 @@ export interface GrassSettings {
   farLight: number;
   /** 0..1: how dark the soft shadows are where the boards and goal stand, and right under the ball and keeper. */
   contactShadow: number;
+  /**
+   * 0..1: how dark the sun's shadows are on the grass (the goal's, the boards', the keeper's). 1 = full strength.
+   * The ball's own shadow always keeps full strength.
+   */
+  sunShadow: number;
   /** Colour of the painted lines and penalty spot. */
   lineColor: string;
   /** How far blades poke out of the edges of the painted lines and spot (only seen up close). */
@@ -78,6 +83,7 @@ export const GRASS_SETTINGS: GrassSettings = {
   angleShading: 0.25,
   farLight: 0.7,
   contactShadow: 0.6,
+  sunShadow: 0.5,
   lineColor: '#ebe8de',
   lineRagged: 0.04,
   lineWobble: 0.012,

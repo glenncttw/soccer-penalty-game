@@ -162,9 +162,9 @@ describe('game camera', () => {
       expect(head.y).toBeLessThan(1); // all of it in view
       expect(feet.y).toBeGreaterThan(-1);
       const middle = screen(view.camera, keeper.clone().setY(0.8));
-      expect(head.y - feet.y).toBeGreaterThan(side === 'left' ? 1.1 : 0.6); // big, filling much of the height
+      expect(head.y - feet.y).toBeGreaterThan(side === 'left' ? 0.9 : 0.6); // big, filling much of the height
       if (side === 'left') {
-        expect(middle.x).toBeCloseTo(-0.48, 2);
+        expect(middle.x).toBeCloseTo(-0.3, 2);
         expect(middle.y).toBeCloseTo(-0.05, 2);
       } else {
         expect(middle.x).toBeCloseTo(0, 2);

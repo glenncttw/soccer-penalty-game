@@ -218,6 +218,7 @@ if (sun) {
   stadium.environment.updateMatrixWorld(true);
   scene.attach(sun);
   scene.attach(sun.target);
+  grass.sunShines(sun.target.position.clone().sub(sun.position));
 }
 await preloader.step();
 // The crowd, in rows behind the stand barriers.
