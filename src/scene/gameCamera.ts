@@ -29,7 +29,7 @@ const END_ORBIT = THREE.MathUtils.degToRad(25); // round to the keeper's left (o
 const END_ROLL = THREE.MathUtils.degToRad(4); // the picture's tilt
 const END_DRIFT = { angle: THREE.MathUtils.degToRad(6), rise: 0.06, time: 9 }; // the slow drift round it, and its seconds
 const END_FRAME = {
-  wide: { x: -0.48, y: -0.05, height: 0.62 }, // the keeper's middle on screen (-1..1 across and up) and its share of the height
+  wide: { x: -0.3, y: -0.05, height: 0.5 }, // the keeper's middle on screen (-1..1 across and up) and its share of the height
   tall: { x: 0, y: 0.38, height: 0.32 },
 };
 

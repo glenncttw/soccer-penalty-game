@@ -353,6 +353,8 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     uLineGrassTint: { value: 0 },
     uFarLight: { value: 0 },
     uContactShadow: { value: 0 },
+    uSunShadow: { value: 1 },
+    uSunShine: { value: new THREE.Vector3() },
     uContact: { value: contact.texture },
     uContactCorner: { value: contact.corner },
     uContactSize: { value: contact.size },
@@ -380,6 +382,7 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     uniforms.uLineGrassTint.value = settings.lineGrassTint;
     uniforms.uFarLight.value = settings.farLight;
     uniforms.uContactShadow.value = settings.contactShadow;
+    uniforms.uSunShadow.value = settings.sunShadow;
   }
   update(s);
 
@@ -401,7 +404,8 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${GRASS_PARS}`)
       .replace('#include <map_fragment>', `#include <map_fragment>\n${GRASS_COLOR}`)
-      .replace('#include <normal_fragment_maps>', GRASS_NORMAL);
+      .replace('#include <normal_fragment_maps>', GRASS_NORMAL)
+      .replace('#include <lights_fragment_begin>', GRASS_SUN_SHADOW);
   };
   material.addEventListener('dispose', () => {
     textures.albedo.dispose();
@@ -432,7 +436,11 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
   function lookFrom(position: THREE.Vector3) {
     uniforms.uViewFrom.value = position;
   }
-  return { material, update, lookFrom, followContacts };
+  /** The way the sun's light goes, so the ball's own shadow keeps its full strength (see GRASS_SUN_SHADOW). */
+  function sunShines(direction: THREE.Vector3) {
+    uniforms.uSunShine.value.copy(direction).normalize();
+  }
+  return { material, update, lookFrom, followContacts, sunShines };
 }
 
 const GRASS_PARS = /* glsl */ `
@@ -464,6 +472,8 @@ uniform float uLineTexture;
 uniform float uLineGrassTint;
 uniform float uFarLight;
 uniform float uContactShadow;
+uniform float uSunShadow;
+uniform vec3 uSunShine; // the way the sunlight goes (0 when there's no sun)
 uniform sampler2D uContact;
 uniform vec2 uContactCorner;
 uniform vec2 uContactSize;
@@ -651,6 +661,25 @@ const GRASS_COLOR = /* glsl */ `
 
   diffuseColor.rgb *= max(grass, vec3(0.0));
 `;
+
+// The sun's shadows on the grass, lighter than three draws them (uSunShadow): seen up close (the end screen)
+// a full-strength shadow of the crossbar or the goal's ground bars reads as a black stripe beside the lines.
+// The ball's own shadow stays as dark as before, so the ball still sits firmly on the grass: around the spot
+// where the sun throws the ball's middle (uSunShine, the way the sunlight goes), the full strength is kept.
+const SUN_SHADOW_FROM = 'directionalLightShadow.shadowIntensity,';
+if (!THREE.ShaderChunk.lights_fragment_begin.includes(SUN_SHADOW_FROM))
+  throw new Error('three changed how it draws sun shadows');
+const GRASS_SUN_SHADOW = /* glsl */ `
+  float grassSunShadow = uSunShadow;
+  if (uSunShine.y < -0.05) {
+    vec2 shine = normalize(uSunShine.xz);
+    float sunUp = -uSunShine.y;
+    vec2 fromShadow = grassXZ - (uBall.xy + uSunShine.xz * (max(uBall.z, 0.0) + uBall.w) / sunUp);
+    // The ball's shadow is a circle stretched along the sunlight.
+    vec2 inBall = vec2(dot(fromShadow, shine) * sunUp, dot(fromShadow, vec2(-shine.y, shine.x))) / uBall.w;
+    grassSunShadow = mix(uSunShadow, 1.0, 1.0 - smoothstep(1.4, 2.4, length(inBall)));
+  }
+${THREE.ShaderChunk.lights_fragment_begin.replace(SUN_SHADOW_FROM, 'directionalLightShadow.shadowIntensity * grassSunShadow,')}`;
 
 // The grass's bumps, from the normal map, as the light sees them.
 const GRASS_NORMAL = /* glsl */ `

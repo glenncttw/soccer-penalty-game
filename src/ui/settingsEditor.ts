@@ -41,6 +41,7 @@ const GRASS_ROWS: Record<string, Row<GrassSettings>[]> = {
     ['angleShading', 'Viewing angle', 0, 1, 0.01],
     ['farLight', 'Far grass lighter', 0, 1, 0.01],
     ['contactShadow', 'Contact shadows', 0, 1, 0.01],
+    ['sunShadow', 'Sun shadows', 0, 1, 0.01],
   ],
   'Painted lines': [
     ['lineColor', 'Colour'],
