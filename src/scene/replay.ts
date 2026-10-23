@@ -12,7 +12,7 @@ import type { KeeperRig } from './keeperRig';
 import { REPLAY_ANGLES, replayCameraPose, type ReplayAngle } from './replayCamera';
 import { REPLAY_SETTINGS, type ReplaySettings } from './replaySettings';
 
-const SHADOW = 0x3b1f4f; // the panel's drop shadow: a deep purple
+const SHADOW = palette.crokyPurpleDeep; // the panel's drop shadow: a deep purple
 const POP_TIME = 0.4; // seconds the panel takes to pop in
 const TILT = THREE.MathUtils.degToRad(-1.5); // the panel leans a little, like a sticker
 const TAG_SPACE = 64; // CSS pixels kept free at the top for the "REPLAY" label
@@ -334,14 +334,14 @@ function popIn(x: number) {
   return 1 + (c + 1) * t * t * t + c * t * t;
 }
 
-/** A purple background with wide slanted stripes sliding slowly across. */
+/** A purple background (the landing's) with wide slanted stripes sliding slowly across. */
 function backdropMaterial() {
   return new THREE.ShaderMaterial({
     uniforms: {
       time: { value: 0 },
       size: { value: new THREE.Vector2(1, 1) },
-      dark: { value: new THREE.Color(palette.purple) },
-      light: { value: new THREE.Color(0x7d4a9c) },
+      dark: { value: new THREE.Color(palette.crokyPurple) },
+      light: { value: new THREE.Color(0x4a3096) }, // a touch lighter, like the landing tunnel's lit rings
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
+import { palette } from '../theme';
 
-const COLOR = '#402985'; // Croky purple
+const COLOR = palette.crokyPurple; // Croky purple
 const RIM_COLOR = '#ffcf3a'; // the gold of the Speel nu button
 const RIM_WIDTH = 6; // CSS pixels of gold around the hole
 /** The ball (and the lights on it, and the intro chips) are drawn again on this layer, over the purple. */
