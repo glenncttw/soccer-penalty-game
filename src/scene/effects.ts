@@ -199,6 +199,15 @@ export class Effects {
     this.blades.update(dt);
     this.glitter.update(dt);
   }
+
+  /** Takes away every puff, blade and sparkle at once. */
+  clear() {
+    this.skid = null;
+    this.glitterDue = 0;
+    this.dust.clear();
+    this.blades.clear();
+    this.glitter.clear();
+  }
 }
 
 interface PuffSpec {
@@ -338,6 +347,11 @@ class PuffPool {
     }
     this.mesh.instanceMatrix.needsUpdate = true;
   }
+
+  clear() {
+    for (const s of this.puffs) if (s) s.age = s.life;
+    this.update(0);
+  }
 }
 
 /** A lumpy ball of radius about 1: one blob of a dust puff. */
@@ -463,6 +477,11 @@ class ParticlePool {
     geo.getAttribute('position').needsUpdate = true;
     geo.getAttribute('tint').needsUpdate = true;
     geo.getAttribute('size').needsUpdate = true;
+  }
+
+  clear() {
+    for (const s of this.specs) if (s) s.age = s.life;
+    this.update(0);
   }
 }
 

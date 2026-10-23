@@ -134,6 +134,8 @@ const trail = new BallTrail();
 const aura = new BallAura(world.ballRadius); // the gold glow round the ball on a perfect strike
 const markers = new AimMarkers();
 const effects = new Effects();
+const replayEffects = new Effects(); // the replay makes the dust and glitter again, slowed down like the ball
+replayEffects.group.visible = false;
 
 // The keeper (Glenn's bird with its Blender animations) stands just off its line, toward the ball.
 const { model: keeperModel, animations: keeperAnimations } = await keeperAsset;
@@ -141,7 +143,7 @@ const keeperRig = new KeeperRig(keeperModel, keeperAnimations);
 const keeper = new KeeperMotion(KEEPER_HOME, KEEPER_SKILL, keeperRig);
 lightMovingObject(ballMesh, envMap);
 lightMovingObject(keeperRig.object, envMap);
-scene.add(ballMesh, trail.mesh, aura.mesh, markers.group, effects.group, keeperRig.object);
+scene.add(ballMesh, trail.mesh, aura.mesh, markers.group, effects.group, replayEffects.group, keeperRig.object);
 // Soft shadows on the grass right under the ball and the keeper.
 grass.followContacts(ballMesh, world.ballRadius, keeperRig.shadow);
 
@@ -195,6 +197,7 @@ const replay = new Replay({
   trail,
   aura,
   hide: [effects.group, markers.group],
+  effects: replayEffects,
   crowd: {
     get clock() {
       return crowd.clock;
@@ -260,7 +263,7 @@ input.onRelease = () => {
   hud.showPower(null);
   input.enabled = false;
   lastQuality = shot.quality;
-  replay.begin(gameTime);
+  replay.begin(gameTime, { power: power.value, perfect: shot.quality === 'perfect' });
   coach.shotTaken();
   setPhase('flight');
   events.emit('kick', { power: power.value, quality: shot.quality });

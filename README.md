@@ -90,6 +90,8 @@ Every shot is recorded: where the ball and the keeper are in each frame (`src/ga
 After a big moment, `src/scene/replay.ts` plays the shot back slowly in one tilted panel in the middle of a
 striped purple background. It shows only the ball flying to the goal: it stops 0.3 s after the ball first hits
 the keeper, the post or the bar (for a goal, the net), so you never see the ball bounce back or roll away.
+The replay has its own kick dust, grass puffs and perfect-strike glitter (a second `Effects`): it makes them
+again as it reaches the kick and each recorded frame, and moves them on game time, so they slow down with the ball.
 
 Each replay takes the next of three camera angles (`src/scene/replayCamera.ts`):
 
