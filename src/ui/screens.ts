@@ -1,6 +1,5 @@
 import type { ShotOutcome } from '../gameplay/round';
-import { LINKS } from './links';
-import { LANGUAGES, setLanguage, TEXTS, type Language, type Page, type Texts } from './texts';
+import { TEXTS, type Texts } from './texts';
 
 const LOGO_URL = `${import.meta.env.BASE_URL}assets/crowd/flag_logo.svg`;
 const LEAVE_TIME = 300; // milliseconds, as long as the intro-leave animations in style.css
@@ -8,9 +7,9 @@ const LEAVE_TIME = 300; // milliseconds, as long as the intro-leave animations i
 type TextKey = { [K in keyof Texts]: Texts[K] extends string ? K : never }[keyof Texts];
 
 /**
- * The Croky Cup screens: the intro (Speel nu & Win, and a menu in the top right corner with the
- * prizes, the terms, the cookie policy and the language) and the end of a round with the score.
- * Plain HTML buttons, so the keyboard and screen readers work with them too.
+ * The Croky Cup screens: the intro (Glenn's landing design: logo, title, the 3D ball and Speel nu & Win)
+ * and the end of a round with the score. Plain HTML buttons, so the keyboard and screen readers work
+ * with them too.
  */
 export class Screens {
   onPlay: () => void = () => {};
@@ -22,54 +21,23 @@ export class Screens {
   private readonly root: HTMLElement;
   private readonly intro: HTMLElement;
   private readonly end: HTMLElement;
-  private readonly menu: HTMLElement;
-  private readonly menuToggle: HTMLElement;
-  private readonly menuMain: HTMLElement;
-  private readonly menuPage: HTMLElement;
+  private readonly introTop: HTMLElement;
   private leaveTimer: ReturnType<typeof setTimeout> | undefined;
-  private lastEnd: Parameters<Screens['showEnd']> | null = null;
 
   constructor(parent: HTMLElement) {
     const root = (this.root = document.createElement('div'));
     parent.append(root);
-    const languages = Object.keys(LANGUAGES)
-      .map((l) => `<button class="menu-lang-option" data-act="lang" data-lang="${l}">${l.toUpperCase()}</button>`)
-      .join('');
     root.insertAdjacentHTML(
       'beforeend',
       `<section class="screen intro" hidden>
          <div class="screen-body">
-           <div class="intro-top">
-             <img class="screen-logo" src="${LOGO_URL}" alt="Croky" />
-             <h1 class="screen-title" data-text="title"></h1>
-           </div>
            <div class="intro-ball" aria-hidden="true"></div>
-           <div class="intro-bottom">
-             <button class="btn btn-primary" data-act="play" data-text="play"></button>
+           <div class="intro-top">
+             <img class="intro-logo" src="${LOGO_URL}" alt="Croky" />
+             <h1 class="intro-title" data-text="title"></h1>
            </div>
-         </div>
-         <button class="menu-toggle" data-act="menu-open" aria-expanded="false" aria-controls="intro-menu"
-           data-label="openMenu"><span></span><span></span><span></span></button>
-         <div class="menu" id="intro-menu" role="dialog" aria-modal="true" data-label="menu" hidden>
-           <div class="menu-shade" data-act="menu-close"></div>
-           <div class="menu-panel">
-             <button class="menu-close" data-act="menu-close" data-label="closeMenu">✕</button>
-             <div class="menu-main">
-               <button class="btn btn-primary" data-act="play" data-text="play"></button>
-               <button class="btn btn-secondary" data-act="page" data-page="prizes" data-text="prizes"></button>
-               <div class="menu-links">
-                 <button class="menu-link" data-act="page" data-page="terms" data-text="terms"></button>
-                 <button class="menu-link" data-act="page" data-page="cookies" data-text="cookies"></button>
-               </div>
-               <div class="menu-lang" role="group" data-label="language">
-                 <span class="menu-lang-label" data-text="language"></span>${languages}
-               </div>
-             </div>
-             <div class="menu-page" hidden>
-               <h2 class="menu-page-title"></h2>
-               <p class="menu-page-text"></p>
-               <button class="btn btn-secondary" data-act="page-back" data-text="back"></button>
-             </div>
+           <div class="intro-bottom">
+             <button class="btn btn-primary intro-play" data-act="play" data-text="play"></button>
            </div>
          </div>
        </section>
@@ -87,10 +55,7 @@ export class Screens {
     this.intro = root.querySelector('.screen.intro')!;
     this.end = root.querySelector('.screen.end')!;
     this.ballSlot = root.querySelector('.intro-ball')!;
-    this.menu = root.querySelector('.menu')!;
-    this.menuToggle = root.querySelector('.menu-toggle')!;
-    this.menuMain = root.querySelector('.menu-main')!;
-    this.menuPage = root.querySelector('.menu-page')!;
+    this.introTop = root.querySelector('.intro-top')!;
     this.applyTexts();
 
     for (const screen of [this.intro, this.end]) {
@@ -99,18 +64,13 @@ export class Screens {
         const act = el?.dataset.act;
         if (act === 'play') this.onPlay();
         else if (act === 'menu') this.showIntro();
-        else if (act === 'menu-open') this.openMenu();
-        else if (act === 'menu-close') this.closeMenu();
-        else if (act === 'page') this.openPage(el!.dataset.page as Page);
-        else if (act === 'page-back') this.closePage();
-        else if (act === 'lang') this.switchLanguage(el!.dataset.lang as Language);
       });
     }
+    // The intro's button ring shows for keyboard users only (see .keys in style.css).
     window.addEventListener('keydown', (e) => {
-      if (e.code !== 'Escape' || this.menu.hidden) return;
-      if (!this.menuPage.hidden) this.closePage();
-      else this.closeMenu();
+      if (e.key === 'Tab') root.classList.add('keys');
     });
+    window.addEventListener('pointerdown', () => root.classList.remove('keys'));
   }
 
   /** True while a screen covers the game. */
@@ -137,9 +97,19 @@ export class Screens {
     this.onIntro();
   }
 
+  /**
+   * Where the 3D ball is on screen (CSS pixels), so the intro's title is cut away there and the ball shows in
+   * front of it. Call every frame while the intro is up.
+   */
+  followBall(x: number, y: number, radius: number) {
+    const s = this.introTop.style;
+    s.setProperty('--ball-x', `${x.toFixed(1)}px`);
+    s.setProperty('--ball-y', `${y.toFixed(1)}px`);
+    s.setProperty('--ball-r', `${Math.max(0, radius).toFixed(1)}px`);
+  }
+
   /** Speel nu & Win: the title moves up and the button down, out of the way of the ball, then the intro closes. */
   leaveIntro() {
-    this.closeMenu(false);
     (document.activeElement as HTMLElement | null)?.blur();
     this.intro.classList.add('leaving');
     clearTimeout(this.leaveTimer);
@@ -151,7 +121,6 @@ export class Screens {
 
   /** The end of a round: how it went, the record on this device, and play again or back to the menu. */
   showEnd(results: ShotOutcome[], shots: number, best: number | null, newBest: boolean) {
-    this.lastEnd = [results, shots, best, newBest];
     const goals = results.filter((r) => r === 'goal').length;
     this.end.querySelector('.end-title')!.textContent = TEXTS.endTitle(goals, shots);
     this.end.querySelector('.end-balls')!.innerHTML = scoreBalls(results, shots);
@@ -164,56 +133,10 @@ export class Screens {
 
   hide() {
     clearTimeout(this.leaveTimer);
-    this.closeMenu(false);
     this.intro.classList.remove('leaving');
     (document.activeElement as HTMLElement | null)?.blur(); // so Space doesn't press a hidden button
     this.intro.hidden = true;
     this.end.hidden = true;
-  }
-
-  private openMenu() {
-    this.closePage(false);
-    this.menu.hidden = false;
-    this.menuToggle.setAttribute('aria-expanded', 'true');
-    // No scrolling to the button while the panel is still off to the right: that jumped the page sideways.
-    this.menuMain.querySelector<HTMLElement>('.btn')!.focus({ preventScroll: true });
-  }
-
-  private closeMenu(refocus = true) {
-    if (this.menu.hidden) return;
-    this.menu.hidden = true;
-    this.menuToggle.setAttribute('aria-expanded', 'false');
-    if (refocus) this.menuToggle.focus();
-  }
-
-  /** The prizes, terms or cookie policy: their own page if there's a link, else a short text in the menu. */
-  private openPage(page: Page) {
-    const link = LINKS[TEXTS.lang as Language][page];
-    if (link) {
-      window.open(link, '_blank', 'noopener');
-      return;
-    }
-    this.menuPage.dataset.page = page;
-    this.menuPage.querySelector('.menu-page-title')!.textContent = TEXTS.pages[page].title;
-    this.menuPage.querySelector('.menu-page-text')!.textContent = TEXTS.pages[page].text;
-    this.menuMain.hidden = true;
-    this.menuPage.hidden = false;
-    this.menuPage.querySelector<HTMLElement>('.btn')!.focus();
-  }
-
-  private closePage(refocus = true) {
-    if (this.menuPage.hidden) return;
-    const page = this.menuPage.dataset.page;
-    this.menuPage.hidden = true;
-    this.menuMain.hidden = false;
-    if (refocus) this.menuMain.querySelector<HTMLElement>(`[data-page="${page}"]`)?.focus();
-  }
-
-  private switchLanguage(lang: Language) {
-    setLanguage(lang);
-    this.applyTexts();
-    if (!this.menuPage.hidden) this.openPage(this.menuPage.dataset.page as Page);
-    if (this.lastEnd && !this.end.hidden) this.showEnd(...this.lastEnd);
   }
 
   /** Puts the words of the chosen language into every screen. */
@@ -222,12 +145,6 @@ export class Screens {
     for (const section of [this.intro, this.end]) section.lang = t.lang;
     for (const el of this.root.querySelectorAll<HTMLElement>('[data-text]'))
       el.textContent = t[el.dataset.text as TextKey];
-    for (const el of this.root.querySelectorAll<HTMLElement>('[data-label]')) {
-      el.setAttribute('aria-label', t[el.dataset.label as TextKey]);
-    }
-    for (const el of this.root.querySelectorAll<HTMLElement>('[data-lang]')) {
-      el.setAttribute('aria-pressed', String(el.dataset.lang === t.lang));
-    }
   }
 
   private focus(screen: HTMLElement) {
