@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { OVER_PURPLE_LAYER } from './introBackdrop';
+import { DEEP, OVER_PURPLE_LAYER } from './introBackdrop';
 import { random } from './random';
 
 /** The chip on the intro (from Glenn, made lighter for the web: 256 px WebP pictures, meshopt). */
@@ -19,6 +19,14 @@ const SPREAD = 0.2; // how much wider or narrower than that each chip's circle i
 const POP_IN = 0.1; // share of its life a chip takes to grow to full size as it comes out
 const BURST_TIME = 1; // Speel nu & Win: seconds the chips take to rush out and shrink away
 const BURST_SPEED = 5; // how much faster they come down the tunnel then
+// A chip only starts again once all of it has left the screen. So that it never has to come very close for
+// that, each chip's circle is at least wide enough for it to be all past the corners by EXIT_BY.
+const EXIT_BY = 0.25; // how close a chip may come before it's surely off the screen
+const CLOSEST = 0.2; // a chip never comes closer than this (only a safety net: it has always left by then)
+// Deep in the tunnel the chips are in its shadow: they come out of the dark and slowly light up.
+// They come out from behind the ball between about 1.8 and 2.6 (the narrow circles first).
+const DARK_FROM = 0.9; // closer than this they are fully lit (the ball floats at 1)
+const DARK_TO = 2.6; // and further away they are all dark
 
 interface Chip {
   age: number;
@@ -62,6 +70,9 @@ export class IntroChips {
   private readonly s = new THREE.Vector3();
   private readonly spin = new THREE.Quaternion();
   private readonly matrix = new THREE.Matrix4();
+  private readonly ndc = new THREE.Vector3();
+  private readonly bound: number; // how far a chip reaches from its middle, at size 1
+  private readonly shadow = { uDark: { value: new THREE.Vector2() } }; // DARK_FROM and DARK_TO in world units
 
   constructor(model: THREE.Mesh, count: number) {
     // One chip, centred and as long as 1 (the instances give it its size).
@@ -71,7 +82,9 @@ export class IntroChips {
     const size = box.getSize(new THREE.Vector3());
     geometry.translate(...box.getCenter(new THREE.Vector3()).negate().toArray());
     geometry.scale(...new THREE.Vector3(1, 1, 1).divideScalar(Math.max(size.x, size.y, size.z)).toArray());
-    this.mesh = new THREE.InstancedMesh(geometry, model.material, count);
+    geometry.computeBoundingSphere();
+    this.bound = geometry.boundingSphere!.radius;
+    this.mesh = new THREE.InstancedMesh(geometry, inShadow([model.material].flat()[0], this.shadow), count);
     this.mesh.layers.set(OVER_PURPLE_LAYER); // only drawn over the purple, never in the stadium pass
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;
@@ -87,7 +100,7 @@ export class IntroChips {
    * Call every frame after the ball has been placed (and the camera moved). 'swirl' (the tunnel) while the intro
    * waits, 'burst' as the ball flies down, 'off' otherwise.
    */
-  update(dt: number, camera: THREE.PerspectiveCamera, ball: THREE.Object3D, mode: ChipsMode) {
+  update(dt: number, camera: THREE.PerspectiveCamera, ball: { position: THREE.Vector3 }, mode: ChipsMode) {
     if (mode === 'off') {
       this.mesh.visible = false;
       this.burst = 0; // all back for next time
@@ -100,20 +113,17 @@ export class IntroChips {
     const halfHeight = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
     const halfDiagonal = halfHeight * Math.hypot(1, camera.aspect);
     const away = -this.anchor.z; // the ball's distance
+    this.shadow.uDark.value.set(DARK_FROM * away, DARK_TO * away);
     this.burst = mode === 'burst' ? this.burst + dt : 0;
     const out = smoothstep(0, BURST_TIME, this.burst); // 0 while swirling, 1 once they've all rushed off
 
     this.chips.forEach((chip, i) => {
       chip.age += dt * (1 + BURST_SPEED * out);
-      if (chip.age >= LIFE) this.respawn(chip);
+      // It has done its round once it's past the edge of the screen, all of it (never cut off by the edge);
+      // only then does it start again at the back.
+      if (chip.age >= LIFE && (this.place(chip, halfDiagonal, away, camera) || this.closest(chip))) this.respawn(chip);
+      this.place(chip, halfDiagonal, away, camera);
       const u = chip.age / LIFE;
-      // Down the tunnel at a steady speed, so a chip seems to speed up and grow as it comes close.
-      const depth = away * (FAR + (NEAR - FAR) * u);
-      // The tunnel's wall: the same width all the way, so seen from the camera the circles open up.
-      const radius = REACH * chip.wide * halfDiagonal * NEAR * away;
-      const angle = chip.start + TURNS * 2 * Math.PI * u;
-      this.p.set(this.anchor.x + Math.cos(angle) * radius, this.anchor.y + Math.sin(angle) * radius, -depth);
-      this.p.applyMatrix4(camera.matrixWorld);
 
       this.spin.setFromAxisAngle(chip.spinAxis, chip.spinSpeed * chip.age);
       this.q.copy(camera.quaternion).multiply(this.spin).multiply(chip.turn);
@@ -122,6 +132,36 @@ export class IntroChips {
       this.mesh.setMatrixAt(i, this.matrix.compose(this.p, this.q, this.s));
     });
     this.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * Puts the chip's middle where it is now in `p`: down the tunnel at a steady speed, so it seems to speed up
+   * and grow as it comes close, circling round the ball. True when no part of it is on the screen.
+   */
+  private place(chip: Chip, halfDiagonal: number, away: number, camera: THREE.PerspectiveCamera) {
+    const u = chip.age / LIFE;
+    const depth = away * (FAR + (NEAR - FAR) * u);
+    // The tunnel's wall: the same width all the way, so seen from the camera the circles open up. (A chip
+    // looks a little stretched toward the edge, up to sqrt(1 + (2 x halfDiagonal)^2) as it leaves.)
+    const reach = this.bound * chip.size;
+    const fit = halfDiagonal * EXIT_BY + reach * Math.hypot(1, 2 * halfDiagonal);
+    const radius = Math.max(REACH * chip.wide * halfDiagonal * NEAR, fit) * away;
+    const angle = chip.start + TURNS * 2 * Math.PI * u;
+    const x = this.anchor.x + Math.cos(angle) * radius;
+    const y = this.anchor.y + Math.sin(angle) * radius;
+    this.p.set(x, y, -depth).applyMatrix4(camera.matrixWorld);
+    // Off the screen when all of it, as it looks from the camera, is past an edge.
+    const n = this.ndc.copy(this.p).project(camera);
+    const stretch = Math.hypot(x, y, depth) / depth; // stretched toward the edges
+    const e = camera.projectionMatrix.elements;
+    const across = ((reach * away * e[0]) / depth) * stretch;
+    const up = ((reach * away * e[5]) / depth) * stretch;
+    return Math.hypot(Math.max(0, Math.abs(n.x) - 1) / across, Math.max(0, Math.abs(n.y) - 1) / up) > 1;
+  }
+
+  /** True once the chip has come as close as it may (only a safety net: it has always left the screen by then). */
+  private closest(chip: Chip) {
+    return FAR + (NEAR - FAR) * (chip.age / LIFE) <= CLOSEST;
   }
 
   private respawn(chip: Chip) {
@@ -158,4 +198,28 @@ function toFloat(source: THREE.BufferGeometry) {
 function smoothstep(a: number, b: number, x: number) {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
+}
+
+/**
+ * The chips' own material, darkened toward the tunnel's deep purple the further away they are (from `dark.x`
+ * to all dark at `dark.y`, as seen from the camera), the way the tunnel's walls fade into its dark end.
+ */
+function inShadow(source: THREE.Material, uniforms: { uDark: { value: THREE.Vector2 } }) {
+  const material = source.clone();
+  // Mixed in after the colours are made ready for the screen, like three's fog: so in the screen's colours too.
+  const deep = { value: new THREE.Color(DEEP).getRGB(new THREE.Color(), THREE.SRGBColorSpace) };
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms, { uDeep: deep });
+    shader.vertexShader = shader.vertexShader
+      .replace('void main() {', 'varying float vChipDepth;\nvoid main() {')
+      .replace('#include <project_vertex>', '#include <project_vertex>\n  vChipDepth = -mvPosition.z;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', 'uniform vec2 uDark;\nuniform vec3 uDeep;\nvarying float vChipDepth;\nvoid main() {')
+      .replace(
+        '#include <fog_fragment>',
+        '#include <fog_fragment>\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, uDeep, smoothstep(uDark.x, uDark.y, vChipDepth));',
+      );
+  };
+  material.customProgramCacheKey = () => 'intro-chip-shadow';
+  return material;
 }

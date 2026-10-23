@@ -435,7 +435,7 @@ body {
   min-height: 0;
   padding: 0 0 calc(5 * var(--bu)); /* the font sits low in its line: this centres the capitals */
   background: #fc4846;
-  color: #000000;
+  color: #ffffff;
   font:
     700 calc(23 * var(--bu)) / 1 Bazinga,
     system-ui,

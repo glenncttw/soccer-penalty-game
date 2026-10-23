@@ -17,6 +17,13 @@ const FLY_ARC = 0.3; // metres the ball rises above a straight line halfway up (
 const LIFT_TIME = 0.8; // seconds back up from the spot into the intro (Menu on the end screen)
 const STILL_WAIT = 0.3; // with reduced motion: no flight, the ball is just on the spot after this
 const REVEAL_TIME = 0.9; // seconds for the opening to grow past the corners of the screen
+// While it floats it drifts slowly deeper into the tunnel and back toward you, and follows the mouse a little.
+const DRIFT_DEPTH = 0.1; // how much further away (and closer) it drifts, as a share of how far away it floats
+const DRIFT_TIME = 5; // seconds for one drift in and back out
+const DRIFT_START = 2.5; // seconds for the drift to grow in, so it never starts with a jerk
+const FOLLOW_X = 0.2; // how far it moves toward the mouse at the side of the screen, as a share of its size (64 px at 1440 x 800)
+const FOLLOW_Y = 0.12; // and at the top or bottom (38 px)
+const FOLLOW_SPEED = 3; // how quickly it catches up with the mouse (per second): calm, never twitchy
 
 /** Something on screen the ball is drawn in: the intro's empty space between the title and the buttons. */
 export interface BallSlot {
@@ -45,6 +52,16 @@ export class IntroBall {
   private slot: BallSlot | null = null;
   private onDone = () => {};
   private roll = 0; // radians it has rolled forward
+  private floatTime = 0; // seconds it has floated in the slot (for its drift)
+  private readonly pointer = { x: 0, y: 0 }; // where the mouse is, -1..1 from the middle of the screen
+  /** How far it follows the mouse, smoothed: -1..1 across and down. */
+  readonly lean = { x: 0, y: 0 };
+  /**
+   * Where the tunnel and its chips are centred: where the ball floats without its drift and without following
+   * the mouse (so the ball moves in the tunnel, not the tunnel with it), then with the ball once it flies.
+   */
+  readonly home = new THREE.Vector3();
+  private readonly homeOffset = new THREE.Vector3(); // from the ball to its home as Speel nu is pressed
   private rollFrom = 0; // at the start of the flight
   private rollTo = 0; // at the end: whole turns, so it lands exactly as it rests
   private readonly turn = new THREE.Quaternion();
@@ -142,7 +159,14 @@ export class IntroBall {
       this.roll = 0;
     }
     this.state = lifting ? 'lift' : 'float';
+    this.floatTime = 0;
     setShadow(this.ball, this.state === 'lift');
+  }
+
+  /** Where the mouse is (-1..1 across and down from the middle of the screen); 0, 0 when it's gone. */
+  pointAt(x: number, y: number) {
+    this.pointer.x = THREE.MathUtils.clamp(x, -1, 1);
+    this.pointer.y = THREE.MathUtils.clamp(y, -1, 1);
   }
 
   /** Flies the ball onto the spot; `onDone` once it rests there. */
@@ -153,6 +177,7 @@ export class IntroBall {
     this.onDone = onDone;
     this.camera.updateMatrixWorld();
     this.fromView.copy(this.ball.position).applyMatrix4(this.camera.matrixWorldInverse);
+    this.homeOffset.subVectors(this.home, this.ball.position);
     this.rollFrom = this.roll;
     const turn = 2 * Math.PI;
     this.rollTo = this.reducedMotion ? this.roll : Math.ceil((this.rollFrom + FLY_TURNS * turn) / turn) * turn;
@@ -163,7 +188,24 @@ export class IntroBall {
   advance(dt: number) {
     if (this.state === 'off') return;
     this.time += dt;
+    if (this.state === 'float') this.floatTime += dt;
     if (!this.reducedMotion && this.state !== 'land') this.roll += SPIN_SPEED * dt;
+    // It only follows the mouse while it floats; on Speel nu it eases back to the middle.
+    const follow = this.state === 'float' && !this.reducedMotion;
+    const k = 1 - Math.exp(-FOLLOW_SPEED * dt);
+    this.lean.x += ((follow ? this.pointer.x : 0) - this.lean.x) * k;
+    this.lean.y += ((follow ? this.pointer.y : 0) - this.lean.y) * k;
+  }
+
+  /**
+   * Where the floating ball is moved from the middle of its slot: x and y in pixels toward the mouse, and
+   * `away` how much further from the camera it is (a share of its distance: deeper into the tunnel, or closer).
+   */
+  private offset(size: number) {
+    if (this.reducedMotion || this.state !== 'float') return { x: 0, y: 0, away: 0 };
+    const grow = THREE.MathUtils.smoothstep(this.floatTime, 0, DRIFT_START);
+    const away = DRIFT_DEPTH * grow * Math.sin((2 * Math.PI * this.floatTime) / DRIFT_TIME);
+    return { x: size * FOLLOW_X * this.lean.x, y: size * FOLLOW_Y * this.lean.y, away };
   }
 
   /**
@@ -179,12 +221,14 @@ export class IntroBall {
 
     if (this.state === 'float') {
       if (this.slotPosition(this.target)) this.ball.position.copy(this.target);
+      if (!this.slotPosition(this.home, false)) this.home.copy(this.ball.position);
       this.rolled(this.base);
     } else if (this.state === 'lift') {
       const s = easeInOutCubic(Math.min(1, this.time / LIFT_TIME));
       if (!this.slotPosition(this.target)) this.target.copy(this.from);
       flightPoint(this.from, this.target, s, FLY_ARC, this.ball.position);
       this.rolled(this.base);
+      this.home.copy(this.ball.position);
       if (s === 1) this.float(this.slot!);
     } else {
       this.target.set(restPosition.x, restPosition.y, restPosition.z);
@@ -217,6 +261,9 @@ export class IntroBall {
       const halfHeight = -p.z * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2);
       p.y += RISE * halfHeight * Math.sin(Math.PI * s);
       p.applyMatrix4(this.camera.matrixWorld);
+      // The tunnel goes over to the ball while it swings in.
+      const settle = 1 - THREE.MathUtils.smoothstep(this.time, 0, TURN_TIME);
+      this.home.copy(p).addScaledVector(this.homeOffset, settle);
       // Rolls forward faster on the way, slowing down with the flight, and stops after whole turns: so
       // it ends up exactly as it rests on the spot, without ever turning another way. It carries on
       // with its floating spin at first, which fades out as the flight takes over.
@@ -236,19 +283,24 @@ export class IntroBall {
     this.onDone();
   }
 
-  /** Where the ball looks exactly as big as the slot, in the middle of it. False when the slot isn't shown. */
-  private slotPosition(out: THREE.Vector3) {
+  /**
+   * Where the ball looks exactly as big as the slot, in the middle of it (`moved`: with its drift and following
+   * the mouse). False when the slot isn't shown.
+   */
+  private slotPosition(out: THREE.Vector3, moved = true) {
     const r = this.slot?.getBoundingClientRect();
     const v = this.view.getBoundingClientRect();
     if (!r || r.width === 0 || r.height === 0 || v.height === 0) return false;
-    const cx = r.left + r.width / 2 - v.left;
-    const cy = r.top + r.height / 2 - v.top;
+    const size = Math.min(r.width, r.height);
+    const shift = moved ? this.offset(size) : { x: 0, y: 0, away: 0 };
+    const cx = r.left + r.width / 2 - v.left + shift.x;
+    const cy = r.top + r.height / 2 - v.top + shift.y;
     this.camera.updateMatrixWorld();
     // The camera's view window may be shifted (cameraSettings verticalShift); unproject knows about that.
     this.ray.set((cx / v.width) * 2 - 1, 1 - (cy / v.height) * 2, 0.5).unproject(this.camera);
     this.ray.sub(this.camera.position).normalize();
     this.camera.getWorldDirection(this.forward);
-    const depth = slotDepth(this.radius, Math.min(r.width, r.height), v.height, this.camera.fov);
+    const depth = slotDepth(this.radius, size, v.height, this.camera.fov) * (1 + shift.away);
     out.copy(this.camera.position).addScaledVector(this.ray, depth / this.ray.dot(this.forward));
     return true;
   }

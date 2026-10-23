@@ -102,7 +102,7 @@ describe('IntroBall', () => {
     for (const [w, h] of SCREENS) {
       const { view, camera, ball, slot, intro, frame } = setUp(w, h);
       intro.float(slot);
-      for (let i = 0; i < 120; i++) frame(); // spins a while
+      for (let i = 0; i < 120; i++) frame(); // spins (and drifts) a while
       let done = 0;
       intro.land(() => done++);
       const heights: number[] = [];
@@ -110,7 +110,8 @@ describe('IntroBall', () => {
         frame();
         const seen = onScreen(ball, camera, w, h);
         expect(seen.depth).toBeGreaterThan(0.4);
-        expect(Math.abs(seen.x - w / 2)).toBeLessThan(w * 0.01); // straight down the middle: no swinging side to side
+        // Straight down: no swinging side to side.
+        expect(Math.abs(seen.x - w / 2)).toBeLessThan(w * 0.01);
         expect(Math.abs(seen.y - h / 2)).toBeLessThan(h / 2);
         expect(ball.position.y).toBeGreaterThan(RADIUS - 1e-6);
         heights.push(ball.position.y);
@@ -182,8 +183,56 @@ describe('IntroBall', () => {
     frame();
     expect(ball.position.distanceTo(new THREE.Vector3(SPOT.x, SPOT.y, SPOT.z))).toBeLessThan(0.01);
     for (let i = 0; i < 60; i++) frame();
-    expect(onScreen(ball, camera, 1280, 720).size).toBeCloseTo(size, 3);
+    expect(onScreen(ball, camera, 1280, 720).size / size).toBeCloseTo(1, 2); // its drift in and out only just starting
     expect(intro.landing).toBe(false);
+  });
+
+  it('drifts slowly deeper into the tunnel and back while it floats, growing in gently and staying in the middle', () => {
+    const w = 1280;
+    const h = 720;
+    const { camera, ball, slot, size, intro, frame } = setUp(w, h);
+    intro.float(slot);
+    const base = slotDepth(RADIUS, size, h, camera.fov);
+    const depths: number[] = [];
+    for (let i = 0; i < 60 * 12; i++) {
+      frame();
+      const seen = onScreen(ball, camera, w, h);
+      depths.push(seen.depth / base);
+      expect(seen.x).toBeCloseTo(w / 2, 3);
+      expect(seen.y).toBeCloseTo(h / 2, 3);
+    }
+    expect(Math.abs(depths[0] - 1)).toBeLessThan(1e-4); // no jump at the start
+    expect(Math.max(...depths)).toBeCloseTo(1.1, 2); // first deeper into the tunnel
+    expect(Math.min(...depths)).toBeCloseTo(0.9, 2); // then closer to you
+    expect(depths.findIndex((d) => d > 1.01)).toBeLessThan(depths.findIndex((d) => d < 0.99));
+    for (let i = 1; i < depths.length; i++) expect(Math.abs(depths[i] - depths[i - 1])).toBeLessThan(0.003); // slow and smooth
+  });
+
+  it('follows the mouse a little, calmly, and back to the middle on Speel nu', () => {
+    const w = 1280;
+    const h = 720;
+    const { camera, ball, slot, size, intro, frame } = setUp(w, h);
+    intro.float(slot);
+    intro.pointAt(1, -1); // top right
+    frame();
+    expect(intro.lean.x).toBeGreaterThan(0);
+    expect(intro.lean.x).toBeLessThan(0.1); // it doesn't jump there
+    for (let i = 0; i < 120; i++) frame();
+    expect(intro.lean.x).toBeGreaterThan(0.99);
+    expect(intro.lean.y).toBeLessThan(-0.99);
+    const seen = onScreen(ball, camera, w, h);
+    expect(seen.x - w / 2).toBeCloseTo(0.2 * size, 0); // right toward the mouse
+    expect(h / 2 - seen.y).toBeCloseTo(0.12 * size, 0); // and up
+    // The tunnel stays where it was: only the ball moves in it.
+    const marker = new THREE.Object3D();
+    marker.position.copy(intro.home);
+    const home = onScreen(marker, camera, w, h);
+    expect(home.x).toBeCloseTo(w / 2, 3);
+    expect(home.y).toBeCloseTo(h / 2, 3);
+    expect(home.size).toBeCloseTo(size, 3);
+    intro.land(() => {});
+    for (let i = 0; i < 120; i++) frame();
+    expect(Math.abs(intro.lean.x)).toBeLessThan(0.01);
   });
 
   it('with reduced motion, stands still, keeps the camera where you shoot from, then is simply on the spot', () => {
@@ -192,6 +241,9 @@ describe('IntroBall', () => {
     for (let i = 0; i < 60; i++) frame();
     expect(ball.quaternion.angleTo(new THREE.Quaternion())).toBe(0);
     expect(camera.position.distanceTo(view.restPosition)).toBeLessThan(1e-9);
+    intro.pointAt(1, 1);
+    for (let i = 0; i < 60; i++) frame();
+    expect(intro.lean).toEqual({ x: 0, y: 0 }); // no drift, no leaning toward the mouse
     let done = false;
     intro.land(() => (done = true));
     frame(0.4);
