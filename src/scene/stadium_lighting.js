@@ -25,10 +25,10 @@ const SHADOW_CASTERS = ["STATIC_Concrete", "GOAL_Frame", "CORNER_Flag_", "Footba
 const startsWithAny = (name, list) => list.some((p) => name === p || name.startsWith(p));
 
 /**
- * Starts downloading the baked light (every texture at once, plus the panorama) without waiting for the
- * stadium model; pass the result to setupStadiumLighting. Options as for setupStadiumLighting.
+ * Starts downloading the baked textures (all at once) without waiting for the stadium model; pass the
+ * result to setupStadiumLighting as `files.bakes`. Options as for setupStadiumLighting.
  */
-export function loadStadiumLighting(renderer, opts = {}) {
+export function loadStadiumBakes(renderer, opts = {}) {
   const base = opts.bakes ?? "bakes/";
   const fmt = opts.format ?? "ktx2";
   let ktx2 = null;
@@ -48,12 +48,24 @@ export function loadStadiumLighting(renderer, opts = {}) {
     t.anisotropy = renderer.capabilities.getMaxAnisotropy();
     return [name, t];
   };
-  const textures = [
+  return Promise.all([
     ...Object.keys(ATLAS.A).map((atlas) => loadTex(`T_${atlas}_Combined`)),
     ...Object.keys(ATLAS.B).flatMap((atlas) => [loadTex(`T_${atlas}_Lightmap`), loadTex(`T_${atlas}_AO`, false)]),
-  ];
-  const exr = new EXRLoader().loadAsync(`${base}ENV_BallSpot_equirect.exr`);
-  return Promise.all([Promise.all(textures), exr]).then(([t, exr]) => ({ textures: new Map(t), exr }));
+  ]).then((t) => new Map(t));
+}
+
+/**
+ * Downloads the panorama and turns it into the soft light and reflections (group C) without waiting for
+ * the stadium model; pass the result to setupStadiumLighting as `files.envMap`.
+ */
+export async function loadStadiumPanorama(renderer, opts = {}) {
+  const base = opts.bakes ?? "bakes/";
+  const exr = await new EXRLoader().loadAsync(`${base}ENV_BallSpot_equirect.exr`);
+  exr.mapping = THREE.EquirectangularReflectionMapping;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envMap = pmrem.fromEquirectangular(exr).texture;
+  exr.dispose(); pmrem.dispose();
+  return envMap;
 }
 
 /**
@@ -62,10 +74,13 @@ export function loadStadiumLighting(renderer, opts = {}) {
  * @param {object} opts  { bakes: "bakes/", format: "ktx2" | "webp", standsHQ: false, basisPath: ".../libs/basis/",
  *                         sunShadowMapSize, showMarkings }
  *   standsHQ: load T_Stands_Combined_hq.ktx2 (UASTC, 2.1 MB) instead of the 0.45 MB ETC1S default
- * @param {Promise} loading  from loadStadiumLighting (started here if not given)
+ * @param {object} files  { bakes, envMap }: from loadStadiumBakes and loadStadiumPanorama (started here if not given)
  */
-export async function setupStadiumLighting(renderer, root, opts = {}, loading = loadStadiumLighting(renderer, opts)) {
-  const { textures, exr } = await loading;
+export async function setupStadiumLighting(renderer, root, opts = {}, files = {}) {
+  const [textures, envMap] = await Promise.all([
+    files.bakes ?? loadStadiumBakes(renderer, opts),
+    files.envMap ?? loadStadiumPanorama(renderer, opts),
+  ]);
   const meshesOf = (prefixes) => {
     const out = [];
     root.traverse((o) => {
@@ -128,10 +143,6 @@ export async function setupStadiumLighting(renderer, root, opts = {}, loading = 
     }
   }
   // ---- group C: panorama as soft light + reflections
-  exr.mapping = THREE.EquirectangularReflectionMapping;
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envMap = pmrem.fromEquirectangular(exr).texture;
-  exr.dispose(); pmrem.dispose();
   for (const m of meshesOf(GROUP_C)) {
     const mat = own(m, "C");
     mat.lightMap = null; mat.aoMap = null;             // realtime objects never carry baked light

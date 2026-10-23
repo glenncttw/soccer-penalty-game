@@ -3,7 +3,7 @@ import { TEXTS, type Texts } from './texts';
 
 const LOGO_URL = `${import.meta.env.BASE_URL}assets/crowd/flag_logo.svg`;
 const LEAVE_TIME = 300; // milliseconds, as long as the intro-leave animations in style.css
-const ENTER_TIME = 2100; // milliseconds of the intro's entrance after loading (the intro-enter animations in style.css)
+export const ENTER_TIME = 2100; // milliseconds of the intro's entrance after loading (the intro-enter animations in style.css)
 const ARCH = 22 / 135; // how much higher the middle of the title is than its ends, in its letters' height (22 px)
 
 type TextKey = { [K in keyof Texts]: Texts[K] extends string ? K : never }[keyof Texts];
@@ -122,6 +122,25 @@ export class Screens {
     s.setProperty('--ball-y', `${y.toFixed(1)}px`);
     s.setProperty('--ball-rx', `${Math.max(0, radiusX).toFixed(1)}px`);
     s.setProperty('--ball-ry', `${Math.max(0, radiusY).toFixed(1)}px`);
+  }
+
+  /**
+   * While the game is still loading behind the intro: a thin bar along the bottom of the Speel nu button fills
+   * up to `fraction` (0..1); null takes it away (the game is in).
+   */
+  gameLoading(fraction: number | null) {
+    const button = this.intro.querySelector<HTMLElement>('.intro-play')!;
+    button.classList.toggle('loading', fraction !== null);
+    if (fraction === null) button.classList.remove('waiting');
+    else button.style.setProperty('--loaded', fraction.toFixed(3));
+  }
+
+  /** Speel nu was pressed before the game is in: the button wiggles, and the game starts once it's in. */
+  waitToPlay() {
+    const button = this.intro.querySelector<HTMLElement>('.intro-play')!;
+    button.classList.remove('waiting');
+    void button.offsetWidth; // so the wiggle starts again on every press
+    button.classList.add('waiting');
   }
 
   /** Speel nu & Win: the title moves up and the button down, out of the way of the ball, then the intro closes. */

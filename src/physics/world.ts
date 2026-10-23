@@ -1,4 +1,4 @@
-import RAPIER from '@dimforge/rapier3d-compat';
+import type RAPIER from '@dimforge/rapier3d-compat';
 import { AERO_RADIUS, BALL_MASS } from '../dimensions';
 import type { WorldConfig } from '../worldConfig';
 import { aeroForce, type Vec3 } from './ballForces';
@@ -48,18 +48,21 @@ export interface WorldOptions {
   keeper?: { shapes: readonly KeeperPartShape[]; parts: readonly KeeperPartPose[] };
 }
 
-let started: Promise<void> | undefined;
+let started: Promise<typeof RAPIER> | undefined;
 
 /**
- * Gets the physics engine ready (it unpacks and compiles itself, which takes a moment on a phone).
- * Call it early, while files are still downloading; `createPhysicsWorld` waits for it.
+ * Gets the physics engine ready: it's a big download of its own (not needed for the landing), and then it
+ * unpacks and compiles itself, which takes a moment on a phone. `createPhysicsWorld` waits for it.
  */
 export function startPhysics() {
-  return (started ??= RAPIER.init());
+  return (started ??= import('@dimforge/rapier3d-compat').then(async ({ default: rapier }) => {
+    await rapier.init();
+    return rapier;
+  }));
 }
 
 export async function createPhysicsWorld(config: WorldConfig, options: WorldOptions = {}): Promise<PhysicsWorld> {
-  await startPhysics();
+  const RAPIER = await startPhysics();
   const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   world.timestep = FIXED_STEP;
   const g = config.goal;
@@ -160,7 +163,7 @@ export async function createPhysicsWorld(config: WorldConfig, options: WorldOpti
     ball,
   );
 
-  const keeper = options.keeper ? createKeeper(world, add, options.keeper.shapes, options.keeper.parts) : null;
+  const keeper = options.keeper ? createKeeper(RAPIER, world, add, options.keeper.shapes, options.keeper.parts) : null;
 
   const events = new RAPIER.EventQueue(true);
   let contacts: Contact[] = [];
@@ -226,6 +229,7 @@ export async function createPhysicsWorld(config: WorldConfig, options: WorldOpti
  * diving glove pushes the ball away like a real save.
  */
 function createKeeper(
+  RAPIER: typeof import('@dimforge/rapier3d-compat').default,
   world: RAPIER.World,
   add: (desc: RAPIER.ColliderDesc, surface: Surface, body?: RAPIER.RigidBody) => RAPIER.Collider,
   shapes: readonly KeeperPartShape[],

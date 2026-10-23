@@ -480,6 +480,29 @@ body {
   outline-offset: calc(4 * var(--bu));
 }
 
+/* While the game loads behind the intro, a thin bar along the bottom of the button fills up (src/ui/screens.ts). */
+.intro-play.btn::after {
+  content: '';
+  position: absolute;
+  left: calc(28 * var(--bu));
+  right: calc(28 * var(--bu));
+  bottom: calc(9 * var(--bu));
+  height: calc(4 * var(--bu));
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffffff calc(var(--loaded, 1) * 100%), rgba(255, 255, 255, 0.3) 0);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.intro-play.btn.loading::after {
+  opacity: 1;
+}
+
+/* Pressed before the game is in: it wiggles, and the game starts once it's in. */
+.intro-play.btn.waiting {
+  animation: intro-wiggle 0.5s ease-in-out;
+}
+
 /* Hovering the button gives it the same little wiggle it comes in with. */
 .intro-play.btn:hover {
   animation: intro-wiggle 0.5s ease-in-out;
@@ -587,7 +610,8 @@ body {
   .screen.intro.entering .intro-logo,
   .screen.intro.entering .intro-title-arch > span,
   .screen.intro.entering .intro-play.btn,
-  .intro-play.btn:hover {
+  .intro-play.btn:hover,
+  .intro-play.btn.waiting {
     animation: none;
   }
 }
