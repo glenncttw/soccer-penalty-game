@@ -175,7 +175,8 @@ export class Screens {
     this.closePage(false);
     this.menu.hidden = false;
     this.menuToggle.setAttribute('aria-expanded', 'true');
-    this.menuMain.querySelector<HTMLElement>('.btn')!.focus();
+    // No scrolling to the button while the panel is still off to the right: that jumped the page sideways.
+    this.menuMain.querySelector<HTMLElement>('.btn')!.focus({ preventScroll: true });
   }
 
   private closeMenu(refocus = true) {

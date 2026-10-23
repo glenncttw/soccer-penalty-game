@@ -607,6 +607,8 @@ body {
   position: absolute;
   inset: 0;
   z-index: 2;
+  overflow: hidden; /* the panel starts off to the right: no sideways scrollbar while it slides in */
+  overflow: clip;
 }
 
 .menu[hidden] {
