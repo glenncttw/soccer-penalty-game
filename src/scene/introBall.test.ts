@@ -255,13 +255,13 @@ describe('IntroBall', () => {
     expect(intro.bouncy).toBe(true);
   });
 
-  it('bounces when clicked at the top: squashes and stretches up and down the screen, then is exactly round again', () => {
+  it('bounces when clicked: squashes and stretches up and down the screen, then is exactly round again', () => {
     const w = 1280;
     const h = 720;
     const { camera, ball, slot, intro, frame } = setUp(w, h);
     intro.float(slot);
     for (let i = 0; i < 30; i++) frame();
-    intro.bounce(0, -1); // hit at the top
+    intro.bounce();
     let flattest = 1;
     let tallest = 1;
     for (let i = 0; i < 90; i++) {
@@ -284,40 +284,6 @@ describe('IntroBall', () => {
     expect(tallest).toBeGreaterThan(1.02);
     expect(intro.squash).toEqual({ x: 1, y: 1 });
     expect(ball.matrixAutoUpdate).toBe(true);
-  });
-
-  it('bounces the way it is hit: flat from the side it is hit on, nudged away from it, pushed deeper in the middle', () => {
-    const w = 1280;
-    const h = 720;
-    const { camera, ball, slot, size, intro, frame } = setUp(w, h);
-    intro.float(slot);
-    for (let i = 0; i < 30; i++) frame();
-    const hitAt = (x: number, y: number) => {
-      intro.bounce(x, y);
-      let flat = { x: 1, y: 1 };
-      let moved = { x: 0, y: 0, depth: 0 };
-      const before = onScreen(ball, camera, w, h);
-      for (let i = 0; i < 8; i++) {
-        frame(); // into the first squash
-        if (intro.squash.x * intro.squash.y < flat.x * flat.y || i === 0) flat = { ...intro.squash };
-        const seen = onScreen(ball, camera, w, h);
-        moved = { x: seen.x - before.x, y: seen.y - before.y, depth: seen.depth - before.depth };
-      }
-      for (let i = 0; i < 90; i++) frame(); // and still again
-      expect(intro.squash).toEqual({ x: 1, y: 1 });
-      return { flat, moved };
-    };
-    const right = hitAt(1, 0);
-    expect(right.flat.x).toBeLessThan(0.9); // narrower: pushed in from the side
-    expect(right.flat.y).toBeGreaterThan(1);
-    expect(right.moved.x).toBeLessThan(-0.02 * size); // nudged to the left, away from the hit
-    const bottom = hitAt(0, 1);
-    expect(bottom.flat.y).toBeLessThan(0.9);
-    expect(bottom.moved.y).toBeLessThan(-0.02 * size); // nudged up
-    const middle = hitAt(0, 0);
-    const edge = hitAt(0, -1);
-    expect(middle.moved.depth).toBeGreaterThan(2 * edge.moved.depth); // the middle pushes it deeper
-    expect(Math.min(middle.flat.x, middle.flat.y)).toBeGreaterThan(Math.min(edge.flat.x, edge.flat.y)); // less flat
   });
 
   it('with reduced motion, stands still, keeps the camera where you shoot from, then is simply on the spot', () => {

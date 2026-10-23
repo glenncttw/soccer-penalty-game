@@ -1,21 +1,23 @@
 import * as THREE from 'three';
 
 /**
- * The loading bar in index.html. It shows straight away while the game's code downloads, then fills as
- * what the landing needs arrives (every three.js loader reports to the default loading manager): the stadium,
- * the panorama's light, the chips and the crowd's small models. The rest of the game loads behind the
- * landing (see src/main.ts).
+ * The loading bar in index.html, over the whole screen until the game is ready to play. It shows straight away
+ * while the game's code downloads, then fills as the files arrive (every three.js loader reports to the default
+ * loading manager; the stadium byte by byte) and then as the game is set up, step by step (see src/main.ts).
  */
-const USUAL_FILES = 10; // the stadium, the panorama, the chip, the crowd's six models and the flag logo
-const FILES_END = 0.9; // how far the bar is once those are in; the rest is for setting the landing up
+const USUAL_FILES = 24; // the stadium, its panorama and baked light, the keeper, the grass, the chip, the crowd's...
+const FILES_SHARE = 0.65; // of the bar: the files; the rest is for setting the game up
+const USUAL_STEPS = 12; // the set-up steps in main.ts (each `step` counts one, or as many as it says)
 
 export class Preloader {
   private readonly el = document.querySelector<HTMLElement>('#loading');
-  private readonly fill = this.el?.querySelector<HTMLElement>('div') ?? null;
+  private readonly fill = this.el?.querySelector<HTMLElement>('.bar > div') ?? null;
   private loaded = 0;
   private total = 0;
   /** How far the file being followed byte by byte (the stadium) has got, 0..1. */
   private partial = 0;
+  private steps = 0;
+  private partSteps = 0; // of a long step that's on its way
   private shown = 0.05;
 
   constructor() {
@@ -33,7 +35,24 @@ export class Preloader {
     this.draw();
   }
 
-  /** The landing is ready: fill the bar up and take it away. */
+  /**
+   * A set-up step (worth `steps` of the usual ones) is done: the page draws a frame (so the bar moves on), then
+   * the next one starts.
+   */
+  step(steps = 1) {
+    this.steps += steps;
+    this.partSteps = 0;
+    this.draw();
+    return nextPaint();
+  }
+
+  /** A long set-up step, worth `steps` of the usual ones, is `fraction` (0..1) of the way. */
+  partly(fraction: number, steps: number) {
+    this.partSteps = Math.min(1, fraction) * steps;
+    this.draw();
+  }
+
+  /** The game is ready: fill the bar up and take the loading screen away. */
   async done() {
     THREE.DefaultLoadingManager.onProgress = () => {};
     this.show(1, 0.15);
@@ -43,8 +62,9 @@ export class Preloader {
 
   private draw() {
     // More files join the list as earlier ones finish, so count at least the usual number.
-    const f = Math.min(1, (this.loaded + this.partial) / Math.max(this.total, USUAL_FILES));
-    this.show(0.05 + (FILES_END - 0.05) * f, 0.2);
+    const files = Math.min(1, (this.loaded + this.partial) / Math.max(this.total, USUAL_FILES));
+    const steps = Math.min(1, (this.steps + this.partSteps) / USUAL_STEPS);
+    this.show(0.05 + (1 - 0.05) * (FILES_SHARE * files + (1 - FILES_SHARE) * steps), 0.3);
   }
 
   /** Grows the bar to `to` over `seconds`, slowing down toward the end; it never goes backwards. */

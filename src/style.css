@@ -480,13 +480,10 @@ body {
   outline-offset: calc(4 * var(--bu));
 }
 
-/* Pressed before the game is in: it wiggles, and the game starts once it's in. */
-.intro-play.btn.waiting {
-  animation: intro-wiggle 0.5s ease-in-out;
-}
-
-/* Hovering the button gives it the same little wiggle it comes in with. */
+/* Hovering the button gives it the same little wiggle it comes in with (and keeps it in place and turned, not
+   moved like the other buttons on hover). */
 .intro-play.btn:hover {
+  transform: translate(-50%, -50%) rotate(4deg);
   animation: intro-wiggle 0.5s ease-in-out;
 }
 
@@ -592,8 +589,7 @@ body {
   .screen.intro.entering .intro-logo,
   .screen.intro.entering .intro-title-arch > span,
   .screen.intro.entering .intro-play.btn,
-  .intro-play.btn:hover,
-  .intro-play.btn.waiting {
+  .intro-play.btn:hover {
     animation: none;
   }
 }
@@ -751,9 +747,16 @@ body {
   text-transform: uppercase;
 }
 
-/* The loading bar, shown until the game is ready (src/ui/preloader.ts). */
+/* The loading screen and its bar, over everything until the game is ready (src/ui/preloader.ts). */
 #loading {
   position: fixed;
+  inset: 0;
+  z-index: 5; /* over the game while it gets ready behind it */
+  background: #9fdcf5;
+}
+
+#loading .bar {
+  position: absolute;
   left: 50%;
   top: 50%;
   width: 240px;
@@ -763,7 +766,7 @@ body {
   background: rgba(0, 0, 0, 0.2);
 }
 
-#loading > div {
+#loading .bar > div {
   width: 100%;
   height: 100%;
   background: #ffffff;
