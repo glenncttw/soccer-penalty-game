@@ -154,8 +154,7 @@ window.addEventListener('pointermove', (e) => {
   document.documentElement.classList.toggle('over-ball', introBall.bouncy && onIntroBall(e.clientX, e.clientY));
 });
 window.addEventListener('pointerdown', (e) => {
-  const c = introBallCircle;
-  if (onIntroBall(e.clientX, e.clientY)) introBall.bounce((e.clientX - c.x) / c.radius, (e.clientY - c.y) / c.radius);
+  if (onIntroBall(e.clientX, e.clientY)) introBall.bounce();
 });
 document.documentElement.addEventListener('pointerleave', () => introBall.pointAt(0, 0));
 const introBackdrop = new IntroBackdrop(ballMesh); // the purple tunnel behind it, opening up from the ball
@@ -170,11 +169,14 @@ screens.onIntro = () => {
   if (!introSeen) introChips.enter();
   introSeen = true;
 };
-// Speel nu before the game is in: it starts as soon as it is (see below).
+// Speel nu before the game is in: the intro goes and the ball winds up into the tunnel straight away, then waits
+// there, spinning faster and faster, until the game is in (see the end).
 let playSoon = false;
 screens.onPlay = () => {
+  if (playSoon || !introBall.floating) return;
   playSoon = true;
-  screens.waitToPlay();
+  screens.leaveIntro();
+  introBall.land(() => beginRound(), true);
 };
 
 // The canvas fills the page (see style.css); only the number of pixels behind it changes.
@@ -202,6 +204,7 @@ resize();
 const timer = new THREE.Timer();
 const IDENTITY = { x: 0, y: 0, z: 0, w: 1 }; // the ball's turn on the spot before physics has it
 const landingFrame = (time: number) => {
+  perf.begin(time);
   timer.update(time);
   const realDt = Math.min(timer.getDelta(), 0.1);
   introBall.advance(realDt);
@@ -209,10 +212,11 @@ const landingFrame = (time: number) => {
   introBall.place(world.ballStart, IDENTITY);
   if (screens.open) followIntroBall();
   if (!introBall.bouncy) document.documentElement.classList.remove('over-ball');
-  const chipsMode = reducedMotion ? 'off' : introBall.floating ? 'swirl' : 'off';
+  const chipsMode = reducedMotion ? 'off' : introBall.floating || introBall.windingUp ? 'swirl' : 'off';
   introChips.update(realDt, camera, { position: introBall.home }, chipsMode);
   warmUp?.step(); // drawn over below
   introBackdrop.render(renderer, scene, camera, introBall.reveal, reducedMotion, realDt, introBall.home);
+  perf.end(time);
 };
 let warmUp: GradualWarmUp | null = null; // the game's materials, getting ready one per frame (see the end)
 // Prepares the landing's shaders, so its first frames don't stutter.
@@ -697,8 +701,10 @@ renderer.setAnimationLoop((time) => {
   perf.end(time);
 });
 
-// The game is in: Speel nu plays now, or straight away if it was pressed already.
-screens.gameIn();
+// The game is in: Speel nu plays now, and a ball waiting in its wind-up sets off.
 void gameFilesIn();
 screens.onPlay = startRound;
-if (playSoon) startRound();
+if (playSoon) {
+  round.reset();
+  introBall.go();
+}

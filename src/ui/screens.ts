@@ -124,19 +124,6 @@ export class Screens {
     s.setProperty('--ball-ry', `${Math.max(0, radiusY).toFixed(1)}px`);
   }
 
-  /** The game behind the intro is in (Speel nu stops waiting). */
-  gameIn() {
-    this.intro.querySelector<HTMLElement>('.intro-play')!.classList.remove('waiting');
-  }
-
-  /** Speel nu was pressed before the game is in: the button wiggles, and the game starts once it's in. */
-  waitToPlay() {
-    const button = this.intro.querySelector<HTMLElement>('.intro-play')!;
-    button.classList.remove('waiting');
-    void button.offsetWidth; // so the wiggle starts again on every press
-    button.classList.add('waiting');
-  }
-
   /** Speel nu & Win: the title moves up and the button down, out of the way of the ball, then the intro closes. */
   leaveIntro() {
     (document.activeElement as HTMLElement | null)?.blur();
