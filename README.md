@@ -55,8 +55,8 @@ Loading comes in two parts (`src/main.ts`). First a plain bar in the middle of t
 landing needs downloads: the stadium (for its camera, ball and sun), the panorama's light, the chips and the font.
 Then the landing shows, and the rest of the game loads behind it: the keeper, the grass texture, the baked light and
 the physics engine (its own file) download, the crowd is placed in the background (`src/scene/crowdWorker.ts`), and
-every material gets ready a few per frame (`src/scene/warmUp.ts`), so the landing keeps moving. Meanwhile a thin bar
-along the bottom of the Speel nu button fills up; pressing the button before then starts the game once it's in.
+every material gets ready a few per frame (`src/scene/warmUp.ts`), so the landing keeps moving. Pressing Speel nu
+before then starts the game once it's in.
 In the bottom left corner you see how the
 game is running: three.js's Stats panel (click it to switch between frames per second,
 milliseconds per frame and memory) and a list of what was drawn in the last frame: draw calls, triangles,

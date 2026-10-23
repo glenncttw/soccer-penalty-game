@@ -4,7 +4,7 @@ import * as THREE from 'three';
  * The loading bar in index.html. It shows straight away while the game's code downloads, then fills as
  * what the landing needs arrives (every three.js loader reports to the default loading manager): the stadium,
  * the panorama's light, the chips and the crowd's small models. The rest of the game loads behind the
- * landing (see GameLoading).
+ * landing (see src/main.ts).
  */
 const USUAL_FILES = 10; // the stadium, the panorama, the chip, the crowd's six models and the flag logo
 const FILES_END = 0.9; // how far the bar is once those are in; the rest is for setting the landing up
@@ -56,53 +56,11 @@ export class Preloader {
   }
 }
 
-const FILES_SHARE = 0.7; // of the bar on the button: the rest is for the set-up steps
-const USUAL_STEPS = 9; // the set-up steps in main.ts (each ends with `frame`)
-
-/**
- * How far the game has got loading behind the landing (0..1), for the bar on the Speel nu button: each file
- * counts as it arrives, each set-up step as it's done.
- */
-export class GameLoading {
-  private files = 0;
-  private filesIn = 0;
-  private steps = 0;
-
-  constructor(private readonly show: (fraction: number) => void) {
-    show(0);
-  }
-
-  /** Counts `file` (anything being downloaded or worked out in the background) in; returns it as it is. */
-  file<T>(file: Promise<T>): Promise<T> {
-    this.files++;
-    void file.then(
-      () => {
-        this.filesIn++;
-        this.draw();
-      },
-      () => {},
-    );
-    return file;
-  }
-
-  /** A set-up step is done: the page draws a frame (so the landing keeps moving), then the next one starts. */
-  frame() {
-    this.steps++;
-    this.draw();
-    return nextPaint();
-  }
-
-  private draw() {
-    const files = this.files ? this.filesIn / this.files : 1;
-    this.show(FILES_SHARE * files + (1 - FILES_SHARE) * Math.min(1, this.steps / USUAL_STEPS));
-  }
-}
-
 /**
  * Resolves once the browser has drawn the page with the latest changes (or after a moment, in a tab that's
  * out of sight and draws nothing).
  */
-function nextPaint() {
+export function nextPaint() {
   return new Promise((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(resolve));
     setTimeout(resolve, 100);

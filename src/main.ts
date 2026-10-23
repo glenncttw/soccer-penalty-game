@@ -44,7 +44,7 @@ import { Hud } from './ui/hud';
 import { PerfStats } from './ui/perfStats';
 import { readBest, Round, saveBest } from './gameplay/round';
 import { ENTER_TIME, Screens } from './ui/screens';
-import { GameLoading, Preloader } from './ui/preloader';
+import { nextPaint, Preloader } from './ui/preloader';
 import { Wipe } from './ui/wipe';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
@@ -218,19 +218,18 @@ await preloader.done();
 renderer.setAnimationLoop(landingFrame);
 screens.showIntro(true); // with its entrance: the ball flies in, then the logo, the title and the button
 
-// ---- The rest of the game, loading behind the landing. The button's bar shows how far it's got.
+// ---- The rest of the game, loading behind the landing (Speel nu pressed before then starts it once it's in).
 // Between the heavier steps the page draws a frame, so the landing keeps moving.
-const loading = new GameLoading((f) => screens.gameLoading(f));
-const keeperAsset = loading.file(loadKeeperModel());
-const grassTextures = loading.file(loadGrassTextures(renderer));
-const bakes = loading.file(loadBakes(renderer));
-const physicsReady = loading.file(startPhysics());
+const keeperAsset = loadKeeperModel();
+const grassTextures = loadGrassTextures(renderer);
+const bakes = loadBakes(renderer);
+const physicsReady = startPhysics();
 // The files download meanwhile, but the page itself only gets busy after the landing's entrance.
 await new Promise((resolve) => setTimeout(resolve, ENTER_TIME));
 // The crowd is placed in the background (the page stays free meanwhile); see src/scene/crowdSettings.ts.
 const crowdPlan = Crowd.prepare(stadium.environment, await crowdParts);
-const crowdPlacement = loading.file(placeCrowdInBackground(crowdPlan.input));
-await loading.frame();
+const crowdPlacement = placeCrowdInBackground(crowdPlan.input);
+await nextPaint();
 // The stadium's own animations (the corner flags waving) loop for ever, slowed down with the game.
 const stadiumMotion = new THREE.AnimationMixer(stadium.model);
 for (const clip of stadium.animations) stadiumMotion.clipAction(clip).play();
@@ -243,7 +242,7 @@ await grassTextures;
 const grass = await applyGrass(stadium.environment, renderer);
 // The grass texture's blades stand up as seen from where the camera usually is.
 grass.lookFrom(view.restPosition);
-await loading.frame();
+await nextPaint();
 // The light baked in Blender, plus the live sun. After the grass, so the grass gets the baked light too.
 const { sun } = await setUpLighting(renderer, stadium.model, { bakes, envMap: panorama });
 // The stadium's sun (now set up with its shadows) takes over from the landing's copy, in the same place.
@@ -255,14 +254,14 @@ if (sun) {
 scene.remove(landingSun, landingSun.target);
 introBackdrop.lightsChanged();
 introBackdrop.drawSceneOnce();
-await loading.frame();
+await nextPaint();
 // The crowd, in rows behind the stand barriers.
 const crowd = new Crowd(crowdPlan, await crowdPlacement);
 crowd.light(envMap);
-await loading.frame();
+await nextPaint();
 // Big flags waving in the crowd; tweak them in src/scene/crowdFlagSettings.ts.
 const crowdFlags = new CrowdFlags(crowd, envMap, await flagLogo);
-await loading.frame();
+await nextPaint();
 
 // A ball that flies over the ad boards fades out: it's gone into the stands.
 const ballFade = new BallFade(ballMesh);
@@ -281,7 +280,7 @@ const keeper = new KeeperMotion(KEEPER_HOME, KEEPER_SKILL, keeperRig);
 lightMovingObject(keeperRig.object, envMap);
 // Soft shadows on the grass right under the ball and the keeper.
 grass.followContacts(ballMesh, world.ballRadius, keeperRig.shadow);
-await loading.frame();
+await nextPaint();
 
 // The keeper's solid parts follow its bones, so the ball is stopped where you see it.
 await physicsReady;
@@ -556,13 +555,13 @@ warmUp = new GradualWarmUp(renderer, scene, camera);
 await warmUp.done;
 warmUp = null;
 introBackdrop.drawSceneOnce(); // with all of it now, for the sun's shadows
-await loading.frame();
+await nextPaint();
 // Sets up the replay's own drawing too (its panel), so starting one later doesn't stutter.
 replay.warmUp(camera);
-await loading.frame();
+await nextPaint();
 // The physics engine's first step takes it a moment (it gets its own code ready), so it's taken now too.
 physics.step();
-await loading.frame();
+await nextPaint();
 
 renderer.setAnimationLoop((time) => {
   perf.begin(time);
@@ -696,6 +695,6 @@ renderer.setAnimationLoop((time) => {
 });
 
 // The game is in: Speel nu plays now, or straight away if it was pressed already.
-screens.gameLoading(null);
+screens.gameIn();
 screens.onPlay = startRound;
 if (playSoon) startRound();

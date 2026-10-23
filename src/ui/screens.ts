@@ -124,15 +124,9 @@ export class Screens {
     s.setProperty('--ball-ry', `${Math.max(0, radiusY).toFixed(1)}px`);
   }
 
-  /**
-   * While the game is still loading behind the intro: a thin bar along the bottom of the Speel nu button fills
-   * up to `fraction` (0..1); null takes it away (the game is in).
-   */
-  gameLoading(fraction: number | null) {
-    const button = this.intro.querySelector<HTMLElement>('.intro-play')!;
-    button.classList.toggle('loading', fraction !== null);
-    if (fraction === null) button.classList.remove('waiting');
-    else button.style.setProperty('--loaded', fraction.toFixed(3));
+  /** The game behind the intro is in (Speel nu stops waiting). */
+  gameIn() {
+    this.intro.querySelector<HTMLElement>('.intro-play')!.classList.remove('waiting');
   }
 
   /** Speel nu was pressed before the game is in: the button wiggles, and the game starts once it's in. */
