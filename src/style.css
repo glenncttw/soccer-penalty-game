@@ -395,7 +395,6 @@ body {
   left: 50%;
   top: calc(50% - var(--ball) / 2 - 184 * var(--u));
   width: calc(118 * var(--u));
-  translate: calc(var(--lean-x, 0) * -4 * var(--u)) calc(var(--lean-y, 0) * -3 * var(--u));
   transform: translateX(-50%);
 }
 
@@ -414,7 +413,6 @@ body {
   white-space: nowrap;
   text-transform: uppercase;
   text-shadow: calc(7.4 * var(--u)) calc(8.5 * var(--u)) 0 #2a1a57; /* 8 px right and down on screen, once tilted */
-  translate: calc(var(--lean-x, 0) * -8 * var(--u)) calc(var(--lean-y, 0) * -5 * var(--u)); /* away from the mouse */
   transform: translate(-50%, -50%) rotate(-4deg);
 }
 
@@ -437,7 +435,7 @@ body {
   min-height: 0;
   padding: 0 0 calc(5 * var(--bu)); /* the font sits low in its line: this centres the capitals */
   background: #fc4846;
-  color: #000000;
+  color: #ffffff;
   font:
     700 calc(23 * var(--bu)) / 1 Bazinga,
     system-ui,
@@ -445,7 +443,6 @@ body {
   letter-spacing: 0;
   box-shadow: calc(3 * var(--bu)) calc(4.5 * var(--bu)) 0 #1d0f42;
   pointer-events: auto;
-  translate: calc(var(--lean-x, 0) * -5 * var(--u)) calc(var(--lean-y, 0) * -3 * var(--u));
   transform: translate(-50%, -50%) rotate(4deg);
 }
 

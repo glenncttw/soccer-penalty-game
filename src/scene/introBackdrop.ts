@@ -13,9 +13,9 @@ const RING_SPACING = 0.32; // one rounded ring of the wall to the next
 const RING_DEPTH = 0.07; // how far the rings stand out of the wall
 const SEGMENTS = 48; // round the tunnel
 const DRIFT = 0.12; // how fast the rings come toward the camera, in ring spacings a second
-const DEEP = '#1d1140'; // the purple far down the tunnel
-const FOG_FROM = 2.5; // where it starts to get darker
-const FOG_TO = 9; // and where it's all dark
+export const DEEP = '#1d1140'; // the purple far down the tunnel (the intro chips fade into it too)
+const FOG_FROM = 2; // where it starts to get darker
+const FOG_TO = 6; // and where it's all dark: round the ball (the chips come out of the dark there)
 const EDGE_LIGHT = 0.8; // how much lighter the wall is close to the camera, at the screen's edges
 const EDGE_TO = 2.5; // how far from the camera that lighter part reaches
 
@@ -99,7 +99,8 @@ export class IntroBackdrop {
   /**
    * Draws one frame. `reveal` is how far the purple has gone: 0 all purple, 1 gone (then only the
    * stadium is drawn). With `fade` the purple fades out instead of opening up, and the tunnel stands
-   * still (reduced motion). `dt` moves the tunnel's rings on.
+   * still (reduced motion). `dt` moves the tunnel's rings on. The tunnel runs toward `home` (where the ball
+   * floats without its drift and following the mouse; the ball itself by default), the hole opens from the ball.
    */
   render(
     renderer: THREE.WebGLRenderer,
@@ -108,6 +109,7 @@ export class IntroBackdrop {
     reveal: number,
     fade: boolean,
     dt = 0,
+    home = this.ball.position,
   ) {
     if (reveal >= 1) {
       renderer.render(scene, camera);
@@ -139,12 +141,12 @@ export class IntroBackdrop {
     this.uniforms.uRimWidth.value = RIM_WIDTH * pixels;
     this.uniforms.uOpacity.value = fade ? 1 - reveal : 1;
 
-    // The tunnel runs from the camera through the ball, sized to how far away the ball is.
+    // The tunnel runs from the camera through the ball's home, sized to how far away that is.
     camera.updateMatrixWorld();
-    const away = this.toBall.subVectors(this.ball.position, camera.position).length();
+    const away = this.toBall.subVectors(home, camera.position).length();
     this.tunnel.position.copy(camera.position);
     this.tunnel.up.copy(camera.up).applyQuaternion(camera.quaternion);
-    this.tunnel.lookAt(this.ball.position);
+    this.tunnel.lookAt(home);
     this.tunnel.scale.setScalar(away);
     if (!fade) this.drift = (this.drift + DRIFT * dt) % 1;
     this.rings.position.z = -this.drift * RING_SPACING;

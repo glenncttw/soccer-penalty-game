@@ -185,7 +185,7 @@ const introBall = new IntroBall(
   { position: view.restPosition, quaternion: view.restQuaternion },
   reducedMotion,
 );
-// On the intro the ball leans toward the mouse a little (and the title and button the other way).
+// On the intro the ball follows the mouse a little.
 window.addEventListener('pointermove', (e) => {
   if (e.pointerType !== 'mouse') return;
   introBall.pointAt((e.clientX / innerWidth) * 2 - 1, (e.clientY / innerHeight) * 2 - 1);
@@ -582,13 +582,10 @@ renderer.setAnimationLoop((time) => {
     ending: screens.endShown, // close to the keeper dancing, beside the score
   });
   introBall.place(physics.ball.translation(), physics.ball.rotation());
-  if (screens.open && !screens.endShown) {
-    followIntroBall();
-    screens.lean(introBall.lean.x, introBall.lean.y);
-  }
+  if (screens.open && !screens.endShown) followIntroBall();
   const chipsSwirl = introBall.floating || introBall.windingUp; // they keep swirling while the ball sinks in
   const chipsMode = reducedMotion ? 'off' : chipsSwirl ? 'swirl' : introBall.landing ? 'burst' : 'off';
-  introChips.update(realDt, camera, ballMesh, chipsMode);
+  introChips.update(realDt, camera, { position: introBall.home }, chipsMode);
   trail.update(gameTime, camera.position, realDt);
   if (!replay.active) {
     const flying = (phase === 'flight' || phase === 'result') && trail.stopTime === null;
@@ -606,7 +603,7 @@ renderer.setAnimationLoop((time) => {
     replay.render(realDt);
     if (replay.finished) endReplay();
   } else {
-    introBackdrop.render(renderer, scene, camera, introBall.reveal, reducedMotion, realDt);
+    introBackdrop.render(renderer, scene, camera, introBall.reveal, reducedMotion, realDt, introBall.home);
   }
   perf.end(time);
 });
