@@ -50,7 +50,6 @@ const REACTION_UNIFORMS = [
   'uSaveSulk',
   'uFrownShare',
   'uRestSmile',
-  'uJumps',
   'uJumpTime',
   'uJumpHeight',
   'uWaveLap',
@@ -237,8 +236,8 @@ export class Crowd {
   }
 
   /**
-   * The crowd reacts to a shot: after a goal they shout and jump (not with `still`, for people who'd rather not
-   * see much moving); after a save they go "ooh!" and most look disappointed. Either stops a Mexican wave.
+   * The crowd reacts to a shot: after a goal they shout and jump until `calm` (not with `still`, for people who'd
+   * rather not see much moving); after a save they go "ooh!" and most look disappointed. Either stops a Mexican wave.
    */
   react(result: 'goal' | 'saved', { still = false }: { still?: boolean } = {}) {
     const u = this.motion;

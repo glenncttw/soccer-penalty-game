@@ -33,16 +33,19 @@ describe('crowd motion', () => {
     }
   });
 
-  it('jumps a few times after a goal, arms up, and lands back on the step', () => {
+  it('keeps jumping after a goal, arms up, until they calm down, and lands back on the step', () => {
     const s = CROWD_SETTINGS;
-    const at = (t: number, own = 1) => jumpLift(t, own, s);
-    const jumping = s.jumps * s.jumpTime;
+    const calmAt = 8; // well past the end of a replay
+    const at = (t: number, own = 1) => jumpLift(t, own, s, calmAt);
     expect(at(0).lift).toBe(0);
     expect(at(s.jumpTime / 2).lift).toBeCloseTo(s.jumpHeight);
     expect(at(s.jumpTime / 2, 0).lift).toBeCloseTo(s.jumpHeight * 0.6);
     expect(at(s.jumpTime * 1.5).arms).toBe(1);
-    for (let t = 0; t < jumping + 1; t += 0.01) expect(at(t).lift).toBeGreaterThanOrEqual(0);
-    expect(at(jumping + 0.01)).toEqual({ lift: 0, arms: 0 });
+    // Still going strong several seconds on.
+    expect(at(s.jumpTime * 12.5).lift).toBeCloseTo(s.jumpHeight);
+    expect(at(s.jumpTime * 12.5).arms).toBe(1);
+    for (let t = 0; t < calmAt + 1; t += 0.01) expect(at(t).lift).toBeGreaterThanOrEqual(0);
+    expect(at(calmAt + 0.41)).toEqual({ lift: 0, arms: 0 });
   });
 
   it('sends a Mexican wave along the stands, each person up as it passes them', () => {

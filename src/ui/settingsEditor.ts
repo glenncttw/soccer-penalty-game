@@ -77,7 +77,6 @@ const CROWD_ROWS: Row<CrowdSettings>[] = [
   ['frownShare', 'Share frowning', 0, 1, 0.01],
   ['restSmile', 'Smile at rest', 0, 1, 0.01],
   ['waveEvery', 'Time between waves (s)', 3, 60, 1],
-  ['jumps', 'Jumps', 1, 6, 1],
   ['jumpTime', 'Time per jump (s)', 0.2, 1, 0.01],
   ['jumpHeight', 'Jump height (m)', 0, 0.3, 0.01],
   ['waveLap', 'Wave time (s)', 1, 8, 0.1],
