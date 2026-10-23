@@ -7,6 +7,7 @@ import type { WorldConfig } from '../worldConfig';
 import { BallTrail } from './ball';
 import type { BallAura } from './ballAura';
 import type { BallFade } from './ballFade';
+import type { Effects } from './effects';
 import type { KeeperRig } from './keeperRig';
 import { REPLAY_ANGLES, replayCameraPose, type ReplayAngle } from './replayCamera';
 import { REPLAY_SETTINGS, type ReplaySettings } from './replaySettings';
@@ -27,8 +28,13 @@ export interface ReplayParts {
   trail: BallTrail;
   /** The glow round the ball on a perfect strike: shown in the replay too, until the ball's first touch. */
   aura: BallAura;
-  /** Things that are left out of the replay (dust, glitter). */
+  /** Things that are left out of the replay: the aim markers, and the game's own dust and glitter. */
   hide: THREE.Object3D[];
+  /**
+   * The replay's own kick dust, grass puffs and perfect-strike glitter: made again as the replay reaches
+   * them and moved on game time, so they slow down with the ball.
+   */
+  effects: Effects;
   /** The crowd: its clock is recorded with every frame, and the replay shows them as they were (`time` is game time). */
   crowd: { readonly clock: number; show(time: number, clock: number): void };
 }
@@ -63,6 +69,12 @@ export class Replay {
   /** Replay seconds it plays for: the part of the shot in `window`, and a goal's celebration after it. */
   private length = 0;
   private trailStop: number | null = null;
+  /** The kick being replayed: how hard, and whether it was perfect (glitter). */
+  private kick = { power: 0, perfect: false };
+  /** Game time the replay's dust has been moved on to, the last recorded frame it saw and the next one. */
+  private effectsTime = 0;
+  private frameTime = 0;
+  private nextEffect = 0;
   private nextPush = 0;
   private side = 1;
   private angle = -1; // index into REPLAY_ANGLES; the first replay takes the first angle
@@ -116,8 +128,9 @@ export class Replay {
   }
 
   /** Call at the kick. */
-  begin(gameTime: number) {
+  begin(gameTime: number, kick = { power: 0, perfect: false }) {
     this.recorder.start(gameTime);
+    this.kick = kick;
   }
 
   /** Call every frame while the ball is in play. */
@@ -158,6 +171,12 @@ export class Replay {
     this.parts.aura.begin(this.parts.aura.perfect);
     this.trail.mesh.visible = true;
     this.nextPush = 0;
+    const { effects, world } = this.parts;
+    effects.clear();
+    effects.kickPuff(world.ballStart, world.groundY, this.kick.power);
+    effects.group.visible = true;
+    this.effectsTime = this.frameTime = r.kickAt;
+    this.nextEffect = 0;
     this.elapsed = 0;
     this.active = true;
     for (const o of this.parts.hide) o.visible = false;
@@ -172,6 +191,8 @@ export class Replay {
     this.active = false;
     this.trail.clear();
     this.trail.mesh.visible = false;
+    this.parts.effects.clear();
+    this.parts.effects.group.visible = false;
     for (const o of this.parts.hide) o.visible = true;
     this.parts.trail.mesh.visible = true;
     this.parts.ballFade.reset();
@@ -202,6 +223,7 @@ export class Replay {
     this.camera.updateProjectionMatrix();
     const scale = this.parts.renderer.getPixelRatio() * this.settings.resolution;
     this.target.setSize(Math.max(1, Math.round(pw * scale)), Math.max(1, Math.round(ph * scale)));
+    this.parts.effects.setViewportHeight(this.target.height);
   }
 
   /** Moves the replay on by `realDt` seconds and draws it. */
@@ -219,6 +241,7 @@ export class Replay {
       if (f.t >= this.window.start - life) this.trail.push(f.ball, f.t);
     }
     if (this.trailStop !== null && t >= this.trailStop) this.trail.stop(this.trailStop);
+    this.moveEffects(t);
 
     this.aim(realDt);
     this.trail.update(t, this.camera.position, realDt);
@@ -259,6 +282,29 @@ export class Replay {
     const r = this.result;
     this.parts.crowd.show(t, elapsed > r.elapsed ? r.clock + (elapsed - r.elapsed) : f.crowd);
     return t;
+  }
+
+  /**
+   * Moves the replay's dust and glitter on to game time `t`, a recorded frame at a time, the way the game made
+   * them while the ball flew (up to the result): grass puffs under a low ball, sparkles behind a perfect strike.
+   */
+  private moveEffects(t: number) {
+    const { effects } = this.parts;
+    const frames = this.recorder.frames;
+    const flightEnd = this.recorder.resultAt ?? Infinity;
+    while (this.nextEffect < frames.length && frames[this.nextEffect].t <= t) {
+      const f = frames[this.nextEffect++];
+      effects.update(f.t - this.effectsTime);
+      this.effectsTime = f.t;
+      if (f.t < flightEnd) {
+        effects.skim(f.ball);
+        // As many sparkles as in the game: one frame's worth, however the replay's drawing falls between frames.
+        if (this.kick.perfect && f.ballOpacity >= 1) effects.glitterTrail(f.ball, f.t - this.frameTime);
+      }
+      this.frameTime = f.t;
+    }
+    effects.update(Math.max(0, t - this.effectsTime));
+    this.effectsTime = Math.max(this.effectsTime, t);
   }
 
   /** Puts the camera where this replay's angle wants it, following the ball a little smoothed. */
