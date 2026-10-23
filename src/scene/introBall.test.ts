@@ -235,6 +235,57 @@ describe('IntroBall', () => {
     expect(Math.abs(intro.lean.x)).toBeLessThan(0.01);
   });
 
+  it('flies in out of the depth of the tunnel the first time, into its place, rolling fast and slowing down', () => {
+    const w = 1280;
+    const h = 720;
+    const { camera, ball, slot, size, intro, frame } = setUp(w, h);
+    intro.float(slot, false, true);
+    frame();
+    const base = slotDepth(RADIUS, size, h, camera.fov);
+    expect(onScreen(ball, camera, w, h).depth / base).toBeGreaterThan(3.5); // far down the tunnel
+    expect(intro.bouncy).toBe(false); // can't be clicked on its way
+    let depth = Infinity;
+    for (let i = 0; i < 60; i++) {
+      frame();
+      const d = onScreen(ball, camera, w, h).depth;
+      expect(d).toBeLessThanOrEqual(depth * 1.001); // only coming closer (its slow drift aside)
+      depth = d;
+    }
+    expect(depth / base).toBeCloseTo(1, 1);
+    expect(intro.bouncy).toBe(true);
+  });
+
+  it('bounces when clicked: squashes and stretches up and down the screen, then is exactly round again', () => {
+    const w = 1280;
+    const h = 720;
+    const { camera, ball, slot, intro, frame } = setUp(w, h);
+    intro.float(slot);
+    for (let i = 0; i < 30; i++) frame();
+    intro.bounce();
+    let flattest = 1;
+    let tallest = 1;
+    for (let i = 0; i < 90; i++) {
+      frame();
+      flattest = Math.min(flattest, intro.squash.y);
+      tallest = Math.max(tallest, intro.squash.y);
+      expect(intro.squash.x * Math.sqrt(intro.squash.y)).toBeCloseTo(1, 6); // keeps its size
+      // Seen from the camera, the ball's matrix squashes it along the screen's up and down.
+      ball.updateMatrixWorld();
+      const up = new THREE.Vector3(0, RADIUS, 0).applyQuaternion(camera.quaternion);
+      const side = new THREE.Vector3(RADIUS, 0, 0).applyQuaternion(camera.quaternion);
+      const inverse = ball.matrixWorld.clone().invert();
+      const toLocal = (v: THREE.Vector3) =>
+        v.clone().applyMatrix3(new THREE.Matrix3().setFromMatrix4(inverse)).length();
+      // A point on its outline is that much further out (or in) before it's squashed.
+      expect(toLocal(up) * intro.squash.y).toBeCloseTo(RADIUS, 6);
+      expect(toLocal(side) * intro.squash.x).toBeCloseTo(RADIUS, 6);
+    }
+    expect(flattest).toBeLessThan(0.88);
+    expect(tallest).toBeGreaterThan(1.02);
+    expect(intro.squash).toEqual({ x: 1, y: 1 });
+    expect(ball.matrixAutoUpdate).toBe(true);
+  });
+
   it('with reduced motion, stands still, keeps the camera where you shoot from, then is simply on the spot', () => {
     const { view, camera, ball, slot, intro, frame } = setUp(1280, 720, true);
     intro.float(slot);

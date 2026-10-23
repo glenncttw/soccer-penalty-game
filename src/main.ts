@@ -164,6 +164,7 @@ const coach = new Coach();
 const round = new Round();
 const screens = new Screens(document.querySelector<HTMLElement>('#hud')!);
 const ballOnScreen = new THREE.Vector3();
+const introBallCircle = { x: 0, y: 0, radius: 0 }; // where the intro's ball is on screen, in CSS pixels
 /** Tells the intro where the ball is on screen, so its title makes room for the ball in front of it. */
 function followIntroBall() {
   ballOnScreen.copy(ballMesh.position).project(camera);
@@ -171,7 +172,14 @@ function followIntroBall() {
   const away = camera.position.distanceTo(ballMesh.position);
   const r = world.ballRadius;
   const radius = (r / Math.sqrt(Math.max(away * away - r * r, 1e-6))) * camera.projectionMatrix.elements[5] * (h / 2);
-  screens.followBall(((ballOnScreen.x + 1) / 2) * w, ((1 - ballOnScreen.y) / 2) * h, radius);
+  Object.assign(introBallCircle, { x: ((ballOnScreen.x + 1) / 2) * w, y: ((1 - ballOnScreen.y) / 2) * h, radius });
+  const { x, y } = introBall.squash; // wider and flatter while it bounces
+  screens.followBall(introBallCircle.x, introBallCircle.y, radius * x, radius * y);
+}
+/** True when (x, y), in CSS pixels, is on the intro's ball. */
+function onIntroBall(x: number, y: number) {
+  const c = introBallCircle;
+  return screens.introShown && Math.hypot(x - c.x, y - c.y) < c.radius;
 }
 let playing = false; // a round is on (no intro or end screen in front)
 input.enabled = false;
@@ -185,10 +193,14 @@ const introBall = new IntroBall(
   { position: view.restPosition, quaternion: view.restQuaternion },
   reducedMotion,
 );
-// On the intro the ball follows the mouse a little.
+// On the intro the ball follows the mouse a little, and bounces when you click it (only the button plays).
 window.addEventListener('pointermove', (e) => {
   if (e.pointerType !== 'mouse') return;
   introBall.pointAt((e.clientX / innerWidth) * 2 - 1, (e.clientY / innerHeight) * 2 - 1);
+  document.documentElement.classList.toggle('over-ball', introBall.bouncy && onIntroBall(e.clientX, e.clientY));
+});
+window.addEventListener('pointerdown', (e) => {
+  if (onIntroBall(e.clientX, e.clientY)) introBall.bounce();
 });
 document.documentElement.addEventListener('pointerleave', () => introBall.pointAt(0, 0));
 const introBackdrop = new IntroBackdrop(ballMesh); // the purple tunnel behind it, opening up from the ball
@@ -199,7 +211,8 @@ introChips.mesh.castShadow = false;
 scene.add(introChips.mesh);
 let introSeen = false; // after the first time, the ball rises back up from the spot into the intro
 screens.onIntro = () => {
-  introBall.float(screens.ballSlot, introSeen);
+  introBall.float(screens.ballSlot, introSeen, !introSeen); // the first time it flies in out of the tunnel
+  if (!introSeen) introChips.enter();
   introSeen = true;
 };
 // After a goal, save or woodwork: a slow replay in comic panels, between two wipes; see src/scene/replaySettings.ts.
@@ -476,7 +489,7 @@ const PREVIEW_POWER = (PERFECT_MIN + PERFECT_MAX) / 2; // the preview shows a we
 await preloader.step(0.97, 1.2);
 await renderer.compileAsync(scene, camera);
 await preloader.done();
-screens.showIntro();
+screens.showIntro(true); // with its entrance: the ball flies in, then the logo, the title and the button
 
 renderer.setAnimationLoop((time) => {
   perf.begin(time);
@@ -583,6 +596,7 @@ renderer.setAnimationLoop((time) => {
   });
   introBall.place(physics.ball.translation(), physics.ball.rotation());
   if (screens.open && !screens.endShown) followIntroBall();
+  if (!introBall.bouncy) document.documentElement.classList.remove('over-ball');
   const chipsSwirl = introBall.floating || introBall.windingUp; // they keep swirling while the ball sinks in
   const chipsMode = reducedMotion ? 'off' : chipsSwirl ? 'swirl' : introBall.landing ? 'burst' : 'off';
   introChips.update(realDt, camera, { position: introBall.home }, chipsMode);

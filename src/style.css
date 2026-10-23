@@ -382,10 +382,10 @@ body {
  */
 .intro-top {
   --hole: radial-gradient(
-    circle at var(--ball-x, 50%) var(--ball-y, 50%),
-    transparent calc(var(--ball-r, 0px) - 1.5px),
-    #000 calc(var(--ball-r, 0px) - 0.5px)
-  ); /* a pixel inside the ball's edge, so no purple line shows between ball and title */
+    var(--ball-rx, 0px) var(--ball-ry, 0px) at var(--ball-x, 50%) var(--ball-y, 50%),
+    transparent calc(var(--ball-rx, 0px) - 1.5px),
+    #000 calc(var(--ball-rx, 0px) - 0.5px)
+  ); /* a pixel inside the ball's edge, so no purple line shows between ball and title (an oval while it bounces) */
   -webkit-mask-image: var(--hole);
   mask-image: var(--hole);
 }
@@ -414,6 +414,27 @@ body {
   text-transform: uppercase;
   text-shadow: calc(7.4 * var(--u)) calc(8.5 * var(--u)) 0 #2a1a57; /* 8 px right and down on screen, once tilted */
   transform: translate(-50%, -50%) rotate(-4deg);
+}
+
+/* The title's words keep its size, unseen; its letters are drawn on a gentle arch over them (src/ui/screens.ts). */
+.intro-title-line {
+  visibility: hidden;
+}
+
+.intro-title-arch {
+  position: absolute;
+  inset: 0;
+}
+
+.intro-title-arch > span {
+  position: absolute;
+  top: 0;
+}
+
+/* The ball can be clicked (it bounces). */
+.over-ball,
+.over-ball * {
+  cursor: pointer;
 }
 
 .intro-ball {
@@ -470,6 +491,98 @@ body {
   .screen.intro {
     --u: calc(100vw / 840);
     --ball: max(110px, min(64vw, 36vh));
+  }
+}
+
+/*
+ * The intro's entrance after loading (src/ui/screens.ts; the ball flies in from src/scene/introBall.ts): a circle
+ * opens on the tunnel, the logo drops in, the title's letters pop up one by one along the arch, and the button
+ * comes up with a little wiggle.
+ */
+.screen.intro.entering::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 calc(6 * var(--bu)) #ffcf3a,
+    0 0 0 300vmax #9fdcf5; /* the loading page's own colour */
+  transform: translate(-50%, -50%);
+  animation: intro-iris 0.6s cubic-bezier(0.55, 0, 0.75, 0.3) forwards;
+  pointer-events: none;
+}
+
+@keyframes intro-iris {
+  to {
+    width: calc(150vmax + 30px);
+    height: calc(150vmax + 30px);
+  }
+}
+
+.screen.intro.entering .screen-body {
+  animation: none; /* its own entrance instead of the screens' pop */
+}
+
+.screen.intro.entering .intro-logo {
+  animation: intro-drop 0.45s 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) backwards;
+}
+
+@keyframes intro-drop {
+  from {
+    opacity: 0;
+    translate: 0 calc(-60 * var(--u));
+  }
+}
+
+.screen.intro.entering .intro-title-arch > span {
+  animation: intro-letter 0.35s calc(0.65s + var(--n, 0) * 0.045s) cubic-bezier(0.3, 1.8, 0.5, 1) backwards;
+}
+
+@keyframes intro-letter {
+  from {
+    opacity: 0;
+    scale: 0.2;
+  }
+}
+
+.screen.intro.entering .intro-play.btn {
+  animation:
+    intro-rise 0.45s 1.15s cubic-bezier(0.3, 1.5, 0.5, 1) backwards,
+    intro-wiggle 0.5s 1.6s ease-in-out;
+}
+
+@keyframes intro-rise {
+  from {
+    opacity: 0;
+    translate: 0 calc(80 * var(--u));
+  }
+}
+
+@keyframes intro-wiggle {
+  25% {
+    rotate: -3deg;
+  }
+  50% {
+    rotate: 3deg;
+  }
+  75% {
+    rotate: -1.5deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen.intro.entering::before {
+    animation: intro-fade 0.3s forwards;
+  }
+
+  .screen.intro.entering .intro-logo,
+  .screen.intro.entering .intro-title-arch > span,
+  .screen.intro.entering .intro-play.btn {
+    animation: none;
   }
 }
 
