@@ -96,16 +96,6 @@ export class IntroBackdrop {
     this.tunnelScene.fog = this.fog;
   }
 
-  /** Call after lights join or leave the scene: the ball's on-top drawing uses the scene's lights as they are now. */
-  lightsChanged() {
-    this.lightsOnLayer = false;
-  }
-
-  /** Draws the whole scene once more behind the purple (as on the first frame), for the sun's shadows on the ball. */
-  drawSceneOnce() {
-    this.stadiumDrawn = false;
-  }
-
   /**
    * Draws one frame. `reveal` is how far the purple has gone: 0 all purple, 1 gone (then only the
    * stadium is drawn). With `fade` the purple fades out instead of opening up, and the tunnel stands

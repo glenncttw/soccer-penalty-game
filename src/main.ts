@@ -30,7 +30,7 @@ import { IntroChips, loadChipModel } from './scene/introChips';
 import { applyGrass, loadGrassTextures } from './scene/grass';
 import { loadKeeperModel } from './scene/keeperAsset';
 import { KeeperRig } from './scene/keeperRig';
-import { copySun, lightMovingObject, loadBakes, loadPanorama, setUpLighting } from './scene/lighting';
+import { lightMovingObject, loadBakes, loadPanorama, setUpLighting } from './scene/lighting';
 import { Replay } from './scene/replay';
 import { REPLAY_SETTINGS } from './scene/replaySettings';
 import { AutoResolution, type AutoMemory } from './scene/autoResolution';
@@ -43,8 +43,8 @@ import { COACH_AIM_EITHER, COACH_KEY_TEXT, COACH_TEXT, Coach } from './ui/coach'
 import { Hud } from './ui/hud';
 import { PerfStats } from './ui/perfStats';
 import { readBest, Round, saveBest } from './gameplay/round';
-import { ENTER_TIME, Screens } from './ui/screens';
-import { nextPaint, Preloader } from './ui/preloader';
+import { Screens } from './ui/screens';
+import { Preloader } from './ui/preloader';
 import { gameFilesIn, rememberFiles } from './ui/rememberFiles';
 import { Wipe } from './ui/wipe';
 
@@ -84,19 +84,22 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NoToneMapping;
 
 const scene = new THREE.Scene();
-// The loading bar (in index.html) fills as the files below arrive.
+// The loading screen (in index.html) stays up until the game is ready to play; its bar fills as it gets there.
 const preloader = new Preloader();
 // This device remembers the game's files, so the next visit doesn't download them again (public/sw.js).
 rememberFiles();
 
-// The landing comes first: it only needs the stadium (for its camera, ball and sun), the panorama's light on the
-// ball, the chips and the font. The rest of the game loads behind it (below).
+// Every file downloads at once: the landing's font and chips, the panorama's light, the crowd's small models and
+// the flag logo, the keeper, the grass texture, the baked light and the physics engine (its own file).
 void document.fonts.load('700 1em Bazinga');
 const chipAsset = loadChipModel();
 const panorama = loadPanorama(renderer);
-// The crowd's small models and the flag logo come along with them.
 const crowdParts = loadCrowdParts(CROWD_SETTINGS.heads.map((h) => h.file));
 const flagLogo = loadFlagLogo(renderer);
+const keeperAsset = loadKeeperModel();
+const grassTextures = loadGrassTextures(renderer);
+const bakes = loadBakes(renderer);
+const physicsReady = startPhysics();
 // The Blender stadium is the whole environment: pitch, goal, stands, ball and sun.
 const stadium = await loadStadium((f) => preloader.file(f));
 const envMap = await panorama;
@@ -111,9 +114,6 @@ const camera = view.camera;
 const ballMesh = stadium.ball;
 lightMovingObject(ballMesh, envMap);
 scene.add(ballMesh);
-// Until the stadium is in the scene, its sun lights the landing's ball and chips from a copy.
-const landingSun = copySun(stadium.model);
-scene.add(landingSun, landingSun.target);
 
 const hud = new Hud(document.querySelector<HTMLElement>('#hud')!);
 // Draw calls, triangles and other numbers that show how hard the game works, above the FPS.
@@ -169,15 +169,6 @@ screens.onIntro = () => {
   if (!introSeen) introChips.enter();
   introSeen = true;
 };
-// Speel nu before the game is in: the intro goes and the ball winds up into the tunnel straight away, then waits
-// there, spinning faster and faster, until the game is in (see the end).
-let playSoon = false;
-screens.onPlay = () => {
-  if (playSoon || !introBall.floating) return;
-  playSoon = true;
-  screens.leaveIntro();
-  introBall.land(() => beginRound(), true);
-};
 
 // The canvas fills the page (see style.css); only the number of pixels behind it changes.
 let drawn = { w: 0, h: 0, ratio: 0 };
@@ -200,43 +191,13 @@ window.addEventListener('resize', resize);
 screen.orientation?.addEventListener('change', () => requestAnimationFrame(resize));
 resize();
 
-// The landing on its own, while the game loads: the ball, the chips and the tunnel.
 const timer = new THREE.Timer();
-const IDENTITY = { x: 0, y: 0, z: 0, w: 1 }; // the ball's turn on the spot before physics has it
-const landingFrame = (time: number) => {
-  perf.begin(time);
-  timer.update(time);
-  const realDt = Math.min(timer.getDelta(), 0.1);
-  introBall.advance(realDt);
-  view.update(realDt, { charging: false, swayTarget: null, intro: introBall.cameraIntro, ending: false });
-  introBall.place(world.ballStart, IDENTITY);
-  if (screens.open) followIntroBall();
-  if (!introBall.bouncy) document.documentElement.classList.remove('over-ball');
-  const chipsMode = reducedMotion ? 'off' : introBall.floating || introBall.windingUp ? 'swirl' : 'off';
-  introChips.update(realDt, camera, { position: introBall.home }, chipsMode);
-  warmUp?.step(); // drawn over below
-  introBackdrop.render(renderer, scene, camera, introBall.reveal, reducedMotion, realDt, introBall.home);
-  perf.end(time);
-};
-let warmUp: GradualWarmUp | null = null; // the game's materials, getting ready one per frame (see the end)
-// Prepares the landing's shaders, so its first frames don't stutter.
-await renderer.compileAsync(scene, camera);
-await preloader.done();
-renderer.setAnimationLoop(landingFrame);
-screens.showIntro(true); // with its entrance: the ball flies in, then the logo, the title and the button
 
-// ---- The rest of the game, loading behind the landing (Speel nu pressed before then starts it once it's in).
-// Between the heavier steps the page draws a frame, so the landing keeps moving.
-const keeperAsset = loadKeeperModel();
-const grassTextures = loadGrassTextures(renderer);
-const bakes = loadBakes(renderer);
-const physicsReady = startPhysics();
-// The files download meanwhile, but the page itself only gets busy after the landing's entrance.
-await new Promise((resolve) => setTimeout(resolve, ENTER_TIME));
+// ---- The rest of the game, set up step by step while the loading screen's bar fills.
 // The crowd is placed in the background (the page stays free meanwhile); see src/scene/crowdSettings.ts.
 const crowdPlan = Crowd.prepare(stadium.environment, await crowdParts);
 const crowdPlacement = placeCrowdInBackground(crowdPlan.input);
-await nextPaint();
+await preloader.step();
 // The stadium's own animations (the corner flags waving) loop for ever, slowed down with the game.
 const stadiumMotion = new THREE.AnimationMixer(stadium.model);
 for (const clip of stadium.animations) stadiumMotion.clipAction(clip).play();
@@ -249,26 +210,23 @@ await grassTextures;
 const grass = await applyGrass(stadium.environment, renderer);
 // The grass texture's blades stand up as seen from where the camera usually is.
 grass.lookFrom(view.restPosition);
-await nextPaint();
+await preloader.step();
 // The light baked in Blender, plus the live sun. After the grass, so the grass gets the baked light too.
 const { sun } = await setUpLighting(renderer, stadium.model, { bakes, envMap: panorama });
-// The stadium's sun (now set up with its shadows) takes over from the landing's copy, in the same place.
+// The sun lights the ball and the chips too (they're not in the stadium model).
 if (sun) {
   stadium.environment.updateMatrixWorld(true);
   scene.attach(sun);
   scene.attach(sun.target);
 }
-scene.remove(landingSun, landingSun.target);
-introBackdrop.lightsChanged();
-introBackdrop.drawSceneOnce();
-await nextPaint();
+await preloader.step();
 // The crowd, in rows behind the stand barriers.
 const crowd = new Crowd(crowdPlan, await crowdPlacement);
 crowd.light(envMap);
-await nextPaint();
+await preloader.step();
 // Big flags waving in the crowd; tweak them in src/scene/crowdFlagSettings.ts.
 const crowdFlags = new CrowdFlags(crowd, envMap, await flagLogo);
-await nextPaint();
+await preloader.step();
 
 // A ball that flies over the ad boards fades out: it's gone into the stands.
 const ballFade = new BallFade(ballMesh);
@@ -287,7 +245,7 @@ const keeper = new KeeperMotion(KEEPER_HOME, KEEPER_SKILL, keeperRig);
 lightMovingObject(keeperRig.object, envMap);
 // Soft shadows on the grass right under the ball and the keeper.
 grass.followContacts(ballMesh, world.ballRadius, keeperRig.shadow);
-await nextPaint();
+await preloader.step();
 
 // The keeper's solid parts follow its bones, so the ball is stopped where you see it.
 await physicsReady;
@@ -555,20 +513,21 @@ let gameTime = 0;
 const PREVIEW_POWER = (PERFECT_MIN + PERFECT_MAX) / 2; // the preview shows a well-struck shot
 
 // Everything joins the landing's ball and chips. The landing doesn't show it until Speel nu, but every
-// material gets ready now, one per frame, so neither the landing nor the game's first frames stutter.
+// material gets ready now, a few per frame (so the loading bar keeps moving), so the first frames don't stutter.
 scene.add(stadium.environment, sky.mesh, floodlights.group, crowd.group, crowdFlags.mesh);
 scene.add(trail.mesh, aura.mesh, markers.group, effects.group, replayEffects.group, keeperRig.object);
-warmUp = new GradualWarmUp(renderer, scene, camera);
+const WARM_UP_STEPS = 4; // the longest step, on a slow phone: as long as four of the others on the bar
+const warmUp = new GradualWarmUp(renderer, scene, camera, (f) => preloader.partly(f, WARM_UP_STEPS));
+renderer.setAnimationLoop(() => warmUp.step());
 await warmUp.done;
-warmUp = null;
-introBackdrop.drawSceneOnce(); // with all of it now, for the sun's shadows
-await nextPaint();
+renderer.setAnimationLoop(null);
+await preloader.step(WARM_UP_STEPS);
 // Sets up the replay's own drawing too (its panel), so starting one later doesn't stutter.
 replay.warmUp(camera);
-await nextPaint();
+await preloader.step();
 // The physics engine's first step takes it a moment (it gets its own code ready), so it's taken now too.
 physics.step();
-await nextPaint();
+await preloader.step();
 
 renderer.setAnimationLoop((time) => {
   perf.begin(time);
@@ -701,10 +660,8 @@ renderer.setAnimationLoop((time) => {
   perf.end(time);
 });
 
-// The game is in: Speel nu plays now, and a ball waiting in its wind-up sets off.
-void gameFilesIn();
+// The game is ready: the loading screen goes, and the landing comes in.
+await preloader.done();
 screens.onPlay = startRound;
-if (playSoon) {
-  round.reset();
-  introBall.go();
-}
+screens.showIntro(true); // with its entrance: the ball flies in, then the logo, the title and the button
+void gameFilesIn();

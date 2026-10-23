@@ -32,10 +32,6 @@ const BOUNCE_DAMP = 5.5; // how quickly the wobble dies down (per second)
 const BOUNCE_NEAR = 0.12; // how much closer it springs (a share of its distance)
 const BOUNCE_SPIN = 7.5; // radians a second of extra roll at the start, dying down (about 0.4 turn in all)
 const BOUNCE_TIME = 1.2; // seconds after which it's still again
-// Speel nu pressed before the game is in: the ball waits at the deepest point of its wind-up, spinning faster and
-// faster (a bigger wind-up), and sets off once the game is in.
-const HOLD_SPIN = 3; // radians a second faster it rolls every second it waits
-const HOLD_SPIN_MOST = 12; // radians a second at most (about 2 turns)
 // The first time the intro shows (after loading): the ball flies out of the depth of the tunnel into place.
 const ENTER_DELAY = 0.15; // seconds before it sets off
 const ENTER_TIME = 0.8; // seconds of its flight
@@ -88,11 +84,6 @@ export class IntroBall {
   private readonly cameraTurn = new THREE.Quaternion();
   private rollFrom = 0; // at the start of the flight
   private rollTo = 0; // at the end: whole turns, so it lands exactly as it rests
-  private holding = false; // waiting in its wind-up for the game (see `hold`)
-  private heldRoll = 0; // radians it rolled while waiting
-  private heldSpin = 0; // radians a second it rolls while waiting
-  private extraRoll = 0; // radians more it rolls on the way after waiting, so it still lands exactly as it rests
-  private extraFrom = 0; // how far along the flight was when it set off
   private readonly turn = new THREE.Quaternion();
   private readonly base = new THREE.Quaternion(); // how it's turned before rolling (as it rests, or as it came up)
   private readonly from = new THREE.Vector3();
@@ -162,9 +153,9 @@ export class IntroBall {
     return SINK_DEPTH * bump(this.time / SINK_TIME) - COME_NEAR * bump((this.time - TURN_TIME) / COME_TIME);
   }
 
-  /** True while the ball swings into the tunnel on Speel nu (or waits there), before it turns back toward you. */
+  /** True while the ball swings into the tunnel on Speel nu, before it turns back toward you. */
   get windingUp() {
-    return this.state === 'land' && !this.reducedMotion && (this.time < TURN_TIME || this.holding);
+    return this.state === 'land' && !this.reducedMotion && this.time < TURN_TIME;
   }
 
   /** True from Speel nu until the ball rests on the spot (its wind-up included). */
@@ -210,18 +201,11 @@ export class IntroBall {
     this.bounceTime = 0;
   }
 
-  /**
-   * Flies the ball onto the spot; `onDone` once it rests there. With `hold` it waits at the deepest point of its
-   * wind-up, spinning faster and faster, until `go`.
-   */
-  land(onDone: () => void, hold = false) {
+  /** Flies the ball onto the spot; `onDone` once it rests there. */
+  land(onDone: () => void) {
     if (this.state === 'off' || this.state === 'land') return;
     this.state = 'land';
     this.time = 0;
-    this.holding = hold;
-    this.heldRoll = 0;
-    this.heldSpin = SPIN_SPEED; // on from its floating spin
-    this.extraRoll = 0;
     this.onDone = onDone;
     this.camera.updateMatrixWorld();
     this.fromView.copy(this.ball.position).applyMatrix4(this.camera.matrixWorldInverse);
@@ -232,29 +216,9 @@ export class IntroBall {
     setShadow(this.ball, true); // it grows and sharpens as the ball comes down
   }
 
-  /** The ball waiting in its wind-up (see `land`) sets off. */
-  go() {
-    if (!this.holding) return;
-    this.holding = false;
-    // The turns it rolled while waiting, rounded up to whole turns on the way down.
-    const turn = 2 * Math.PI;
-    const rolled = this.rollTo + this.heldRoll;
-    this.extraRoll = Math.ceil(rolled / turn - 1e-9) * turn - rolled;
-    this.extraFrom = this.flight;
-  }
-
   /** Moves time on. Call every frame before the camera moves (it reads `cameraIntro`). */
   advance(dt: number) {
     if (this.state === 'off') return;
-    const holdAt = this.reducedMotion ? 0 : TURN_TIME;
-    if (this.state === 'land' && this.holding && this.time + dt >= holdAt) {
-      this.time = holdAt;
-      if (!this.reducedMotion) {
-        this.heldSpin = Math.min(HOLD_SPIN_MOST, this.heldSpin + HOLD_SPIN * dt);
-        this.heldRoll += this.heldSpin * dt;
-      }
-      return;
-    }
     this.time += dt;
     if (this.state === 'float') this.floatTime += dt;
     this.bounceTime += dt;
@@ -382,8 +346,7 @@ export class IntroBall {
       // it ends up exactly as it rests on the spot, without ever turning another way. It carries on
       // with its floating spin at first, which fades out as the flight takes over.
       const spin = SPIN_SPEED * this.time * (1 - s);
-      const extra = this.extraRoll * Math.max(0, (s - this.extraFrom) / (1 - this.extraFrom));
-      this.roll = this.rollFrom + this.heldRoll + spin + (this.rollTo - this.rollFrom) * s + extra;
+      this.roll = this.rollFrom + spin + (this.rollTo - this.rollFrom) * s;
       this.rolled(this.turn.slerpQuaternions(this.base, this.restQuaternion, s));
     }
   }

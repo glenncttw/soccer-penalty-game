@@ -747,9 +747,16 @@ body {
   text-transform: uppercase;
 }
 
-/* The loading bar, shown until the game is ready (src/ui/preloader.ts). */
+/* The loading screen and its bar, over everything until the game is ready (src/ui/preloader.ts). */
 #loading {
   position: fixed;
+  inset: 0;
+  z-index: 5; /* over the game while it gets ready behind it */
+  background: #9fdcf5;
+}
+
+#loading .bar {
+  position: absolute;
   left: 50%;
   top: 50%;
   width: 240px;
@@ -759,7 +766,7 @@ body {
   background: rgba(0, 0, 0, 0.2);
 }
 
-#loading > div {
+#loading .bar > div {
   width: 100%;
   height: 100%;
   background: #ffffff;

@@ -50,24 +50,6 @@ export async function setUpLighting(
   return setupStadiumLighting(renderer, model, OPTIONS, files);
 }
 
-/**
- * A light like the stadium's sun in the model (its colour, strength and direction), for the landing's ball and
- * chips while the stadium itself isn't in the scene yet.
- */
-export function copySun(model: THREE.Object3D) {
-  let sun: THREE.DirectionalLight | undefined;
-  model.traverse((o) => {
-    if (o instanceof THREE.DirectionalLight) sun ??= o;
-  });
-  const copy = new THREE.DirectionalLight();
-  if (!sun) return copy;
-  model.updateMatrixWorld(true);
-  copy.color.copy(sun.color);
-  copy.intensity = sun.intensity;
-  copy.position.subVectors(sun.getWorldPosition(new THREE.Vector3()), sun.target.getWorldPosition(new THREE.Vector3()));
-  return copy;
-}
-
 /** Gives something that moves (the ball, the keeper) the panorama's soft light and reflections, and live shadows. */
 export function lightMovingObject(object: THREE.Object3D, envMap: THREE.Texture) {
   object.traverse((o) => {

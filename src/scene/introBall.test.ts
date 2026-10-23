@@ -177,36 +177,6 @@ describe('IntroBall', () => {
     }
   });
 
-  it('pressed before the game is in: waits deep in its wind-up, spinning faster, then lands exactly at rest', () => {
-    for (const [w, h] of SCREENS) {
-      const { camera, ball, slot, intro, frame } = setUp(w, h);
-      intro.float(slot);
-      for (let i = 0; i < 90; i++) frame();
-      let done = 0;
-      intro.land(() => done++, true);
-      const dt = 1 / 60;
-      for (let i = 0; i < 60; i++) frame(dt); // into the wind-up
-      const held = onScreen(ball, camera, w, h);
-      const spins: number[] = [];
-      let last = ball.quaternion.clone();
-      for (let i = 0; i < 300; i++) {
-        frame(dt); // five seconds of waiting
-        spins.push(ball.quaternion.angleTo(last) / dt);
-        last = ball.quaternion.clone();
-        expect(intro.windingUp).toBe(true);
-        expect(intro.reveal).toBe(0); // nothing else has started
-        const now = onScreen(ball, camera, w, h);
-        expect(Math.abs(now.depth - held.depth)).toBeLessThan(1e-9); // waiting where it is
-      }
-      expect(spins[spins.length - 1]).toBeGreaterThan(spins[0] * 3); // spinning faster and faster
-      intro.go();
-      for (let i = 0; i < 400 && intro.active; i++) frame(dt);
-      expect(done).toBe(1);
-      expect(ball.position.distanceTo(new THREE.Vector3(SPOT.x, SPOT.y, SPOT.z))).toBeLessThan(1e-9);
-      expect(ball.quaternion.angleTo(new THREE.Quaternion())).toBeLessThan(1e-6);
-    }
-  });
-
   it('rises from the spot back into the slot', () => {
     const { camera, ball, slot, size, intro, frame } = setUp(1280, 720);
     intro.float(slot, true);

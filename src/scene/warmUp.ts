@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 
-const FRAME_SHARE = 6; // milliseconds of a frame for getting materials ready
+const FRAME_SHARE = 30; // milliseconds of a frame for getting materials ready (the loading bar keeps moving)
 
 /**
  * Gets every material in a scene ready to draw (its shaders made, its pictures sent to the graphics chip) a few
- * at a time, as many as fit in a few milliseconds of each frame (at least one), so a page that keeps drawing
- * meanwhile (the landing) only ever stops for a moment, not for all of them at once. Call `step` every frame,
- * before the frame's own drawing (which covers up what `step` drew); `done` resolves when all are ready.
+ * at a time, as many as fit in part of each frame (at least one), so the page (the loading screen's bar) only
+ * ever stops for a moment, not for all of them at once. Call `step` every frame; `done` resolves when all are
+ * ready.
  *
  * Each material is drawn the two ways the game draws it: on screen, and into a picture (as the replay does,
  * which needs its own version of the shaders). Both only one pixel big: the size doesn't change the shaders,
@@ -16,6 +16,7 @@ export class GradualWarmUp {
   readonly done: Promise<void>;
   private resolve!: () => void;
   private readonly todo: THREE.Object3D[][];
+  private readonly count: number;
   private readonly shown = new Map<THREE.Object3D, boolean>();
   private readonly picture = new THREE.WebGLRenderTarget(1, 1);
   private readonly viewport = new THREE.Vector4();
@@ -25,6 +26,8 @@ export class GradualWarmUp {
     private readonly renderer: THREE.WebGLRenderer,
     private readonly scene: THREE.Scene,
     private readonly camera: THREE.Camera,
+    /** How far it's got (0..1), after every step. */
+    private readonly onProgress: (fraction: number) => void = () => {},
   ) {
     this.done = new Promise((resolve) => (this.resolve = resolve));
     this.picture.texture.colorSpace = THREE.SRGBColorSpace;
@@ -38,6 +41,7 @@ export class GradualWarmUp {
       }
     });
     this.todo = [...byMaterial.values()];
+    this.count = this.todo.length;
     this.finishIfDone();
   }
 
@@ -46,6 +50,7 @@ export class GradualWarmUp {
     const start = performance.now();
     do this.next();
     while (this.todo.length > 0 && performance.now() - start < FRAME_SHARE);
+    this.onProgress(1 - this.todo.length / this.count);
     this.finishIfDone();
   }
 

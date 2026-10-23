@@ -51,13 +51,11 @@ toward where you point.
 After a goal, a save or a shot off the woodwork, a quick wipe brings up a 3.5-second slow-motion **replay** in a
 comic panel. After any other shot, the wipe just brings back the ball for the next one.
 
-Loading comes in two parts (`src/main.ts`). First a plain bar in the middle of the screen fills up while what the
-landing needs downloads: the stadium (for its camera, ball and sun), the panorama's light, the chips and the font.
-Then the landing shows, and the rest of the game loads behind it: the keeper, the grass texture, the baked light and
-the physics engine (its own file) download, the crowd is placed in the background (`src/scene/crowdWorker.ts`), and
-every material gets ready a few per frame (`src/scene/warmUp.ts`), so the landing keeps moving. Pressing Speel nu
-before then winds the ball up into the tunnel straight away: it waits there, spinning faster and faster
-(`HOLD_*` in `src/scene/introBall.ts`), and sets off once the game is in. The device remembers the game's files (`public/sw.js`, a service worker,
+The loading screen stays up until the game is ready to play (`src/main.ts`, `src/ui/preloader.ts`); then the
+landing comes in. Every file downloads at once: the stadium, the panorama's light, the chips, the keeper, the grass
+texture, the baked light and the physics engine (its own file). Meanwhile the crowd is placed in the background
+(`src/scene/crowdWorker.ts`), and at the end every material gets ready a few per frame (`src/scene/warmUp.ts`),
+so the bar keeps moving and the first frames don't stutter. The device remembers the game's files (`public/sw.js`, a service worker,
 only in the built game), so a later visit doesn't download them again; when a new version is deployed, a visit
 checks each file with the server once and only downloads the ones that changed.
 In the bottom left corner you see how the
