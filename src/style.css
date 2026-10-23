@@ -707,9 +707,25 @@ body {
   }
 }
 
-/* Without the tint, the white text and outline button get a shadow and a soft fill to stand out from the stadium. */
+/*
+ * Without a tint over the game, the score sits on a card in the landing's purple, so its words read clearly
+ * over the busy stadium and crowd.
+ */
+.screen.end .screen-body {
+  padding: 28px 40px 32px;
+  border-radius: 28px;
+  background: rgba(64, 41, 133, 0.92); /* #402985 */
+  box-shadow: 6px 8px 0 #2a1a57;
+}
+
 .screen.end .end-best {
-  text-shadow: 0 3px 0 #3b1f4f;
+  text-shadow: 0 3px 0 #2a1a57;
+}
+
+@media (max-width: 420px) {
+  .screen.end .screen-body {
+    padding: 22px 18px 26px;
+  }
 }
 
 .screen.end .btn-secondary {

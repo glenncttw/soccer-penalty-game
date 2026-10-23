@@ -15,7 +15,8 @@ import { REPLAY_SETTINGS, type ReplaySettings } from './replaySettings';
 
 const SHADOW = palette.crokyPurpleDeep; // the panel's drop shadow: a deep purple
 const POP_TIME = 0.4; // seconds the panel takes to pop in
-const TILT = THREE.MathUtils.degToRad(-1.5); // the panel leans a little, like a sticker
+const TILT = THREE.MathUtils.degToRad(-4); // the panel leans 4 degrees (to the right), like a sticker
+const SWING = THREE.MathUtils.degToRad(-1.5); // and swings in that much further as it pops in, then settles
 const TAG_SPACE = 64; // CSS pixels kept free at the top for the "REPLAY" label
 
 export interface ReplayParts {
@@ -259,7 +260,7 @@ export class Replay {
     const k = popIn(this.elapsed / POP_TIME);
     const { x, y, w, h } = this.rect;
     this.panel.position.set(x, y, 0);
-    this.panel.rotation.z = TILT * (2 - k); // swings in a little extra, then settles
+    this.panel.rotation.z = TILT + SWING * (1 - k); // swings in a little extra, then settles
     this.panel.scale.setScalar(Math.max(0.001, k));
     this.picture.scale.set(w, h, 1);
     this.border.scale.set(w + 2 * border, h + 2 * border, 1);
