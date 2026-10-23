@@ -86,7 +86,10 @@ const CROWD_ROWS: Row<CrowdSettings>[] = [
   ['waveRise', 'Wave rise (m)', 0, 0.3, 0.01],
 ];
 
-const WIPE_ROWS: Row<ReplaySettings>[] = [['wipeTime', 'Sweep time (s)', 0.3, 2, 0.01]];
+const WIPE_ROWS: Row<ReplaySettings>[] = [
+  ['wipeTime', 'Sweep time (s)', 0.3, 2, 0.01],
+  ['tunnelSpeed', 'Replay rings speed (x landing)', 0, 8, 0.1],
+];
 
 export interface EditorTargets {
   camera: { setSettings(settings: CameraSettings): void };
@@ -166,7 +169,7 @@ export function openSettingsEditor(targets: EditorTargets) {
   addCopyButton(crowdFolder, 'Copy crowd settings', () => settingsSnippet('CROWD_SETTINGS', 'CrowdSettings', crowd));
   crowdFolder.add({ reset: () => crowdFolder.reset() }, 'reset').name('Reset crowd reactions');
 
-  // The wipe reads its timing each time it plays, so these sliders change it straight away.
+  // The wipe reads its timing each time it plays, and the replay its rings' speed every frame, so these change straight away.
   const wipeFolder = gui.addFolder('Wipe');
   for (const row of WIPE_ROWS) addRow(wipeFolder, REPLAY_SETTINGS, row);
   wipeFolder.add({ play: () => targets.wipe.play() }, 'play').name('Play wipe');

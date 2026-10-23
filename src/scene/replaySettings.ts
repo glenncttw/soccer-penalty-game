@@ -26,6 +26,8 @@ export interface ReplaySettings {
   resolution: number;
   /** The panel's size, as a share of the biggest that fits under the "REPLAY" label (1 = biggest). */
   panelSize: number;
+  /** How fast the purple tunnel's rings behind the panel come toward you, in times the landing's pace. */
+  tunnelSpeed: number;
 }
 
 export const REPLAY_SETTINGS: ReplaySettings = {
@@ -41,4 +43,5 @@ export const REPLAY_SETTINGS: ReplaySettings = {
   wipeTime: 0.8,
   resolution: 0.75,
   panelSize: 0.8,
+  tunnelSpeed: 3,
 };

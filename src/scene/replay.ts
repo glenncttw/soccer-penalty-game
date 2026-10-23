@@ -17,7 +17,6 @@ const SHADOW = palette.crokyPurpleDeep; // the panel's drop shadow: a deep purpl
 const POP_TIME = 0.4; // seconds the panel takes to pop in
 const TILT = THREE.MathUtils.degToRad(-1.5); // the panel leans a little, like a sticker
 const TAG_SPACE = 64; // CSS pixels kept free at the top for the "REPLAY" label
-const TUNNEL_SPEED = 0.5; // the tunnel's rings come toward you at half the landing's pace: calm behind the replay
 
 export interface ReplayParts {
   world: WorldConfig;
@@ -284,7 +283,7 @@ export class Replay {
     }
     tunnel.uniforms.uHole.value.set(0, 0, -100);
     tunnel.uniforms.uOpacity.value = 1;
-    tunnel.place(this.tunnelCamera, this.tunnelHome, still ? 0 : realDt, TUNNEL_SPEED);
+    tunnel.place(this.tunnelCamera, this.tunnelHome, still ? 0 : realDt, this.settings.tunnelSpeed);
     renderer.render(tunnel.scene, this.tunnelCamera);
   }
 
