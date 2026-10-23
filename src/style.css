@@ -356,6 +356,9 @@ body {
  */
 .screen.intro {
   --u: min(100vw / 1440, 100vh / 800);
+  /* Never scrolls: it always fits, and what its animations move past the edges is simply cut off there. */
+  overflow: hidden;
+  overflow: clip;
   --ball: calc(320 * var(--u));
   --bu: max(var(--u), 0.72px); /* the button's own unit: never smaller than a finger (44 px high) */
   padding: 0;
@@ -523,8 +526,9 @@ body {
   }
 }
 
-.screen.intro.entering .screen-body {
-  animation: none; /* its own entrance instead of the screens' pop */
+.screen.intro.entering .screen-body,
+.screen.intro.entered .screen-body {
+  animation: none; /* its own entrance instead of the screens' pop (and not once it's done either) */
 }
 
 .screen.intro.entering .intro-logo {
