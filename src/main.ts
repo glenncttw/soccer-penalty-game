@@ -185,6 +185,12 @@ const introBall = new IntroBall(
   { position: view.restPosition, quaternion: view.restQuaternion },
   reducedMotion,
 );
+// On the intro the ball leans toward the mouse a little (and the title and button the other way).
+window.addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  introBall.pointAt((e.clientX / innerWidth) * 2 - 1, (e.clientY / innerHeight) * 2 - 1);
+});
+document.documentElement.addEventListener('pointerleave', () => introBall.pointAt(0, 0));
 const introBackdrop = new IntroBackdrop(ballMesh); // the purple tunnel behind it, opening up from the ball
 // Croky chips swirling out from behind the ball on the intro (fewer on phones; none with reduced motion).
 const introChips = new IntroChips(await chipAsset, touchScreen ? 24 : 40);
@@ -576,7 +582,10 @@ renderer.setAnimationLoop((time) => {
     ending: screens.endShown, // close to the keeper dancing, beside the score
   });
   introBall.place(physics.ball.translation(), physics.ball.rotation());
-  if (screens.open && !screens.endShown) followIntroBall();
+  if (screens.open && !screens.endShown) {
+    followIntroBall();
+    screens.lean(introBall.lean.x, introBall.lean.y);
+  }
   const chipsSwirl = introBall.floating || introBall.windingUp; // they keep swirling while the ball sinks in
   const chipsMode = reducedMotion ? 'off' : chipsSwirl ? 'swirl' : introBall.landing ? 'burst' : 'off';
   introChips.update(realDt, camera, ballMesh, chipsMode);

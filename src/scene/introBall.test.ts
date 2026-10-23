@@ -102,7 +102,8 @@ describe('IntroBall', () => {
     for (const [w, h] of SCREENS) {
       const { view, camera, ball, slot, intro, frame } = setUp(w, h);
       intro.float(slot);
-      for (let i = 0; i < 120; i++) frame(); // spins a while
+      for (let i = 0; i < 120; i++) frame(); // spins (and drifts) a while
+      const drifted = Math.abs(onScreen(ball, camera, w, h).x - w / 2);
       let done = 0;
       intro.land(() => done++);
       const heights: number[] = [];
@@ -110,7 +111,8 @@ describe('IntroBall', () => {
         frame();
         const seen = onScreen(ball, camera, w, h);
         expect(seen.depth).toBeGreaterThan(0.4);
-        expect(Math.abs(seen.x - w / 2)).toBeLessThan(w * 0.01); // straight down the middle: no swinging side to side
+        // Straight down from where it drifted to: no swinging side to side.
+        expect(Math.abs(seen.x - w / 2)).toBeLessThan(drifted + w * 0.01);
         expect(Math.abs(seen.y - h / 2)).toBeLessThan(h / 2);
         expect(ball.position.y).toBeGreaterThan(RADIUS - 1e-6);
         heights.push(ball.position.y);
@@ -186,12 +188,53 @@ describe('IntroBall', () => {
     expect(intro.landing).toBe(false);
   });
 
+  it('drifts slowly from side to side while it floats, growing in gently and staying the same size', () => {
+    const w = 1280;
+    const h = 720;
+    const { camera, ball, slot, size, intro, frame } = setUp(w, h);
+    intro.float(slot);
+    const xs: number[] = [];
+    for (let i = 0; i < 60 * 14; i++) {
+      frame();
+      const seen = onScreen(ball, camera, w, h);
+      xs.push(seen.x - w / 2);
+      expect(seen.y).toBeCloseTo(h / 2, 3);
+      expect(seen.size).toBeCloseTo(size, 3);
+    }
+    expect(Math.abs(xs[0])).toBeLessThan(0.1); // no jump at the start
+    expect(Math.max(...xs)).toBeCloseTo(0.06 * size, 0);
+    expect(Math.min(...xs)).toBeCloseTo(-0.06 * size, 0);
+    for (let i = 1; i < xs.length; i++) expect(Math.abs(xs[i] - xs[i - 1])).toBeLessThan(0.3); // slow and smooth: under 18 px a second
+  });
+
+  it('leans a little toward the mouse, calmly, and back to the middle on Speel nu', () => {
+    const w = 1280;
+    const h = 720;
+    const { camera, ball, slot, size, intro, frame } = setUp(w, h);
+    intro.float(slot);
+    intro.pointAt(1, -1); // top right
+    frame();
+    expect(intro.lean.x).toBeGreaterThan(0);
+    expect(intro.lean.x).toBeLessThan(0.1); // it doesn't jump there
+    for (let i = 0; i < 120; i++) frame();
+    expect(intro.lean.x).toBeGreaterThan(0.99);
+    expect(intro.lean.y).toBeLessThan(-0.99);
+    const seen = onScreen(ball, camera, w, h);
+    expect(h / 2 - seen.y).toBeCloseTo(0.04 * size, 1); // up toward the mouse
+    intro.land(() => {});
+    for (let i = 0; i < 120; i++) frame();
+    expect(Math.abs(intro.lean.x)).toBeLessThan(0.01);
+  });
+
   it('with reduced motion, stands still, keeps the camera where you shoot from, then is simply on the spot', () => {
     const { view, camera, ball, slot, intro, frame } = setUp(1280, 720, true);
     intro.float(slot);
     for (let i = 0; i < 60; i++) frame();
     expect(ball.quaternion.angleTo(new THREE.Quaternion())).toBe(0);
     expect(camera.position.distanceTo(view.restPosition)).toBeLessThan(1e-9);
+    intro.pointAt(1, 1);
+    for (let i = 0; i < 60; i++) frame();
+    expect(intro.lean).toEqual({ x: 0, y: 0 }); // no drift, no leaning toward the mouse
     let done = false;
     intro.land(() => (done = true));
     frame(0.4);

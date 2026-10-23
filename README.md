@@ -17,7 +17,7 @@ stands still, the camera doesn't move and the purple fades). Croky chips come at
 (`src/scene/introChips.ts`). The logo, the **Penalty Cup** title and the **Speel nu & Win** button follow Glenn's
 landing design (made at 1440 x 800, in his Bazinga font, `src/assets/fonts/`): they are sized in one unit, `--u` in
 `src/style.css`, so they fit that screen to the pixel and scale as one piece on others (phones held upright get a
-bigger ball). The ball is drawn in front of the title: the title gets a round hole where the ball is, moved every
+bigger ball). While it waits, the ball drifts slowly from side to side, and with a mouse it leans a little toward the pointer while the logo, title and button lean the other way (`SWAY_*` and `FOLLOW*` in `src/scene/introBall.ts`). The ball is drawn in front of the title: the title gets a round hole where the ball is, moved every
 frame by `src/main.ts`. The words are in `src/ui/texts.ts` (Dutch, or French for a French browser). A round is 5 penalties; the balls in the top right corner fill in as you go (✓ goal,
 ✕ saved or missed). After the fifth penalty (and its replay) the end screen shows how many you scored and your
 record on this device, with **Speel opnieuw** and **Menu**: the camera moves in close to the keeper dancing in front

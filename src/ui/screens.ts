@@ -108,6 +108,12 @@ export class Screens {
     s.setProperty('--ball-r', `${Math.max(0, radius).toFixed(1)}px`);
   }
 
+  /** How far the intro leans with the mouse (-1..1 across and down): the title and button move a little the other way. */
+  lean(x: number, y: number) {
+    this.intro.style.setProperty('--lean-x', x.toFixed(3));
+    this.intro.style.setProperty('--lean-y', y.toFixed(3));
+  }
+
   /** Speel nu & Win: the title moves up and the button down, out of the way of the ball, then the intro closes. */
   leaveIntro() {
     (document.activeElement as HTMLElement | null)?.blur();

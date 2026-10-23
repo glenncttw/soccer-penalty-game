@@ -17,6 +17,12 @@ const FLY_ARC = 0.3; // metres the ball rises above a straight line halfway up (
 const LIFT_TIME = 0.8; // seconds back up from the spot into the intro (Menu on the end screen)
 const STILL_WAIT = 0.3; // with reduced motion: no flight, the ball is just on the spot after this
 const REVEAL_TIME = 0.9; // seconds for the opening to grow past the corners of the screen
+// While it floats it drifts slowly from side to side, and leans a little toward the mouse.
+const SWAY_WIDTH = 0.06; // how far to each side it drifts, as a share of its size (about 19 px at 1440 x 800)
+const SWAY_TIME = 7; // seconds for one drift there and back
+const SWAY_START = 2.5; // seconds for the drift to grow in, so it never starts with a jerk
+const FOLLOW = 0.04; // how far it moves toward the mouse at the edge of the screen, as a share of its size
+const FOLLOW_SPEED = 3; // how quickly it catches up with the mouse (per second): calm, never twitchy
 
 /** Something on screen the ball is drawn in: the intro's empty space between the title and the buttons. */
 export interface BallSlot {
@@ -45,6 +51,10 @@ export class IntroBall {
   private slot: BallSlot | null = null;
   private onDone = () => {};
   private roll = 0; // radians it has rolled forward
+  private floatTime = 0; // seconds it has floated in the slot (for its drift)
+  private readonly pointer = { x: 0, y: 0 }; // where the mouse is, -1..1 from the middle of the screen
+  /** Where it leans toward the mouse, smoothed: -1..1 (the intro's title and button lean the other way). */
+  readonly lean = { x: 0, y: 0 };
   private rollFrom = 0; // at the start of the flight
   private rollTo = 0; // at the end: whole turns, so it lands exactly as it rests
   private readonly turn = new THREE.Quaternion();
@@ -142,7 +152,14 @@ export class IntroBall {
       this.roll = 0;
     }
     this.state = lifting ? 'lift' : 'float';
+    this.floatTime = 0;
     setShadow(this.ball, this.state === 'lift');
+  }
+
+  /** Where the mouse is (-1..1 across and down from the middle of the screen); 0, 0 when it's gone. */
+  pointAt(x: number, y: number) {
+    this.pointer.x = THREE.MathUtils.clamp(x, -1, 1);
+    this.pointer.y = THREE.MathUtils.clamp(y, -1, 1);
   }
 
   /** Flies the ball onto the spot; `onDone` once it rests there. */
@@ -163,7 +180,21 @@ export class IntroBall {
   advance(dt: number) {
     if (this.state === 'off') return;
     this.time += dt;
+    if (this.state === 'float') this.floatTime += dt;
     if (!this.reducedMotion && this.state !== 'land') this.roll += SPIN_SPEED * dt;
+    // It only leans toward the mouse while it floats; on Speel nu it eases back to the middle.
+    const follow = this.state === 'float' && !this.reducedMotion;
+    const k = 1 - Math.exp(-FOLLOW_SPEED * dt);
+    this.lean.x += ((follow ? this.pointer.x : 0) - this.lean.x) * k;
+    this.lean.y += ((follow ? this.pointer.y : 0) - this.lean.y) * k;
+  }
+
+  /** How far (in pixels) the floating ball is from the middle of its slot: its drift and its lean. */
+  private offset(size: number) {
+    if (this.reducedMotion) return { x: 0, y: 0 };
+    const grow = THREE.MathUtils.smoothstep(this.floatTime, 0, SWAY_START);
+    const drift = SWAY_WIDTH * grow * Math.sin((2 * Math.PI * this.floatTime) / SWAY_TIME);
+    return { x: size * (drift + FOLLOW * this.lean.x), y: size * FOLLOW * this.lean.y };
   }
 
   /**
@@ -241,14 +272,16 @@ export class IntroBall {
     const r = this.slot?.getBoundingClientRect();
     const v = this.view.getBoundingClientRect();
     if (!r || r.width === 0 || r.height === 0 || v.height === 0) return false;
-    const cx = r.left + r.width / 2 - v.left;
-    const cy = r.top + r.height / 2 - v.top;
+    const size = Math.min(r.width, r.height);
+    const shift = this.state === 'float' ? this.offset(size) : { x: 0, y: 0 };
+    const cx = r.left + r.width / 2 - v.left + shift.x;
+    const cy = r.top + r.height / 2 - v.top + shift.y;
     this.camera.updateMatrixWorld();
     // The camera's view window may be shifted (cameraSettings verticalShift); unproject knows about that.
     this.ray.set((cx / v.width) * 2 - 1, 1 - (cy / v.height) * 2, 0.5).unproject(this.camera);
     this.ray.sub(this.camera.position).normalize();
     this.camera.getWorldDirection(this.forward);
-    const depth = slotDepth(this.radius, Math.min(r.width, r.height), v.height, this.camera.fov);
+    const depth = slotDepth(this.radius, size, v.height, this.camera.fov);
     out.copy(this.camera.position).addScaledVector(this.ray, depth / this.ray.dot(this.forward));
     return true;
   }
