@@ -186,7 +186,7 @@ body {
   top: 0;
   bottom: 0;
   left: 0;
-  background: linear-gradient(90deg, #ffffff 0 6px, #e5186f 6px 50%, #6c398b 50% calc(100% - 6px), #ffffff 0);
+  background: linear-gradient(90deg, #ffffff 0 6px, #e5186f 6px 50%, #402985 50% calc(100% - 6px), #ffffff 0);
   will-change: transform;
 }
 
@@ -224,12 +224,12 @@ body {
   padding: 6px 16px;
   border-radius: 10px;
   background: #ffcf3a;
-  color: #6c398b;
+  color: #402985;
   font-weight: 900;
   font-size: 22px;
   letter-spacing: 0.06em;
   transform: rotate(-4deg);
-  box-shadow: 0 4px 0 #3b1f4f;
+  box-shadow: 0 4px 0 #2a1a57;
 }
 
 /* The round's penalties, top right: one ball each (src/ui/hud.ts). */

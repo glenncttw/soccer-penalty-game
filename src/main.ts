@@ -284,6 +284,9 @@ const replay = new Replay({
       crowdFlags.update(time); // the flags move with their bearers
     },
   },
+  tunnel: introBackdrop.tunnel,
+  camera,
+  still: reducedMotion,
 });
 const wipe = new Wipe(document.querySelector<HTMLElement>('#hud')!, REPLAY_SETTINGS);
 // Add ?replayAngle=follow, behind or high to the address to see every replay from that one angle.

@@ -8,14 +8,16 @@ import { BallTrail } from './ball';
 import type { BallAura } from './ballAura';
 import type { BallFade } from './ballFade';
 import type { Effects } from './effects';
+import type { PurpleTunnel } from './introBackdrop';
 import type { KeeperRig } from './keeperRig';
 import { REPLAY_ANGLES, replayCameraPose, type ReplayAngle } from './replayCamera';
 import { REPLAY_SETTINGS, type ReplaySettings } from './replaySettings';
 
-const SHADOW = 0x3b1f4f; // the panel's drop shadow: a deep purple
+const SHADOW = palette.crokyPurpleDeep; // the panel's drop shadow: a deep purple
 const POP_TIME = 0.4; // seconds the panel takes to pop in
 const TILT = THREE.MathUtils.degToRad(-1.5); // the panel leans a little, like a sticker
 const TAG_SPACE = 64; // CSS pixels kept free at the top for the "REPLAY" label
+const TUNNEL_SPEED = 0.5; // the tunnel's rings come toward you at half the landing's pace: calm behind the replay
 
 export interface ReplayParts {
   world: WorldConfig;
@@ -37,6 +39,12 @@ export interface ReplayParts {
   effects: Effects;
   /** The crowd: its clock is recorded with every frame, and the replay shows them as they were (`time` is game time). */
   crowd: { readonly clock: number; show(time: number, clock: number): void };
+  /** The landing's purple tunnel: the replay's background, behind its panel. */
+  tunnel: PurpleTunnel;
+  /** The game's camera: the tunnel is seen through its lens, so it looks as it does on the landing. */
+  camera: THREE.PerspectiveCamera;
+  /** Reduced motion: the tunnel's rings stand still. */
+  still: boolean;
 }
 
 /**
@@ -53,7 +61,9 @@ export class Replay {
   private readonly trail = new BallTrail();
   private readonly overlay = new THREE.Scene();
   private readonly screen = new THREE.OrthographicCamera(0, 1, 1, 0, -10, 10);
-  private readonly backdrop: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+  /** Looks straight down the purple tunnel, its dark far end behind the panel. */
+  private readonly tunnelCamera = new THREE.PerspectiveCamera(50, 1, 0.01, 20); // with the game camera's lens
+  private readonly tunnelHome = new THREE.Vector3(0, 0, -1);
   private readonly camera = new THREE.PerspectiveCamera(50, 1, 0.05, 400);
   private readonly target = new THREE.WebGLRenderTarget(1, 1, { samples: 4 });
   private readonly panel = new THREE.Group();
@@ -92,8 +102,6 @@ export class Replay {
     this.trail.mesh.visible = false;
     parts.scene.add(this.trail.mesh);
 
-    this.backdrop = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), backdropMaterial());
-    this.overlay.add(this.backdrop);
     this.target.texture.colorSpace = THREE.SRGBColorSpace;
     const plane = new THREE.PlaneGeometry(1, 1);
     const flat = (color: number) => new THREE.MeshBasicMaterial({ color, toneMapped: false });
@@ -117,7 +125,8 @@ export class Replay {
     this.camera.quaternion.copy(camera.quaternion);
     renderer.setRenderTarget(this.target);
     renderer.render(scene, this.camera);
-    renderer.render(this.overlay, this.screen); // into the panel's own picture: never seen
+    renderer.render(this.parts.tunnel.scene, this.tunnelCamera); // into the panel's own picture: never seen
+    renderer.render(this.overlay, this.screen);
     renderer.setRenderTarget(null);
   }
 
@@ -209,9 +218,6 @@ export class Replay {
     this.screen.right = w;
     this.screen.top = h;
     this.screen.updateProjectionMatrix();
-    this.backdrop.scale.set(w, h, 1);
-    this.backdrop.position.set(w / 2, h / 2, 0);
-    this.backdrop.material.uniforms.size.value.set(w, h);
     const gap = Math.min(w, h) * 0.06;
     const room = { w: w - 2 * gap, h: h - TAG_SPACE - 2 * gap }; // the space under the "REPLAY" label
     // A wide picture on wide screens; nearly square on phones held upright, so it isn't a thin strip.
@@ -231,7 +237,6 @@ export class Replay {
     const { renderer, scene } = this.parts;
     this.elapsed = Math.min(this.length, this.elapsed + realDt);
     const t = this.sample(this.elapsed);
-    this.backdrop.material.uniforms.time.value += realDt;
 
     // Recorded positions go into the replay's own trail as the replay reaches them.
     const frames = this.recorder.frames;
@@ -261,7 +266,26 @@ export class Replay {
     this.border.scale.set(w + 2 * border, h + 2 * border, 1);
     this.shadow.scale.copy(this.border.scale);
     this.shadow.position.set(border * 1.2, -border * 1.2, 0.1);
+    this.drawTunnel(realDt);
+    const autoClear = renderer.autoClear;
+    renderer.autoClear = false;
+    renderer.clearDepth();
     renderer.render(this.overlay, this.screen);
+    renderer.autoClear = autoClear;
+  }
+
+  /** The background: the landing's purple tunnel, whole (no hole), its rings drifting toward you. */
+  private drawTunnel(realDt: number) {
+    const { renderer, tunnel, still, camera } = this.parts;
+    if (this.tunnelCamera.fov !== camera.fov || this.tunnelCamera.aspect !== camera.aspect) {
+      this.tunnelCamera.fov = camera.fov;
+      this.tunnelCamera.aspect = camera.aspect;
+      this.tunnelCamera.updateProjectionMatrix();
+    }
+    tunnel.uniforms.uHole.value.set(0, 0, -100);
+    tunnel.uniforms.uOpacity.value = 1;
+    tunnel.place(this.tunnelCamera, this.tunnelHome, still ? 0 : realDt, TUNNEL_SPEED);
+    renderer.render(tunnel.scene, this.tunnelCamera);
   }
 
   /** Puts the ball, keeper and crowd where they were `elapsed` replay seconds in. Returns the game time shown. */
@@ -332,37 +356,4 @@ function popIn(x: number) {
   const c = 1.9;
   const t = x - 1;
   return 1 + (c + 1) * t * t * t + c * t * t;
-}
-
-/** A purple background with wide slanted stripes sliding slowly across. */
-function backdropMaterial() {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      time: { value: 0 },
-      size: { value: new THREE.Vector2(1, 1) },
-      dark: { value: new THREE.Color(palette.purple) },
-      light: { value: new THREE.Color(0x7d4a9c) },
-    },
-    vertexShader: /* glsl */ `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }`,
-    fragmentShader: /* glsl */ `
-      uniform float time;
-      uniform vec2 size;
-      uniform vec3 dark;
-      uniform vec3 light;
-      varying vec2 vUv;
-      void main() {
-        vec2 px = vUv * size;
-        float band = fract((px.x + px.y * 0.5) / (min(size.x, size.y) * 0.18) - time * 0.25);
-        float d = abs(band - 0.5); // 0 in the middle of a light stripe, 0.5 in the middle of a dark one
-        float edge = fwidth(d);
-        gl_FragColor = vec4(mix(light, dark, smoothstep(0.25 - edge, 0.25 + edge, d)), 1.0);
-        #include <colorspace_fragment>
-      }`,
-    toneMapped: false,
-  });
 }

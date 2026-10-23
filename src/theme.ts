@@ -4,5 +4,7 @@ export const palette = {
   pink: 0xe5186f,
   gold: 0xffcf3a, // the power meter's perfect zone
   purple: 0x6c398b,
+  crokyPurple: 0x402985, // the landing's purple (its tunnel), also the replay's
+  crokyPurpleDeep: 0x2a1a57, // its shadows: the landing title's
   mint: 0x89ccbc,
 } as const;

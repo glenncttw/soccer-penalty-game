@@ -1,6 +1,7 @@
 import * as THREE from 'three';
+import { palette } from '../theme';
 
-const COLOR = '#402985'; // Croky purple
+const COLOR = palette.crokyPurple; // Croky purple
 const RIM_COLOR = '#ffcf3a'; // the gold of the Speel nu button
 const RIM_WIDTH = 6; // CSS pixels of gold around the hole
 /** The ball (and the lights on it, and the intro chips) are drawn again on this layer, over the purple. */
@@ -20,34 +21,27 @@ const EDGE_LIGHT = 0.8; // how much lighter the wall is close to the camera, at 
 const EDGE_TO = 2.5; // how far from the camera that lighter part reaches
 
 /**
- * The purple behind the intro: a tunnel of rounded purple rings with soft light painted on, like the
- * stadium's baked light, running from the camera past the ball into the dark, its rings slowly coming toward you.
- * It's drawn in WebGL so the real ball can sit in it. On Speel nu a round hole with a gold rim opens up
- * from the ball and grows past the corners, showing the pitch; Menu closes it again. Each frame it draws
- * the stadium (skipped while it is all purple), then the tunnel with its hole, then the ball once more
- * over it.
+ * The purple tunnel: rounded purple rings with soft light painted on, like the stadium's baked light,
+ * running from the camera into the dark, its rings slowly coming toward you. The intro shows it behind the
+ * ball (with a hole that opens onto the pitch); the replay shows it behind its panel.
  */
-export class IntroBackdrop {
-  private readonly tunnelScene = new THREE.Scene();
-  private readonly tunnel = new THREE.Group();
-  private readonly rings: THREE.Mesh;
-  private readonly fog = new THREE.Fog(DEEP, 1, 2);
-  private readonly uniforms = {
+export class PurpleTunnel {
+  readonly scene = new THREE.Scene();
+  /** The hole's centre x, y and radius, in drawing pixels from the bottom left; its gold rim; how see-through. */
+  readonly uniforms = {
     uRim: { value: new THREE.Color(RIM_COLOR) },
-    uHole: { value: new THREE.Vector3() }, // centre x, y and radius, in drawing pixels from the bottom left
+    uHole: { value: new THREE.Vector3(0, 0, -100) }, // no hole
     uRimWidth: { value: RIM_WIDTH },
     uOpacity: { value: 1 },
     uEdgeTo: { value: 1 }, // EDGE_TO, in world units
   };
-  private readonly size = new THREE.Vector2();
-  private readonly centre = new THREE.Vector3();
-  private readonly toBall = new THREE.Vector3();
-  private lightsOnLayer = false;
-  private stadiumDrawn = false;
+  private readonly tunnel = new THREE.Group();
+  private readonly rings: THREE.Mesh;
+  private readonly fog = new THREE.Fog(DEEP, 1, 2);
+  private readonly toHome = new THREE.Vector3();
   private drift = 0;
 
-  constructor(private readonly ball: THREE.Object3D) {
-    ball.traverse((o) => o.layers.enable(OVER_PURPLE_LAYER));
+  constructor() {
     // Unlit, with its light painted in (vertex colours), like the stadium's baked stands.
     const material = new THREE.MeshBasicMaterial({
       color: COLOR,
@@ -92,8 +86,45 @@ export class IntroBackdrop {
     end.position.z = TUNNEL_LENGTH;
     end.frustumCulled = false;
     this.tunnel.add(this.rings, end);
-    this.tunnelScene.add(this.tunnel);
-    this.tunnelScene.fog = this.fog;
+    this.scene.add(this.tunnel);
+    this.scene.fog = this.fog;
+  }
+
+  /**
+   * Runs the tunnel from `camera` through `home`, sized to how far away that is, and moves its rings on by
+   * `dt` seconds at `speed` times their usual pace.
+   */
+  place(camera: THREE.Camera, home: THREE.Vector3, dt: number, speed = 1) {
+    camera.updateMatrixWorld();
+    const away = this.toHome.subVectors(home, camera.position).length();
+    this.tunnel.position.copy(camera.position);
+    this.tunnel.up.copy(camera.up).applyQuaternion(camera.quaternion);
+    this.tunnel.lookAt(home);
+    this.tunnel.scale.setScalar(away);
+    this.drift = (this.drift + DRIFT * speed * dt) % 1;
+    this.rings.position.z = -this.drift * RING_SPACING;
+    this.fog.near = FOG_FROM * away;
+    this.fog.far = FOG_TO * away;
+    this.uniforms.uEdgeTo.value = EDGE_TO * away;
+  }
+}
+
+/**
+ * The purple behind the intro: the tunnel (see PurpleTunnel), running from the camera past the ball.
+ * It's drawn in WebGL so the real ball can sit in it. On Speel nu a round hole with a gold rim opens up
+ * from the ball and grows past the corners, showing the pitch; Menu closes it again. Each frame it draws
+ * the stadium (skipped while it is all purple), then the tunnel with its hole, then the ball once more
+ * over it.
+ */
+export class IntroBackdrop {
+  readonly tunnel = new PurpleTunnel();
+  private readonly size = new THREE.Vector2();
+  private readonly centre = new THREE.Vector3();
+  private lightsOnLayer = false;
+  private stadiumDrawn = false;
+
+  constructor(private readonly ball: THREE.Object3D) {
+    ball.traverse((o) => o.layers.enable(OVER_PURPLE_LAYER));
   }
 
   /**
@@ -137,22 +168,11 @@ export class IntroBackdrop {
     const x = ((this.centre.x + 1) / 2) * this.size.x;
     const y = ((this.centre.y + 1) / 2) * this.size.y;
     const radius = holeRadius(fade ? 0 : reveal, x, y, this.size.x, this.size.y, RIM_WIDTH * pixels);
-    this.uniforms.uHole.value.set(x, y, radius);
-    this.uniforms.uRimWidth.value = RIM_WIDTH * pixels;
-    this.uniforms.uOpacity.value = fade ? 1 - reveal : 1;
-
-    // The tunnel runs from the camera through the ball's home, sized to how far away that is.
-    camera.updateMatrixWorld();
-    const away = this.toBall.subVectors(home, camera.position).length();
-    this.tunnel.position.copy(camera.position);
-    this.tunnel.up.copy(camera.up).applyQuaternion(camera.quaternion);
-    this.tunnel.lookAt(home);
-    this.tunnel.scale.setScalar(away);
-    if (!fade) this.drift = (this.drift + DRIFT * dt) % 1;
-    this.rings.position.z = -this.drift * RING_SPACING;
-    this.fog.near = FOG_FROM * away;
-    this.fog.far = FOG_TO * away;
-    this.uniforms.uEdgeTo.value = EDGE_TO * away;
+    const { uniforms } = this.tunnel;
+    uniforms.uHole.value.set(x, y, radius);
+    uniforms.uRimWidth.value = RIM_WIDTH * pixels;
+    uniforms.uOpacity.value = fade ? 1 - reveal : 1;
+    this.tunnel.place(camera, home, fade ? 0 : dt);
 
     const autoClear = renderer.autoClear;
     const shadows = renderer.shadowMap.autoUpdate;
@@ -160,7 +180,7 @@ export class IntroBackdrop {
     renderer.autoClear = false;
     renderer.shadowMap.autoUpdate = false;
     renderer.clearDepth();
-    renderer.render(this.tunnelScene, camera);
+    renderer.render(this.tunnel.scene, camera);
     renderer.clearDepth();
     // The ball again, on top, with the same lights; the sun's shadows from the stadium pass are kept.
     camera.layers.set(OVER_PURPLE_LAYER);
