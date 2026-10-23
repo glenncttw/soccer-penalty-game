@@ -61,9 +61,10 @@ export interface CrowdSettings {
   restSmile: number;
   /** About how many seconds between Mexican waves while you aim or wait (each gap a bit shorter or longer). */
   waveEvery: number;
-  /** How many jumps each person makes after a goal. */
-  jumps: number;
-  /** Seconds per jump. */
+  /**
+   * Seconds per jump. After a goal they keep jumping until the next shot: through the banner, the wipe and the
+   * whole replay.
+   */
   jumpTime: number;
   /** How high they jump, in metres, at most (each person a bit differently). */
   jumpHeight: number;
@@ -122,7 +123,6 @@ export const CROWD_SETTINGS: CrowdSettings = {
   frownShare: 0.6,
   restSmile: 0.3,
   waveEvery: 15,
-  jumps: 3,
   jumpTime: 0.45,
   jumpHeight: 0.22,
   waveLap: 3,

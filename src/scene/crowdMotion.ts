@@ -135,7 +135,6 @@ export function motionUniforms(s: CrowdSettings) {
     uSaveSulk: { value: s.saveSulk },
     uFrownShare: { value: s.frownShare },
     uRestSmile: { value: s.restSmile },
-    uJumps: { value: s.jumps },
     uJumpTime: { value: s.jumpTime },
     uJumpHeight: { value: s.jumpHeight },
     uWaveLap: { value: s.waveLap },
@@ -151,15 +150,23 @@ export type Mood = (typeof Mood)[keyof typeof Mood];
 
 /**
  * How high someone is lifted (metres) `since` seconds after their reaction to a goal started, and how far
- * their arms are up (0..1): the same as the shader. `own` is their own random number (0..1).
+ * their arms are up (0..1): the same as the shader. `own` is their own random number (0..1). They jump until
+ * `calmAt` seconds after it started (the next shot), then ease out of it.
  */
-export function jumpLift(since: number, own: number, s: CrowdSettings): { lift: number; arms: number } {
-  const jumping = s.jumps * s.jumpTime;
-  if (since <= 0 || since >= jumping) return { lift: 0, arms: 0 };
+export function jumpLift(
+  since: number,
+  own: number,
+  s: CrowdSettings,
+  calmAt = Infinity,
+): { lift: number; arms: number } {
+  if (since <= 0 || since >= calmAt + CALM_TIME) return { lift: 0, arms: 0 };
+  const on = 1 - smoothstep(calmAt, calmAt + CALM_TIME, since);
   const u = (since / s.jumpTime) % 1;
-  const arms = smoothstep(0, 0.1, since) * (1 - smoothstep(jumping - 0.15, jumping, since));
-  return { lift: s.jumpHeight * (0.6 + 0.4 * own) * 4 * u * (1 - u), arms };
+  return { lift: on * s.jumpHeight * (0.6 + 0.4 * own) * 4 * u * (1 - u), arms: on * smoothstep(0, 0.1, since) };
 }
+
+/** Seconds the crowd takes to calm down from a reaction (as in the shader). */
+const CALM_TIME = 0.4;
 
 /** Seconds each person takes to drop out of a Mexican wave once a goal or a save stops it. */
 const WAVE_STOP = 0.25;
@@ -204,7 +211,7 @@ export function addMotion(
       `uniform float uCrowdTime, uCrowdMotion, uBob, uBobSpeed, uSway, uHeadTurn, uHeadNod, uCheerEvery, uArmRaise, uArmForward;
       uniform float uHoldRaise, uHoldForward;
       uniform float uCrowdClock, uReactAt, uReactEnd, uMood, uJump, uWaveAt, uWaveEnd, uWaveDir, uReactDelay, uGoalShout, uShoutShare;
-      uniform float uSaveSulk, uFrownShare, uRestSmile, uJumps, uJumpTime, uJumpHeight, uWaveLap, uWaveLaps, uWaveWidth;
+      uniform float uSaveSulk, uFrownShare, uRestSmile, uJumpTime, uJumpHeight, uWaveLap, uWaveLaps, uWaveWidth;
       uniform float uWaveRise;
       // Where the part moves about, and its kind (Limb) * 16 + the vertex's colour slot (see crowd.ts).
       attribute vec4 aPivot;
@@ -281,14 +288,12 @@ export function addMotion(
         crowdPartyArms = crowdBump;
         crowdFace.w = max(crowdFace.w, crowdBump); // shouting as it passes
       }
-      // A goal: everyone jumps, arms up.
-      float crowdJumping = uJumps * uJumpTime;
-      if (uJump > 0.0 && crowdSince > 0.0 && crowdSince < crowdJumping) {
+      // A goal: everyone jumps, arms up, until they calm down (the next shot), easing out of it.
+      if (uJump > 0.0 && crowdSince > 0.0 && uCrowdClock < uReactEnd + 0.4) {
         float crowdJumpOn = (1.0 - crowdHolds) * (1.0 - smoothstep(uReactEnd, uReactEnd + 0.4, uCrowdClock));
         float crowdU = fract(crowdSince / uJumpTime);
         crowdLift += crowdJumpOn * uJumpHeight * (0.6 + 0.4 * crowdR3) * 4.0 * crowdU * (1.0 - crowdU);
-        crowdPartyArms = max(crowdPartyArms, crowdJumpOn * smoothstep(0.0, 0.1, crowdSince)
-          * (1.0 - smoothstep(crowdJumping - 0.15, crowdJumping, crowdSince)));
+        crowdPartyArms = max(crowdPartyArms, crowdJumpOn * smoothstep(0.0, 0.1, crowdSince));
       }
       crowdLift *= aHair.w;
       if (crowdKind == 1.0 && aHold.x * crowdPivot.x > 0.0) {
