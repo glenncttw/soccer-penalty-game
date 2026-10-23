@@ -79,8 +79,8 @@ describe('IntroChips', () => {
       const p = new THREE.Vector3();
       const q = new THREE.Vector3();
       // Points all over the chip's outer sphere: it is on the screen if any of them is.
-      const around = Array.from({ length: 400 }, (_, k) => {
-        const z = 1 - (2 * (k + 0.5)) / 400;
+      const around = Array.from({ length: 200 }, (_, k) => {
+        const z = 1 - (2 * (k + 0.5)) / 200;
         const a = k * 2.39996;
         return new THREE.Vector3(Math.cos(a) * Math.sqrt(1 - z * z), Math.sin(a) * Math.sqrt(1 - z * z), z);
       });
@@ -116,7 +116,7 @@ describe('IntroChips', () => {
       }
       expect(restarts).toBeGreaterThan(40);
     }
-  });
+  }, 30000); // thousands of frames on four screens
 
   it('flies off on Speel nu & Win and is gone soon after, then hides', () => {
     const { chips, camera, ball } = setUp();

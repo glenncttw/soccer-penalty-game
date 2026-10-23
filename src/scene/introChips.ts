@@ -19,6 +19,8 @@ const SPREAD = 0.2; // how much wider or narrower than that each chip's circle i
 const POP_IN = 0.1; // share of its life a chip takes to grow to full size as it comes out
 const BURST_TIME = 1; // Speel nu & Win: seconds the chips take to rush out and shrink away
 const BURST_SPEED = 5; // how much faster they come down the tunnel then
+const ENTER_TIME = 1.2; // after loading: seconds the chips take to grow in, rushing down the tunnel at first
+const ENTER_SPEED = 3; // how much faster they come at the very start
 // A chip only starts again once all of it has left the screen. So that it never has to come very close for
 // that, each chip's circle is at least wide enough for it to be all past the corners by EXIT_BY.
 const EXIT_BY = 0.25; // how close a chip may come before it's surely off the screen
@@ -65,6 +67,7 @@ export class IntroChips {
   private readonly random = random(7);
   private readonly anchor = new THREE.Vector3();
   private burst = 0; // seconds since Speel nu & Win
+  private entered = Infinity; // seconds since the intro first showed
   private readonly p = new THREE.Vector3();
   private readonly q = new THREE.Quaternion();
   private readonly s = new THREE.Vector3();
@@ -96,6 +99,11 @@ export class IntroChips {
     }
   }
 
+  /** The intro's entrance after loading: the chips grow in, rushing down the tunnel at first. */
+  enter() {
+    this.entered = 0;
+  }
+
   /**
    * Call every frame after the ball has been placed (and the camera moved). 'swirl' (the tunnel) while the intro
    * waits, 'burst' as the ball flies down, 'off' otherwise.
@@ -116,9 +124,12 @@ export class IntroChips {
     this.shadow.uDark.value.set(DARK_FROM * away, DARK_TO * away);
     this.burst = mode === 'burst' ? this.burst + dt : 0;
     const out = smoothstep(0, BURST_TIME, this.burst); // 0 while swirling, 1 once they've all rushed off
+    this.entered += dt;
+    const grow = smoothstep(0, ENTER_TIME, this.entered); // 1 once they're in
+    const rush = 1 + ENTER_SPEED * (1 - grow);
 
     this.chips.forEach((chip, i) => {
-      chip.age += dt * (1 + BURST_SPEED * out);
+      chip.age += dt * (1 + BURST_SPEED * out) * rush;
       // It has done its round once it's past the edge of the screen, all of it (never cut off by the edge);
       // only then does it start again at the back.
       if (chip.age >= LIFE && (this.place(chip, halfDiagonal, away, camera) || this.closest(chip))) this.respawn(chip);
@@ -127,7 +138,7 @@ export class IntroChips {
 
       this.spin.setFromAxisAngle(chip.spinAxis, chip.spinSpeed * chip.age);
       this.q.copy(camera.quaternion).multiply(this.spin).multiply(chip.turn);
-      const pop = smoothstep(0, POP_IN, u) * (1 - out);
+      const pop = smoothstep(0, POP_IN, u) * (1 - out) * grow;
       this.s.setScalar(chip.size * away * pop);
       this.mesh.setMatrixAt(i, this.matrix.compose(this.p, this.q, this.s));
     });
