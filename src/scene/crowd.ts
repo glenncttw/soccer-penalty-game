@@ -3,17 +3,38 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CrowdParts } from './crowdAsset';
 import { CROWD_SETTINGS, type CrowdSettings } from './crowdSettings';
 import { addMotion, holdingPose, Limb, limbAt, Mood, motionOf, motionUniforms, reachablePoses } from './crowdMotion';
-import {
-  concat,
-  findCrowdSpots,
-  shapeOf,
-  rectsOverlap,
-  TriangleIndex,
-  type CrowdSpot,
-  type Moves,
-  type PersonBox,
-  type Triangles,
-} from './crowdSpots';
+import { placeCrowd, seeded, type Placement, type PlacementInput } from './crowdPlacement';
+import { concat, shapeOf, type CrowdSpot, type Moves, type PersonBox, type Triangles } from './crowdSpots';
+
+export { seeded } from './crowdPlacement';
+
+/**
+ * `placeCrowd` in the background (crowdWorker.ts), so the page keeps running meanwhile. Where a background
+ * worker can't run, it places them on the page instead.
+ */
+export function placeCrowdInBackground(input: PlacementInput): Promise<Placement> {
+  if (typeof Worker === 'undefined') return Promise.resolve(placeCrowd(input));
+  return new Promise((resolve) => {
+    const worker = new Worker(new URL('./crowdWorker.ts', import.meta.url), { type: 'module' });
+    worker.onmessage = (e: MessageEvent<Placement>) => {
+      worker.terminate();
+      resolve(e.data);
+    };
+    worker.onerror = () => {
+      worker.terminate();
+      resolve(placeCrowd(input));
+    };
+    worker.postMessage(input);
+  });
+}
+
+/** What the crowd needs before and after it's placed (see `Crowd.prepare`). */
+export interface CrowdPlan {
+  settings: CrowdSettings;
+  material: THREE.MeshStandardMaterial;
+  looks: ReturnType<typeof mergePerson>[];
+  input: PlacementInput;
+}
 
 /** The stand's concrete: its step floors, risers and stairs. */
 const STAND_NODE = 'STATIC_Concrete';
@@ -21,8 +42,6 @@ const STAND_NODE = 'STATIC_Concrete';
 const NOT_IN_THE_WAY = /^(PITCH_|GROUND_|STATIC_Markings|Football_Ball|CAM_|SUN_)/;
 /** The node in the crowd person's body that the head pieces sit on. */
 const HEAD_NODE = 'Head';
-/** Anything this far above a step's floor is in the way of the people on it (as when they're put there). */
-const FLOOR_GAP = 0.02;
 /** The uniforms that come from the reaction settings (see `tune`). */
 const REACTION_UNIFORMS = [
   'uReactDelay',
@@ -82,6 +101,7 @@ export class Crowd {
   /** How a person holds a flag (see `hold`), in their own space. */
   readonly holding: Holding;
   private readonly motion: ReturnType<typeof motionUniforms>;
+  private readonly material: THREE.MeshStandardMaterial;
   /** Where each person's flag-bearing numbers are: their look's `aHold` and their place in it. */
   private readonly holds: { attribute: THREE.InstancedBufferAttribute; k: number }[] = [];
   private waveEvery: number;
@@ -90,12 +110,12 @@ export class Crowd {
   /** Seconds of waiting around (see `waitAround`) until the next Mexican wave. */
   private untilWave: number;
 
-  constructor(
-    stadium: THREE.Object3D,
-    parts: CrowdParts,
-    envMap: THREE.Texture | null,
-    s: CrowdSettings = CROWD_SETTINGS,
-  ) {
+  /**
+   * Measures what placing the crowd needs from the stadium and the person's looks (quick). Placing them
+   * (`placeCrowd`, with `plan.input`) takes a while, so the game does that in the background (crowdWorker.ts)
+   * and hands the result to the constructor.
+   */
+  static prepare(stadium: THREE.Object3D, parts: CrowdParts, s: CrowdSettings = CROWD_SETTINGS): CrowdPlan {
     stadium.updateMatrixWorld(true);
     const stand = stadium.getObjectByName(STAND_NODE);
     if (!stand) throw new Error(`Stadium model is missing the "${STAND_NODE}" node`);
@@ -111,31 +131,43 @@ export class Crowd {
     const looks = parts.heads.map((head) => mergePerson(wearing(parts.base, head), s, measured));
     if (looks.length === 0)
       throw new Error('The crowd needs at least one head piece (see `heads` in crowdSettings.ts)');
-    const random = seeded(s.seed);
     const steps = worldTriangles(stand);
-    this.room = { stadium: concat([steps, ...obstacles]), shapes: looks.map((l) => l.shapes) };
+    const input: PlacementInput = {
+      steps,
+      obstacles,
+      options: {
+        rowHeights: s.rowHeights,
+        looks: looks.map((l, i) => ({ shapes: l.shapes, share: s.heads[i]?.share ?? 1 })),
+        cheerShare: s.motion ? s.cheerShare : 0,
+        sizeVariation: s.sizeVariation,
+        spacing: s.spacing,
+        spacingJitter: s.spacingJitter,
+        depthJitter: s.depthJitter,
+        gaps: s.gaps,
+        clearance: s.clearance,
+        turn: THREE.MathUtils.degToRad(s.turn),
+      },
+      seed: s.seed,
+      room: { stadium: concat([steps, ...obstacles]), shapes: looks.map((l) => l.shapes) },
+      jump: Math.max(s.jumpHeight, s.waveRise),
+    };
+    return { settings: s, material, looks, input };
+  }
+
+  /** `placement` is `placeCrowd(plan.input)`, worked out here if not given. */
+  constructor(plan: CrowdPlan, placement: Placement = placeCrowd(plan.input)) {
+    const { settings: s, material, looks, input } = plan;
+    this.material = material;
+    // The same random numbers every time, carrying on after the ones the placing used.
+    const random = seeded(s.seed);
+    for (let i = 0; i < placement.draws; i++) random();
+    this.room = input.room;
     this.holding = holdingOf(
       looks[0].arms,
       looks.map((l) => l.still),
     );
-    this.spots = findCrowdSpots(steps, obstacles, {
-      rowHeights: s.rowHeights,
-      looks: looks.map((l, i) => ({ shapes: l.shapes, share: s.heads[i]?.share ?? 1 })),
-      cheerShare: s.motion ? s.cheerShare : 0,
-      sizeVariation: s.sizeVariation,
-      spacing: s.spacing,
-      spacingJitter: s.spacingJitter,
-      depthJitter: s.depthJitter,
-      gaps: s.gaps,
-      clearance: s.clearance,
-      turn: THREE.MathUtils.degToRad(s.turn),
-      random,
-    });
+    this.spots = placement.spots;
 
-    if (envMap) {
-      material.envMap = envMap;
-      material.envMapIntensity = 1;
-    }
     this.motion = motionUniforms(s);
     this.waveEvery = s.waveEvery;
     this.untilWave = this.waveGap();
@@ -149,7 +181,7 @@ export class Crowd {
       shirt: new THREE.Color(pick(s.shirtColors, SLOT_TEXTURE_COLORS[Slot.Shirt])),
     }));
     const around = aroundTheStands(this.spots);
-    const headroom = roomToJump(this.spots, this.room, Math.max(s.jumpHeight, s.waveRise));
+    const { headroom } = placement;
     const matrix = new THREE.Matrix4();
     const turn = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
@@ -280,58 +312,16 @@ export class Crowd {
   }
 
   /** Seconds until the next Mexican wave: about `waveEvery`, a bit shorter or longer each time. */
+  /** Gives everyone the stadium panorama's soft light (it can come after the crowd is placed). */
+  light(envMap: THREE.Texture) {
+    this.material.envMap = envMap;
+    this.material.envMapIntensity = 1;
+    this.material.needsUpdate = true;
+  }
+
   private waveGap() {
     return this.waveEvery * (0.5 + Math.random());
   }
-}
-
-/**
- * How much of a jump `highest` metres high each person has room for (0..1): a few have something just above
- * them (a rail, someone in the row behind), so they jump less high.
- */
-function roomToJump(
-  spots: CrowdSpot[],
-  room: { stadium: Triangles; shapes: Record<Moves, PersonBox[]>[] },
-  highest: number,
-): number[] {
-  if (highest <= 0) return spots.map(() => 1);
-  const stadium = new TriangleIndex(room.stadium);
-  const placed = spots.map((p) =>
-    room.shapes[p.look][p.moves].map((b) => ({
-      rect: {
-        x: p.x,
-        z: p.z,
-        angle: p.angle,
-        x0: b.x0 * p.size,
-        x1: b.x1 * p.size,
-        z0: b.z0 * p.size,
-        z1: b.z1 * p.size,
-      },
-      // Their feet stand on the step: only what's above it can get in the way, as when they were put there.
-      lo: Math.max(p.y + b.y0 * p.size, p.y + FLOOR_GAP),
-      hi: p.y + b.y1 * p.size,
-      feet: p.y + b.y0 * p.size,
-    })),
-  );
-  const step = 0.01; // and the room they keep from anyone above
-  return spots.map((p, i) => {
-    let most = highest;
-    // Someone in a row higher up right above part of them (people in the same row jump with them).
-    for (const [j, q] of spots.entries()) {
-      if (q.y <= p.y || Math.abs(q.x - p.x) > 1.5 || Math.abs(q.z - p.z) > 1.5) continue;
-      for (const a of placed[i])
-        for (const b of placed[j])
-          if (b.feet >= a.hi && rectsOverlap(a.rect, b.rect)) most = Math.min(most, b.feet - a.hi - step);
-    }
-    // The stadium: all the way up in one go (the space they pass through), else a centimetre at a time.
-    const hits = (lift: number) => placed[i].some((b) => stadium.touches(b.rect, b.lo, b.hi + lift));
-    if (most > 0 && hits(most)) {
-      let free = 0;
-      while (!hits(Math.min(free + step, most))) free += step;
-      return free / highest;
-    }
-    return Math.max(0, most) / highest;
-  });
 }
 
 /**
@@ -615,16 +605,4 @@ export function worldTriangles(root: THREE.Object3D): Triangles {
     }
   });
   return new Float32Array(out);
-}
-
-/** A small seeded random number generator (mulberry32), so the crowd looks the same every time. */
-export function seeded(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }

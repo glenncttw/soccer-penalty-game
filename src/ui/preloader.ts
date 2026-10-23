@@ -1,15 +1,13 @@
 import * as THREE from 'three';
 
 /**
- * The loading bar in index.html. It shows straight away while the game's code downloads,
- * then fills as the stadium, keeper, grass and baked light arrive (every three.js loader
- * reports to the default loading manager). The rest of the bar is for setting the game up
- * (placing the crowd, preparing the shaders), which keeps the page too busy to redraw it:
- * for those steps the bar is told how long they usually take and the browser moves it along
- * by itself (a transform transition runs even while the page is busy).
+ * The loading bar in index.html. It shows straight away while the game's code downloads, then fills as
+ * what the landing needs arrives (every three.js loader reports to the default loading manager): the stadium,
+ * the panorama's light, the chips and the crowd's small models. The rest of the game loads behind the
+ * landing (see src/main.ts).
  */
-const USUAL_FILES = 14; // what the game loads now: stadium, keeper, grass, baked light and its decoder
-const FILES_END = 0.5; // how far the bar is once every file is in; the rest is for setting up
+const USUAL_FILES = 10; // the stadium, the panorama, the chip, the crowd's six models and the flag logo
+const FILES_END = 0.9; // how far the bar is once those are in; the rest is for setting the landing up
 
 export class Preloader {
   private readonly el = document.querySelector<HTMLElement>('#loading');
@@ -35,16 +33,7 @@ export class Preloader {
     this.draw();
   }
 
-  /**
-   * Before a set-up step that keeps the page busy for about `seconds`: moves the bar on to `to`
-   * over that time, and waits until the browser has started moving it.
-   */
-  async step(to: number, seconds: number) {
-    this.show(to, seconds);
-    await nextPaint();
-  }
-
-  /** The game is ready: fill the bar up and take it away. */
+  /** The landing is ready: fill the bar up and take it away. */
   async done() {
     THREE.DefaultLoadingManager.onProgress = () => {};
     this.show(1, 0.15);
@@ -67,7 +56,13 @@ export class Preloader {
   }
 }
 
-/** Resolves once the browser has drawn the page with the latest changes. */
-function nextPaint() {
-  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+/**
+ * Resolves once the browser has drawn the page with the latest changes (or after a moment, in a tab that's
+ * out of sight and draws nothing).
+ */
+export function nextPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+    setTimeout(resolve, 100);
+  });
 }

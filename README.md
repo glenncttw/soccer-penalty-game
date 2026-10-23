@@ -51,7 +51,15 @@ toward where you point.
 After a goal, a save or a shot off the woodwork, a quick wipe brings up a 3.5-second slow-motion **replay** in a
 comic panel. After any other shot, the wipe just brings back the ball for the next one.
 
-While the game loads, a plain bar in the middle of the screen fills up. In the bottom left corner you see how the
+Loading comes in two parts (`src/main.ts`). First a plain bar in the middle of the screen fills up while what the
+landing needs downloads: the stadium (for its camera, ball and sun), the panorama's light, the chips and the font.
+Then the landing shows, and the rest of the game loads behind it: the keeper, the grass texture, the baked light and
+the physics engine (its own file) download, the crowd is placed in the background (`src/scene/crowdWorker.ts`), and
+every material gets ready a few per frame (`src/scene/warmUp.ts`), so the landing keeps moving. Pressing Speel nu
+before then starts the game once it's in. The device remembers the game's files (`public/sw.js`, a service worker,
+only in the built game), so a later visit doesn't download them again; when a new version is deployed, a visit
+checks each file with the server once and only downloads the ones that changed.
+In the bottom left corner you see how the
 game is running: three.js's Stats panel (click it to switch between frames per second,
 milliseconds per frame and memory) and a list of what was drawn in the last frame: draw calls, triangles,
 geometries, textures, shaders, and the screen size in pixels. Fewer draw calls and triangles mean an easier job for
