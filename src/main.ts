@@ -163,6 +163,16 @@ const coach = new Coach();
 // A round of the Croky Cup: 5 penalties, between the intro screen and the end screen.
 const round = new Round();
 const screens = new Screens(document.querySelector<HTMLElement>('#hud')!);
+const ballOnScreen = new THREE.Vector3();
+/** Tells the intro where the ball is on screen, so its title makes room for the ball in front of it. */
+function followIntroBall() {
+  ballOnScreen.copy(ballMesh.position).project(camera);
+  const { clientWidth: w, clientHeight: h } = renderer.domElement;
+  const away = camera.position.distanceTo(ballMesh.position);
+  const r = world.ballRadius;
+  const radius = (r / Math.sqrt(Math.max(away * away - r * r, 1e-6))) * camera.projectionMatrix.elements[5] * (h / 2);
+  screens.followBall(((ballOnScreen.x + 1) / 2) * w, ((1 - ballOnScreen.y) / 2) * h, radius);
+}
 let playing = false; // a round is on (no intro or end screen in front)
 input.enabled = false;
 // The real ball spins on the intro, then flies down onto the spot on Speel nu (src/scene/introBall.ts).
@@ -566,6 +576,7 @@ renderer.setAnimationLoop((time) => {
     ending: screens.endShown, // close to the keeper dancing, beside the score
   });
   introBall.place(physics.ball.translation(), physics.ball.rotation());
+  if (screens.open && !screens.endShown) followIntroBall();
   const chipsSwirl = introBall.floating || introBall.windingUp; // they keep swirling while the ball sinks in
   const chipsMode = reducedMotion ? 'off' : chipsSwirl ? 'swirl' : introBall.landing ? 'burst' : 'off';
   introChips.update(realDt, camera, ballMesh, chipsMode);

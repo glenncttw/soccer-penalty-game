@@ -6,7 +6,6 @@ describe('texts', () => {
     const keys = (o: object) => Object.keys(o).sort();
     for (const t of Object.values(LANGUAGES)) {
       expect(keys(t)).toEqual(keys(LANGUAGES.nl));
-      expect(keys(t.pages)).toEqual(keys(LANGUAGES.nl.pages));
     }
     expect(LANGUAGES.nl.play).toBe('Speel nu & Win');
   });

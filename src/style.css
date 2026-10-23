@@ -1,3 +1,11 @@
+/* Glenn's landing font (the intro's title and button). */
+@font-face {
+  font-family: Bazinga;
+  src: url('./assets/fonts/Bazinga-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: block;
+}
+
 html,
 body {
   margin: 0;
@@ -317,12 +325,6 @@ body {
   }
 }
 
-.screen-logo {
-  width: clamp(110px, 22vmin, 170px);
-  filter: drop-shadow(0 6px 0 rgba(59, 31, 79, 0.6));
-  transform: rotate(-4deg);
-}
-
 .screen-title {
   margin: -6px 0 0;
   color: #ffffff;
@@ -346,62 +348,128 @@ body {
   text-shadow: 0 3px 0 #3b1f4f;
 }
 
-/* The intro's solid purple is drawn by the game under the ball (src/scene/introBackdrop.ts), not here. */
+/*
+ * The intro: Glenn's landing design, made at 1440 x 800 and scaled as one piece, so it fits that screen to the
+ * pixel. One --u is one pixel there. Everything sits round the 3D ball in the middle of the screen (the solid
+ * purple tunnel and the chips behind it are drawn by the game, src/scene/introBackdrop.ts): the logo and the
+ * title above it, the button below.
+ */
 .screen.intro {
+  --u: min(100vw / 1440, 100vh / 800);
+  --ball: calc(320 * var(--u));
+  --bu: max(var(--u), 0.72px); /* the button's own unit: never smaller than a finger (44 px high) */
+  padding: 0;
   background: none;
 }
 
-/* The ball sits exactly in the middle of the screen: the title above it, the button below. */
 .screen.intro .screen-body {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
-  justify-items: center;
-  gap: 20px;
+  position: relative;
+  display: block;
   width: 100%;
   height: 100%;
 }
 
 .intro-top,
 .intro-bottom {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
+/*
+ * The ball is drawn in front of the title, as in the design: the canvas is under the page, so the title gets a
+ * round hole where the ball is (--ball-x, --ball-y and --ball-r, set every frame by src/main.ts).
+ */
 .intro-top {
-  align-self: end;
+  --hole: radial-gradient(
+    circle at var(--ball-x, 50%) var(--ball-y, 50%),
+    transparent calc(var(--ball-r, 0px) - 1.5px),
+    #000 calc(var(--ball-r, 0px) - 0.5px)
+  ); /* a pixel inside the ball's edge, so no purple line shows between ball and title */
+  -webkit-mask-image: var(--hole);
+  mask-image: var(--hole);
 }
 
-.intro-bottom {
-  align-self: start;
+.intro-logo {
+  position: absolute;
+  left: 50%;
+  top: calc(50% - var(--ball) / 2 - 184 * var(--u));
+  width: calc(118 * var(--u));
+  transform: translateX(-50%);
+}
+
+.intro-title {
+  position: absolute;
+  left: calc(50% - 3 * var(--u));
+  top: calc(50% - var(--ball) / 2 - 42 * var(--u));
+  margin: 0;
+  color: #ffffff;
+  font:
+    700 calc(135 * var(--u)) / 1 Bazinga,
+    system-ui,
+    sans-serif;
+  letter-spacing: calc(-4.4 * var(--u));
+  word-spacing: calc(-5 * var(--u));
+  white-space: nowrap;
+  text-transform: uppercase;
+  text-shadow: calc(7.4 * var(--u)) calc(8.5 * var(--u)) 0 #2a1a57; /* 8 px right and down on screen, once tilted */
+  transform: translate(-50%, -50%) rotate(-4deg);
 }
 
 .intro-ball {
-  width: max(110px, min(64vw, 36vh, 260px));
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--ball);
   aspect-ratio: 1;
+  transform: translate(-50%, -50%);
 }
 
-/* Phones held sideways: a smaller logo and title, so they fit above the ball. */
-@media (max-height: 500px) {
+.intro-play.btn {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + var(--ball) / 2 + 103.5 * var(--bu));
+  width: calc(234 * var(--bu));
+  min-width: 0;
+  height: calc(62 * var(--bu));
+  min-height: 0;
+  padding: 0 0 calc(5 * var(--bu)); /* the font sits low in its line: this centres the capitals */
+  background: #fc4846;
+  color: #000000;
+  font:
+    700 calc(23 * var(--bu)) / 1 Bazinga,
+    system-ui,
+    sans-serif;
+  letter-spacing: 0;
+  box-shadow: calc(3 * var(--bu)) calc(4.5 * var(--bu)) 0 #1d0f42;
+  pointer-events: auto;
+  transform: translate(-50%, -50%) rotate(4deg);
+}
+
+/* The button has the focus (Enter plays), but its ring only shows once the keyboard is used (src/ui/screens.ts). */
+.intro-play.btn:focus-visible {
+  outline: none;
+}
+
+.keys .intro-play.btn:focus-visible {
+  outline: calc(4 * var(--bu)) solid #ffffff;
+  outline-offset: calc(4 * var(--bu));
+}
+
+.intro-play.btn:hover {
+  transform: translate(-50%, -50%) rotate(4deg) scale(1.05);
+}
+
+.intro-play.btn:active {
+  transform: translate(-50%, -50%) rotate(4deg) translate(calc(3 * var(--bu)), calc(3 * var(--bu)));
+  box-shadow: calc(1 * var(--bu)) calc(1 * var(--bu)) 0 #1d0f42;
+}
+
+/* Screens taller than wide: the same pieces, bigger, round a bigger ball. */
+@media (max-aspect-ratio: 1/1) {
   .screen.intro {
-    padding: 12px 16px;
-  }
-
-  .screen.intro .screen-body {
-    gap: 12px;
-  }
-
-  .intro-top {
-    gap: 6px;
-  }
-
-  .intro-top .screen-logo {
-    width: 52px;
-  }
-
-  .intro-top .screen-title {
-    font-size: 40px;
+    --u: calc(100vw / 840);
+    --ball: max(110px, min(64vw, 36vh));
   }
 }
 
@@ -556,215 +624,6 @@ body {
   font-size: 15px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-/* The intro's menu: a button in the top right corner opens a panel from the right (src/ui/screens.ts). */
-.menu-toggle {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 5px;
-  width: 52px;
-  height: 52px;
-  padding: 0;
-  border: 3px solid #ffffff;
-  border-radius: 50%;
-  background: #6c398b;
-  box-shadow: 0 4px 0 #3b1f4f;
-  cursor: pointer;
-  transition: transform 0.12s;
-}
-
-.menu-toggle span {
-  width: 22px;
-  height: 3px;
-  border-radius: 2px;
-  background: #ffffff;
-}
-
-.menu-toggle:hover {
-  transform: scale(1.06);
-}
-
-.menu-toggle:focus-visible,
-.menu-close:focus-visible,
-.menu-link:focus-visible,
-.menu-lang-option:focus-visible {
-  outline: 4px solid #ffcf3a;
-  outline-offset: 3px;
-}
-
-.screen.intro.leaving .menu-toggle {
-  animation: intro-fade 0.2s ease-in forwards;
-}
-
-.menu {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  overflow: hidden; /* the panel starts off to the right: no sideways scrollbar while it slides in */
-  overflow: clip;
-}
-
-.menu[hidden] {
-  display: none;
-}
-
-.menu-shade {
-  position: absolute;
-  inset: 0;
-  background: rgba(30, 15, 60, 0.45);
-  animation: menu-shade-in 0.2s ease-out;
-}
-
-@keyframes menu-shade-in {
-  from {
-    opacity: 0;
-  }
-}
-
-.menu-panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(340px, 88vw);
-  box-sizing: border-box;
-  overflow-y: auto;
-  padding: 84px 24px 24px;
-  border-radius: 24px 0 0 24px;
-  background: #ffffff;
-  color: #3b1f4f;
-  box-shadow: -8px 0 0 #3b1f4f;
-  animation: menu-in 0.3s cubic-bezier(0.2, 1.2, 0.4, 1);
-}
-
-@keyframes menu-in {
-  from {
-    transform: translateX(105%);
-  }
-}
-
-.menu-close {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  width: 48px;
-  height: 48px;
-  border: 0;
-  border-radius: 50%;
-  background: #f1e9f6;
-  color: #6c398b;
-  font:
-    900 18px/1 system-ui,
-    sans-serif;
-  cursor: pointer;
-}
-
-.menu-main,
-.menu-page {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 14px;
-}
-
-.menu-main[hidden],
-.menu-page[hidden] {
-  display: none;
-}
-
-.menu-panel .btn-primary {
-  min-width: 0;
-  padding: 16px 20px;
-  font-size: 20px;
-}
-
-/* On the white panel the outline button is purple instead of white. */
-.menu-panel .btn-secondary {
-  min-width: 0;
-  border-color: #6c398b;
-  color: #6c398b;
-}
-
-.menu-panel .btn-secondary:hover {
-  background: #f1e9f6;
-}
-
-.menu-links {
-  display: flex;
-  flex-direction: column;
-  margin-top: 10px;
-  border-top: 2px solid #f1e9f6;
-}
-
-.menu-link {
-  padding: 14px 4px;
-  border: 0;
-  border-bottom: 2px solid #f1e9f6;
-  background: none;
-  color: #3b1f4f;
-  font: inherit;
-  font-weight: 800;
-  font-size: 16px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.menu-link:hover {
-  color: #e5186f;
-}
-
-.menu-lang {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-}
-
-.menu-lang-label {
-  margin-right: auto;
-  font-weight: 900;
-  font-size: 13px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #6c398b;
-}
-
-.menu-lang-option {
-  min-width: 52px;
-  min-height: 44px;
-  border: 2px solid #6c398b;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #6c398b;
-  font: inherit;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.menu-lang-option[aria-pressed='true'] {
-  background: #6c398b;
-  color: #ffffff;
-}
-
-.menu-page h2 {
-  margin: 0;
-  color: #e5186f;
-  font-size: 26px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.menu-page p {
-  margin: 0 0 8px;
-  font-size: 15px;
-  line-height: 1.45;
 }
 
 /* The loading bar, shown until the game is ready (src/ui/preloader.ts). */

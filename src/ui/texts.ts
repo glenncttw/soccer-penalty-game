@@ -1,26 +1,12 @@
 /**
- * The words on the Croky Cup screens (intro, its menu, end) in Dutch and French. The menu's language
- * switch picks one; the choice is remembered on this device, and the first time it follows the
- * browser's language. The in-game banners (GOAL!, SAVED!) and tips are still in src/main.ts and
+ * The words on the Croky Cup screens (intro, end) in Dutch and French. The browser's language picks
+ * one (`setLanguage` can switch and remember it on this device). The in-game banners (GOAL!, SAVED!) and tips are still in src/main.ts and
  * src/ui/coach.ts (English).
  */
 const NL = {
   lang: 'nl',
-  title: 'Croky Cup',
+  title: 'Penalty Cup',
   play: 'Speel nu & Win',
-  prizes: 'Bekijk de prijzen',
-  terms: 'Algemene voorwaarden',
-  cookies: 'Cookiebeleid',
-  language: 'Taal',
-  openMenu: 'Menu openen',
-  closeMenu: 'Menu sluiten',
-  back: 'Terug',
-  /** What the menu's buttons show until there are real links (see src/ui/links.ts). */
-  pages: {
-    prizes: { title: 'Prijzen', text: 'Hier komen de prijzen die je kunt winnen. De tekst volgt nog.' },
-    terms: { title: 'Algemene voorwaarden', text: 'Hier komen de algemene voorwaarden. De tekst volgt nog.' },
-    cookies: { title: 'Cookiebeleid', text: 'Hier komt het cookiebeleid. De tekst volgt nog.' },
-  },
   score: (goals: number, shots: number) => `${goals} van de ${shots} gescoord`,
   endTitle: (goals: number, shots: number): string =>
     goals === shots ? 'Perfect!' : goals >= Math.ceil(shots / 2) ? 'Goed gedaan!' : 'Volgende keer beter!',
@@ -33,26 +19,13 @@ const NL = {
 };
 
 export type Texts = typeof NL;
-export type Page = keyof Texts['pages'];
 
 const NBSP = ' '; // French puts a space before ! and :, one that never breaks onto the next line
 
 const FR: Texts = {
   lang: 'fr',
-  title: 'Croky Cup',
+  title: 'Penalty Cup',
   play: 'Joue & Gagne',
-  prizes: 'Voir les prix',
-  terms: 'Conditions générales',
-  cookies: 'Politique de cookies',
-  language: 'Langue',
-  openMenu: 'Ouvrir le menu',
-  closeMenu: 'Fermer le menu',
-  back: 'Retour',
-  pages: {
-    prizes: { title: 'Prix', text: 'Ici viendront les prix à gagner. Le texte suit.' },
-    terms: { title: 'Conditions générales', text: 'Ici viendront les conditions générales. Le texte suit.' },
-    cookies: { title: 'Politique de cookies', text: 'Ici viendra la politique de cookies. Le texte suit.' },
-  },
   score: (goals, shots) => `${goals} sur ${shots} marqués`,
   endTitle: (goals, shots) =>
     goals === shots
