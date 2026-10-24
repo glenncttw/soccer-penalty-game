@@ -166,7 +166,7 @@ export function jumpLift(
 }
 
 /** Seconds the crowd takes to calm down from a reaction (as in the shader). */
-const CALM_TIME = 0.4;
+export const CALM_TIME = 0.4;
 
 /** Seconds each person takes to drop out of a Mexican wave once a goal or a save stops it. */
 const WAVE_STOP = 0.25;

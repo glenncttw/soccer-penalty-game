@@ -65,6 +65,10 @@ export function createGameCamera(
   let goalHalfAngle = 0;
   let restFov = designFov;
   const endPosition = new THREE.Vector3();
+  const endSpot = new THREE.Vector3(); // the end camera's spot without its drift
+  // Where the grass texture's blades stand up as seen from (src/scene/grass.ts): the rest view, or the end of a
+  // round's close-up, so neither sees them lying over and smeared. It turns while the camera moves in or out.
+  const grassView = new THREE.Vector3();
   const endQuaternion = new THREE.Quaternion();
   const aimer = new THREE.PerspectiveCamera();
   const middle = new THREE.Vector3(keeper.x, keeper.y + KEEPER_SIZE / 2, keeper.z);
@@ -107,17 +111,15 @@ export function createGameCamera(
    */
   function aimEnd(time: number) {
     const wave = Math.sin((2 * Math.PI * time) / END_DRIFT.time);
-    const orbit = END_ORBIT + END_DRIFT.angle * wave;
-    toCamera.set(Math.sin(orbit), 0, Math.cos(orbit));
-    across.set(Math.cos(orbit), 0, -Math.sin(orbit)); // screen right
+    placeEnd(END_ORBIT, 0, endSpot);
+    placeEnd(
+      END_ORBIT + END_DRIFT.angle * wave,
+      END_DRIFT.rise * Math.cos((2 * Math.PI * time) / (END_DRIFT.time * 0.7)),
+      endPosition,
+    );
     const tanV = Math.tan(THREE.MathUtils.degToRad(aimer.fov) / 2);
     const perX = endDistance * tanV * aimer.aspect; // metres across per unit of screen, at the keeper
     const perY = endDistance * tanV;
-    endPosition
-      .copy(middle)
-      .addScaledVector(toCamera, endDistance)
-      .addScaledVector(across, -endFrame.x * perX)
-      .setY(keeper.y + END_HEIGHT + END_DRIFT.rise * Math.cos((2 * Math.PI * time) / (END_DRIFT.time * 0.7)));
     aimer.position.copy(endPosition);
     look.copy(middle);
     for (let i = 0; i < 8; i++) {
@@ -129,6 +131,18 @@ export function createGameCamera(
       look.y += (seen.y - endFrame.y) * perY;
     }
     endQuaternion.copy(aimer.quaternion);
+  }
+
+  /** The end camera's spot (into `out`), `orbit` round the keeper and `rise` above its usual height. */
+  function placeEnd(orbit: number, rise: number, out: THREE.Vector3) {
+    toCamera.set(Math.sin(orbit), 0, Math.cos(orbit));
+    across.set(Math.cos(orbit), 0, -Math.sin(orbit)); // screen right
+    const perX = endDistance * Math.tan(THREE.MathUtils.degToRad(aimer.fov) / 2) * aimer.aspect;
+    out
+      .copy(middle)
+      .addScaledVector(toCamera, endDistance)
+      .addScaledVector(across, -endFrame.x * perX)
+      .setY(keeper.y + END_HEIGHT + rise);
   }
 
   /** Moves the rest view to new settings straight away (the settings editor uses this). */
@@ -188,11 +202,13 @@ export function createGameCamera(
     );
     shake.setFromEuler(euler);
     camera.quaternion.copy(turn).multiply(restQuaternion).multiply(shake);
+    grassView.copy(restPosition);
     if (ending > 0) {
       aimEnd(time);
       const k = ending < 0.5 ? 4 * ending ** 3 : 1 - (-2 * ending + 2) ** 3 / 2; // ease in and out
       camera.position.lerp(endPosition, k);
       camera.quaternion.slerp(endQuaternion, k);
+      grassView.lerp(endSpot, k); // the spot without the slow drift: the blades don't swim while it drifts
     }
 
     const fov = restFov * (1 - PUSH_ZOOM * push);
@@ -202,7 +218,7 @@ export function createGameCamera(
     }
   }
 
-  return { camera, restPosition, restQuaternion, fit, update, addTrauma, setSettings };
+  return { camera, restPosition, restQuaternion, grassView, fit, update, addTrauma, setSettings };
 }
 
 /** The rest position, behind the ball, and the rotation that looks at the target on the goal line. */

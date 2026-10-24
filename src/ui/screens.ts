@@ -50,9 +50,7 @@ export class Screens {
            <h1 class="screen-title end-title"></h1>
            <div class="end-balls"></div>
            <p class="screen-tagline end-score"></p>
-           <p class="end-best"></p>
            <button class="btn btn-primary" data-act="play" data-text="again"></button>
-           <button class="btn btn-secondary" data-act="menu" data-text="menu"></button>
          </div>
        </section>`,
     );
@@ -68,7 +66,6 @@ export class Screens {
         const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
         const act = el?.dataset.act;
         if (act === 'play') this.onPlay();
-        else if (act === 'menu') this.showIntro();
       });
     }
     // The intro's button ring shows for keyboard users only (see .keys in style.css).
@@ -135,13 +132,12 @@ export class Screens {
     }, LEAVE_TIME);
   }
 
-  /** The end of a round: how it went, the record on this device, and play again or back to the menu. */
-  showEnd(results: ShotOutcome[], shots: number, best: number | null, newBest: boolean) {
+  /** The end of a round: how it went, and play again. */
+  showEnd(results: ShotOutcome[], shots: number) {
     const goals = results.filter((r) => r === 'goal').length;
     this.end.querySelector('.end-title')!.textContent = TEXTS.endTitle(goals, shots);
     this.end.querySelector('.end-balls')!.innerHTML = scoreBalls(results, shots);
     this.end.querySelector('.end-score')!.textContent = TEXTS.score(goals, shots);
-    this.end.querySelector('.end-best')!.textContent = newBest ? TEXTS.newBest : best !== null ? TEXTS.best(best) : '';
     this.intro.hidden = true;
     this.end.hidden = false;
     this.focus(this.end);
