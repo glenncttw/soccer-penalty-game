@@ -85,8 +85,9 @@ const CROWD_ROWS: Row<CrowdSettings>[] = [
   ['waveRise', 'Wave rise (m)', 0, 0.3, 0.01],
 ];
 
-const WIPE_ROWS: Row<ReplaySettings>[] = [
-  ['wipeTime', 'Sweep time (s)', 0.3, 2, 0.01],
+const CIRCLE_ROWS: Row<ReplaySettings>[] = [
+  ['closeTime', 'Close time (s)', 0.1, 2, 0.01],
+  ['openTime', 'Open time (s)', 0.1, 2, 0.01],
   ['tunnelSpeed', 'Replay rings speed (x landing)', 0, 8, 0.1],
 ];
 
@@ -97,8 +98,8 @@ export interface EditorTargets {
   grass: { update(settings: GrassSettings): void };
   sky: { configure(settings: SkySettings): void };
   floodlights: { update(settings: FloodlightSettings): void };
-  /** Plays the wipe once, to try its timing. */
-  wipe: { play(): void };
+  /** Closes and opens the purple circle once, to try its timing. */
+  circle: { play(): void };
   /** The crowd's reactions, to tune and try. */
   crowd: {
     tune(settings: CrowdSettings): void;
@@ -168,14 +169,14 @@ export function openSettingsEditor(targets: EditorTargets) {
   addCopyButton(crowdFolder, 'Copy crowd settings', () => settingsSnippet('CROWD_SETTINGS', 'CrowdSettings', crowd));
   crowdFolder.add({ reset: () => crowdFolder.reset() }, 'reset').name('Reset crowd reactions');
 
-  // The wipe reads its timing each time it plays, and the replay its rings' speed every frame, so these change straight away.
-  const wipeFolder = gui.addFolder('Wipe');
-  for (const row of WIPE_ROWS) addRow(wipeFolder, REPLAY_SETTINGS, row);
-  wipeFolder.add({ play: () => targets.wipe.play() }, 'play').name('Play wipe');
-  addCopyButton(wipeFolder, 'Copy replay settings', () =>
+  // The circle reads its timing each time it plays, and the purple its rings' speed every frame, so these change straight away.
+  const circleFolder = gui.addFolder('Circle');
+  for (const row of CIRCLE_ROWS) addRow(circleFolder, REPLAY_SETTINGS, row);
+  circleFolder.add({ play: () => targets.circle.play() }, 'play').name('Play circle');
+  addCopyButton(circleFolder, 'Copy replay settings', () =>
     settingsSnippet('REPLAY_SETTINGS', 'ReplaySettings', REPLAY_SETTINGS),
   );
-  wipeFolder.add({ reset: () => wipeFolder.reset() }, 'reset').name('Reset wipe');
+  circleFolder.add({ reset: () => circleFolder.reset() }, 'reset').name('Reset circle');
   return gui;
 }
 

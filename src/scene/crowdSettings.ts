@@ -62,7 +62,7 @@ export interface CrowdSettings {
   /** About how many seconds between Mexican waves while you aim or wait (each gap a bit shorter or longer). */
   waveEvery: number;
   /**
-   * Seconds per jump. After a goal they keep jumping until the next shot: through the banner, the wipe and the
+   * Seconds per jump. After a goal they keep jumping until the next shot: through the banner, the circle and the
    * whole replay.
    */
   jumpTime: number;

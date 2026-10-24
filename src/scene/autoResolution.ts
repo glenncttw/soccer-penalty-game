@@ -3,7 +3,7 @@
  * (iPhones don't say which model they are). While you aim, it times a few seconds of frames:
  * - too slow (under `slowFps`): one step less sharp;
  * - smooth with room to spare: tries one step sharper, and keeps it only if it stays smooth there.
- * A change only happens while the wipe covers the screen, so you never see the picture jump, and at most
+ * A change only happens while the purple covers the screen, so you never see the picture jump, and at most
  * one step per shot. The result is remembered on the device, so the next visit starts there; each visit
  * checks once more (a phone can be slower in Low Power Mode or when it is hot).
  *
@@ -41,7 +41,7 @@ type Stage = { kind: 'measure' } | { kind: 'trial'; from: number } | { kind: 'do
 export class AutoResolution {
   /** The sharpness drawn now. */
   ratio: number;
-  /** What it will switch to at the next wipe, if anything. */
+  /** What it will switch to the next time the purple covers the screen, if anything. */
   pending: number | null = null;
   /** A short line on what it found, for ?bench. */
   status = 'measuring...';
@@ -92,7 +92,7 @@ export class AutoResolution {
     this.decide();
   }
 
-  /** Call while the wipe covers the screen. True if the sharpness changed (then redraw at `ratio`). */
+  /** Call while the purple covers the screen. True if the sharpness changed (then redraw at `ratio`). */
   applyPending() {
     if (this.pending === null) return false;
     this.ratio = this.pending;

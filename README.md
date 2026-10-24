@@ -48,8 +48,9 @@ shots are easy saves. It is Glenn's blue bird, playing the animations made for i
 On your first visit, tips at the top walk you through your first shots. With a mouse, the view turns a little
 toward where you point.
 
-After a goal, a save or a shot off the woodwork, a quick wipe brings up a 3.5-second slow-motion **replay** in a
-comic panel. After any other shot, the wipe just brings back the ball for the next one.
+After a goal, a save or a shot off the woodwork, the purple tunnel closes in over the field as a shrinking circle and
+a 3.5-second slow-motion **replay** pops in on it in a comic panel; at the end the panel pops away and the circle opens
+up again onto the field. After any other shot, the circle just closes and opens to bring back the ball for the next one.
 
 The loading screen stays up until the game is ready to play (`src/main.ts`, `src/ui/preloader.ts`); then the
 landing comes in. Every file downloads at once: the stadium, the panorama's light, the chips, the keeper, the grass
@@ -75,7 +76,7 @@ That's only where it starts: the game then **measures the device itself** while 
 (`src/scene/autoResolution.ts`; browsers, iPhones above all, don't say which model they are). After about 5 seconds
 of aiming it decides: too slow (under 54 FPS), one step less sharp; smooth with room to spare, it tries one step
 sharper and keeps it only if it stays smooth. Steps are 1.0, 1.25 and 1.5, at most one per shot, and the change
-happens while the wipe covers the screen, so the picture never visibly jumps. The choice is remembered on the
+happens while the purple covers the screen, so the picture never visibly jumps. The choice is remembered on the
 device and checked once more each visit; a step found too slow isn't tried again for 3 days. A frame rate held at
 exactly 30 (iPhone Low Power Mode) is left alone. Set `auto: false` in `src/scene/resolutionSettings.ts` to turn it
 off.
@@ -113,13 +114,14 @@ Each replay takes the next of three camera angles (`src/scene/replayCamera.ts`):
 Every angle looks toward the goal, because that's the part of the stadium that's built. Turning around would show
 the unbuilt side behind the player, so the camera never turns more than 30° to the side, 30° down or 8° up, and
 stays between the spot and the goal (a test checks this for shots all over the goal). To see every replay from
-one angle, add `?replayAngle=follow` (or `behind`, `high`) to the game's address. The ball and the keeper go back to their spots while the wipe covers
+one angle, add `?replayAngle=follow` (or `behind`, `high`) to the game's address. The ball and the keeper go back to their spots while the purple covers
 the screen, so the keeper never has to get up and walk back to the middle. The panel is drawn at 75% of the
 screen's sharpness, and the normal game view isn't drawn during a replay, so a replay costs less than normal
 play.
 
-The wipe is one smooth sweep: a slanted band, wider than the screen, slides across from left to right without
-stopping, and the game changes behind it at the moment it covers everything.
+The circle closes onto where the ball ended up and opens from the ball back on its spot (`src/scene/iris.ts`); it is
+the same purple tunnel as the replay's background, so nothing jumps when the panel pops in. With reduced motion the
+purple fades in and out instead.
 
 Settings are in `REPLAY_SETTINGS` in `src/scene/replaySettings.ts`:
 
@@ -131,8 +133,8 @@ Settings are in `REPLAY_SETTINGS` in `src/scene/replaySettings.ts`:
 | `afterResult` | how long the replay keeps going after the ball went in or was saved, at most |
 | `afterImpact` | how long it keeps going after the ball hits the keeper, the frame or the net |
 | `panelSize` | the panel's size (1 = the biggest that fits) |
-| `holdWithReplay`, `holdWithout` | how long the GOAL!/MISS! banner shows before the wipe |
-| `wipeTime` | seconds the wipe takes to sweep across the screen |
+| `holdWithReplay`, `holdWithout` | how long the GOAL!/MISS! banner shows before the circle closes |
+| `closeTime`, `openTime` | seconds the purple circle takes to close in, and to open up again |
 | `resolution` | how sharp the panel is drawn (1 = as sharp as the screen) |
 
 ## The stadium
@@ -278,7 +280,7 @@ Going from one animation to the next is always a blend, never a cut: whatever sh
 the next fades in (0.3 s between `idle`, `ready` and `celebrate`, 0.15-0.2 s into a save). It follows your aim like a
 spring, speeding up and slowing down, and the side steps blend in with its speed. A save starts from where it stands
 and keeps a little of its side-step speed, and a sped-up save eases back to normal speed after the ball arrives. After
-each shot (and after the replay) it is put back in the middle while the wipe covers the screen, and it stays there
+each shot (and after the replay) it is put back in the middle while the purple covers the screen, and it stays there
 until you move the aim.
 
 What saves shots is what you see: solid balls fitted to the bird's skin (gloves, arms, head, beak, body, feet) move
@@ -436,8 +438,8 @@ with `npm run dev`. Without `?edit` the game looks and loads exactly as before.
 The **Clouds** and **Floodlight glow** folders work the same way, with **Copy sky settings** for `SKY_SETTINGS` in
 `src/scene/skySettings.ts` and **Copy glow settings** for `FLOODLIGHT_SETTINGS` in `src/scene/floodlightSettings.ts`.
 
-The **Wipe** folder changes how long the wipe takes to sweep across the screen;
-**Play wipe** shows it straight away, and **Copy replay settings** copies them for `REPLAY_SETTINGS` in
+The **Circle** folder changes how long the purple circle takes to close and open;
+**Play circle** shows it straight away, and **Copy replay settings** copies them for `REPLAY_SETTINGS` in
 `src/scene/replaySettings.ts`.
 
 **Reset camera** and **Reset grass** go back to the settings in the files, and **Use Blender camera** shows the

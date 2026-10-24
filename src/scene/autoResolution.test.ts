@@ -17,7 +17,7 @@ function aim(auto: AutoResolution, ms: number, t = { now: 0 }) {
 }
 
 describe('AutoResolution', () => {
-  it('steps down on a slow phone, but only behind the wipe', () => {
+  it('steps down on a slow phone, but only behind the purple', () => {
     const { auto, saved } = make();
     aim(auto, 1000 / 45);
     expect(auto.ratio).toBe(1.25); // nothing changes while aiming

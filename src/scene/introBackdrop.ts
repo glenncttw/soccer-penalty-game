@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { palette } from '../theme';
 
 const COLOR = palette.crokyPurple; // Croky purple
-const HOLE_EDGE = 2; // CSS pixels: how far past its edge a closed hole stays shut
+export const HOLE_EDGE = 2; // CSS pixels: how far past its edge a closed hole stays shut
 /** The ball (and the lights on it, and the intro chips) are drawn again on this layer, over the purple. */
 export const OVER_PURPLE_LAYER = 7;
 
@@ -36,6 +36,9 @@ export class PurpleTunnel {
   private readonly rings: THREE.Mesh;
   private readonly fog = new THREE.Fog(DEEP, 1, 2);
   private readonly toHome = new THREE.Vector3();
+  /** Looks straight down the tunnel, its dark far end in the middle of the screen (the replay's background). */
+  private readonly straightCamera = new THREE.PerspectiveCamera(50, 1, 0.01, 20);
+  private readonly straightHome = new THREE.Vector3(0, 0, -1);
   private drift = 0;
 
   constructor() {
@@ -100,6 +103,21 @@ export class PurpleTunnel {
     this.fog.near = FOG_FROM * away;
     this.fog.far = FOG_TO * away;
     this.uniforms.uEdgeTo.value = EDGE_TO * away;
+  }
+
+  /**
+   * Draws the tunnel seen straight down it, its dark far end in the middle of the screen, through a lens like
+   * `lens` (so it looks as it does on the landing). Moves its rings on like `place`.
+   */
+  drawStraight(renderer: THREE.WebGLRenderer, lens: THREE.PerspectiveCamera, dt: number, speed = 1) {
+    const camera = this.straightCamera;
+    if (camera.fov !== lens.fov || camera.aspect !== lens.aspect) {
+      camera.fov = lens.fov;
+      camera.aspect = lens.aspect;
+      camera.updateProjectionMatrix();
+    }
+    this.place(camera, this.straightHome, dt, speed);
+    renderer.render(this.scene, camera);
   }
 }
 

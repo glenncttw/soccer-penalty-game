@@ -27,6 +27,7 @@ import { cameraSettingsFromBlender, createGameCamera } from './scene/gameCamera'
 import { IntroBackdrop } from './scene/introBackdrop';
 import { IntroBall } from './scene/introBall';
 import { IntroChips, loadChipModel } from './scene/introChips';
+import { Iris } from './scene/iris';
 import { applyGrass, loadGrassTextures } from './scene/grass';
 import { loadKeeperModel } from './scene/keeperAsset';
 import { KeeperRig } from './scene/keeperRig';
@@ -45,7 +46,6 @@ import { Round } from './gameplay/round';
 import { Screens } from './ui/screens';
 import { Preloader } from './ui/preloader';
 import { gameFilesIn, rememberFiles } from './ui/rememberFiles';
-import { Wipe } from './ui/wipe';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -261,7 +261,8 @@ const slowMotion = new SlowMotion();
 const round = new Round();
 let playing = false; // a round is on (no intro or end screen in front)
 input.enabled = false;
-// After a goal, save or woodwork: a slow replay in comic panels, between two wipes; see src/scene/replaySettings.ts.
+// After a goal, save or woodwork: a slow replay in a comic panel, between the purple circle closing and opening;
+// see src/scene/replaySettings.ts.
 const replay = new Replay({
   world,
   renderer,
@@ -286,14 +287,17 @@ const replay = new Replay({
   camera,
   still: reducedMotion,
 });
-const wipe = new Wipe(document.querySelector<HTMLElement>('#hud')!, REPLAY_SETTINGS);
+const iris = new Iris(
+  { renderer, tunnel: introBackdrop.tunnel, camera, still: reducedMotion },
+  () => REPLAY_SETTINGS.tunnelSpeed,
+);
 // Add ?replayAngle=follow, behind or high to the address to see every replay from that one angle.
 const replayAngle = new URLSearchParams(location.search).get('replayAngle');
 if (replayAngle) replay.forceAngle(replayAngle);
 connectFeedback(events, { world, camera: view, effects, hud, slowMotion });
 
 const BALL_START = world.ballStart;
-type Phase = 'aiming' | 'charging' | 'flight' | 'result' | 'wipe' | 'replay';
+type Phase = 'aiming' | 'charging' | 'flight' | 'result' | 'circle' | 'replay';
 let phase: Phase = 'aiming';
 let phaseTime = 0;
 /** aim.x when the keeper was last centred, until you move the aim away from it (then null: it follows). */
@@ -386,31 +390,45 @@ function showResult() {
   if (outcome.result === 'goal' || outcome.result === 'saved') crowd.react(outcome.result, { still: reducedMotion });
 }
 
-/** Ends the shot behind a wipe: a replay first if it was a big moment, then the next shot. */
+/** Ends the shot behind the purple circle: a replay first if it was a big moment, then the next shot. */
 function endShot() {
   const withReplay = replay.wanted(outcome.result ?? 'miss', outcome.hitFrame);
-  setPhase('wipe');
-  wipe.run(() => {
+  setPhase('circle');
+  hud.dropBanner();
+  const ball = onScreen(physics.ball.translation(), 0.15);
+  iris.close(ball.x, ball.y, REPLAY_SETTINGS.closeTime, () => {
     if (withReplay) replay.start(outcome.result === 'goal');
     resetShot();
-    if (replay.active) {
-      setPhase('replay');
-      wipe.showReplayTag(true);
-    } else crowd.calm({ atOnce: true });
-  }, nextShot);
+    if (replay.active) setPhase('replay');
+    else {
+      crowd.calm({ atOnce: true });
+      openOnField();
+    }
+  });
 }
 
-/** Leaves the replay at its end, behind another wipe. */
+/** Leaves the replay at its end (its panel has popped away), opening the purple circle onto the field. */
 function endReplay() {
-  if (phase !== 'replay' || wipe.running) return;
-  wipe.run(() => {
-    replay.stop();
-    centreKeeper(); // the replay posed the keeper: put it back while the wipe covers the screen
-    aura.begin(false);
-    wipe.showReplayTag(false);
-    crowd.calm({ atOnce: true }); // they jumped all through the replay: stopped before the field shows again
-    setPhase('wipe');
-  }, nextShot);
+  if (phase !== 'replay') return;
+  replay.stop();
+  centreKeeper(); // the replay posed the keeper: put it back while the screen is all purple
+  aura.begin(false);
+  crowd.calm({ atOnce: true }); // they jumped all through the replay: stopped before the field shows again
+  setPhase('circle');
+  openOnField();
+}
+
+/** The purple circle opens up from the ball on its spot, then the next shot. */
+function openOnField() {
+  const spot = onScreen(BALL_START, 0);
+  iris.open(spot.x, spot.y, REPLAY_SETTINGS.openTime, nextShot);
+}
+
+/** Where `p` is on screen, in CSS pixels from the top left, kept `margin` (a share of the screen) inside its edges. */
+function onScreen(p: { x: number; y: number; z: number }, margin: number) {
+  const v = new THREE.Vector3(p.x, p.y, p.z).project(camera);
+  const clamp = (n: number) => Math.min(1 - margin, Math.max(margin, n));
+  return { x: clamp((v.x + 1) / 2) * drawn.w, y: clamp((1 - v.y) / 2) * drawn.h };
 }
 
 /** Ball back on the spot and the keeper back in the middle, at once: the screen is covered. */
@@ -422,7 +440,7 @@ function resetShot() {
   trail.clear();
   if (!replay.active) aura.begin(false); // a replay of a perfect strike still shows its glow
   hud.hideBanner();
-  if (autoSharpness?.applyPending()) resize(); // a sharpness step, unseen behind the wipe
+  if (autoSharpness?.applyPending()) resize(); // a sharpness step, unseen behind the purple
 }
 
 /**
@@ -436,7 +454,7 @@ function centreKeeper() {
 }
 
 function nextShot() {
-  if (phase !== 'wipe') return;
+  if (phase !== 'circle') return;
   setPhase('aiming');
   crowd.calm();
   if (round.over) endRound();
@@ -487,7 +505,12 @@ if (new URLSearchParams(location.search).has('edit')) {
     grass,
     sky,
     floodlights,
-    wipe: { play: () => wipe.run(() => {}) },
+    circle: {
+      play: () => {
+        const [x, y] = [drawn.w / 2, drawn.h / 2];
+        iris.close(x, y, REPLAY_SETTINGS.closeTime, () => iris.open(x, y, REPLAY_SETTINGS.openTime));
+      },
+    },
     crowd,
   });
 }
@@ -646,11 +669,14 @@ renderer.setAnimationLoop((time) => {
   crowdFlags.update(gameTime);
   sky.update(gameTime);
 
+  iris.update(realDt);
+  hud.showReplayTag(replay.active && !replay.leaving);
   if (replay.active) {
     replay.render(realDt);
     if (replay.finished) endReplay();
   } else {
     introBackdrop.render(renderer, scene, camera, introBall.reveal, reducedMotion, realDt, introBall.home);
+    iris.render(realDt);
   }
   perf.end(time);
 });

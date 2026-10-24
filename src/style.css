@@ -164,45 +164,47 @@ body {
   }
 }
 
-/* The wipe before and after a replay: a slanted band, pink behind and purple in front, sliding right.
-   Its width and position are set in src/ui/wipe.ts. */
-.wipe {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  background: linear-gradient(90deg, #ffffff 0 6px, #e5186f 6px 50%, #402985 50% calc(100% - 6px), #ffffff 0);
-  will-change: transform;
+.banner.show.out {
+  animation: banner-out 0.3s ease-in forwards;
 }
 
-/* Speed lines trailing behind the band. */
-.wipe::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 100%;
-  width: 12vw;
-  background: linear-gradient(
-    90deg,
-    transparent 0 8%,
-    #e5186f 8% 14%,
-    transparent 14% 36%,
-    #e5186f 36% 48%,
-    transparent 48% 66%,
-    #e5186f 66% 86%,
-    transparent 86%
-  );
+@keyframes banner-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(-4deg) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-4deg) scale(0.6);
+  }
 }
 
-.replay-tag[hidden] {
-  display: none;
-}
-
+/* The "REPLAY" label: pops in just after the replay's panel (src/ui/hud.ts), and goes with it. */
 .replay-tag {
   position: absolute;
   left: 16px;
   top: 16px;
+  opacity: 0;
+  transform: scale(0.4);
+  transform-origin: 20% 50%;
+  transition:
+    opacity 0.15s ease-in,
+    transform 0.2s ease-in;
+}
+
+.replay-tag.show {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.1s 0.3s,
+    transform 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) 0.3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .replay-tag,
+  .replay-tag.show {
+    transform: none;
+  }
 }
 
 .replay-word {
