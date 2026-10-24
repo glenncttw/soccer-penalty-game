@@ -25,6 +25,8 @@ export class Preloader {
   private steps = 0;
   private partSteps = 0; // of a long step that's on its way
   private shown = 0;
+  /** When (performance.now(), ms) the right half is full: the left half never starts before then. */
+  private rightFull = Infinity;
 
   constructor() {
     THREE.DefaultLoadingManager.onProgress = (_url, loaded, total) => {
@@ -85,16 +87,19 @@ export class Preloader {
     if (!this.right || !this.left || to <= this.shown) return;
     const from = this.shown;
     this.shown = to;
-    const split = from < 0.5 && to > 0.5;
-    const first = split ? (seconds * (0.5 - from)) / (to - from) : seconds;
-    turn(this.right, Math.min(to, 0.5), first, 0, split ? 'linear' : EASE);
-    turn(
-      this.left,
-      Math.max(to - 0.5, 0),
-      split ? seconds - first : seconds,
-      split ? first : 0,
-      split ? 'linear' : EASE,
-    );
+    const now = performance.now();
+    // The share of the time the right half needs to get where it's going (all of it, unless it gets full on the way).
+    const first = from < 0.5 ? (seconds * (Math.min(to, 0.5) - from)) / (to - from) : 0;
+    if (first > 0) {
+      turn(this.right, Math.min(to, 0.5), first, 0, to > 0.5 ? 'linear' : EASE);
+      if (to >= 0.5) this.rightFull = now + first * 1000;
+    }
+    if (to > 0.5) {
+      // The left half waits until the right one is full (it may still be on its way from an earlier call), so the
+      // ring always fills as one circle, never both halves at once.
+      const wait = Math.max(0, (this.rightFull - now) / 1000);
+      turn(this.left, to - 0.5, Math.max(seconds - first, 0.05), wait, wait > 0 ? 'linear' : EASE);
+    }
     const shown = `${Math.round(to * 100)}`;
     if (this.percent) this.percent.textContent = `${shown}%`;
     this.ring?.setAttribute('aria-valuenow', shown);
@@ -108,7 +113,7 @@ function turn(half: HTMLElement, share: number, seconds: number, delay: number, 
   s.transitionDelay = `${delay}s`;
   s.transitionTimingFunction = easing;
   s.transform = `rotate(${45 + share * 360}deg)`;
-  if (share > 0) s.visibility = 'visible';
+  s.visibility = 'visible'; // shows as it starts turning (visibility goes with the transition, after the delay)
 }
 
 /**
