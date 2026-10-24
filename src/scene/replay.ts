@@ -14,7 +14,9 @@ import { REPLAY_ANGLES, replayCameraPose, type ReplayAngle } from './replayCamer
 import { REPLAY_SETTINGS, type ReplaySettings } from './replaySettings';
 
 const SHADOW = palette.crokyPurpleDeep; // the panel's drop shadow: a deep purple
-const POP_TIME = 0.4; // seconds the panel takes to pop in
+const POP_TIME = 0.45; // seconds the panel takes to pop in, over the purple
+const HOLD = 0.3; // seconds the panel shows the replay's first moment while it pops in, before it plays
+const OUT_TIME = 0.3; // seconds the panel takes to pop away at the end
 const TILT = THREE.MathUtils.degToRad(-4); // the panel leans 4 degrees (to the right), like a sticker
 const SWING = THREE.MathUtils.degToRad(-1.5); // and swings in that much further as it pops in, then settles
 const TAG_SPACE = 64; // CSS pixels kept free at the top for the "REPLAY" label
@@ -61,9 +63,6 @@ export class Replay {
   private readonly trail = new BallTrail();
   private readonly overlay = new THREE.Scene();
   private readonly screen = new THREE.OrthographicCamera(0, 1, 1, 0, -10, 10);
-  /** Looks straight down the purple tunnel, its dark far end behind the panel. */
-  private readonly tunnelCamera = new THREE.PerspectiveCamera(50, 1, 0.01, 20); // with the game camera's lens
-  private readonly tunnelHome = new THREE.Vector3(0, 0, -1);
   private readonly camera = new THREE.PerspectiveCamera(50, 1, 0.05, 400);
   private readonly target = new THREE.WebGLRenderTarget(1, 1, { samples: 4 });
   private readonly panel = new THREE.Group();
@@ -76,6 +75,8 @@ export class Replay {
   /** Replay seconds in at which the result was decided, and the crowd's clock then. */
   private result = { elapsed: 0, clock: 0 };
   private elapsed = 0;
+  /** Seconds since the replay started: its panel popping in, playing, then popping away. */
+  private age = 0;
   /** Replay seconds it plays for: the part of the shot in `window`, and a goal's celebration after it. */
   private length = 0;
   private trailStop: number | null = null;
@@ -125,7 +126,7 @@ export class Replay {
     this.camera.quaternion.copy(camera.quaternion);
     renderer.setRenderTarget(this.target);
     renderer.render(scene, this.camera);
-    renderer.render(this.parts.tunnel.scene, this.tunnelCamera); // into the panel's own picture: never seen
+    this.parts.tunnel.drawStraight(renderer, camera, 0); // into the panel's own picture: never seen
     renderer.render(this.overlay, this.screen);
     renderer.setRenderTarget(null);
   }
@@ -186,7 +187,7 @@ export class Replay {
     effects.group.visible = true;
     this.effectsTime = this.frameTime = r.kickAt;
     this.nextEffect = 0;
-    this.elapsed = 0;
+    this.elapsed = this.age = 0;
     this.active = true;
     for (const o of this.parts.hide) o.visible = false;
     this.parts.trail.mesh.visible = false;
@@ -207,9 +208,14 @@ export class Replay {
     this.parts.ballFade.reset();
   }
 
-  /** True once the whole replay has played. */
+  /** True once the whole replay has played and its panel has popped away. */
   get finished() {
-    return this.elapsed >= this.length;
+    return this.age >= HOLD + this.length + OUT_TIME;
+  }
+
+  /** True while the panel pops away at the end. */
+  get leaving() {
+    return this.age >= HOLD + this.length;
   }
 
   /** Lays the panel out for a screen of `w` x `h` CSS pixels. */
@@ -235,7 +241,8 @@ export class Replay {
   /** Moves the replay on by `realDt` seconds and draws it. */
   render(realDt: number) {
     const { renderer, scene } = this.parts;
-    this.elapsed = Math.min(this.length, this.elapsed + realDt);
+    this.age += realDt;
+    this.elapsed = Math.min(this.length, Math.max(0, this.age - HOLD));
     const t = this.sample(this.elapsed);
 
     // Recorded positions go into the replay's own trail as the replay reaches them.
@@ -257,7 +264,9 @@ export class Replay {
     renderer.setRenderTarget(null);
 
     const border = Math.max(5, Math.min(this.size.w, this.size.h) * 0.016);
-    const k = popIn(this.elapsed / POP_TIME);
+    // Pops in, then (at the end) the same backwards: a little bigger first, then away.
+    const out = (this.age - HOLD - this.length) / OUT_TIME;
+    const k = out > 0 ? popIn(1 - out) : popIn(this.age / POP_TIME);
     const { x, y, w, h } = this.rect;
     this.panel.position.set(x, y, 0);
     this.panel.rotation.z = TILT + SWING * (1 - k); // swings in a little extra, then settles
@@ -277,15 +286,9 @@ export class Replay {
   /** The background: the landing's purple tunnel, whole (no hole), its rings drifting toward you. */
   private drawTunnel(realDt: number) {
     const { renderer, tunnel, still, camera } = this.parts;
-    if (this.tunnelCamera.fov !== camera.fov || this.tunnelCamera.aspect !== camera.aspect) {
-      this.tunnelCamera.fov = camera.fov;
-      this.tunnelCamera.aspect = camera.aspect;
-      this.tunnelCamera.updateProjectionMatrix();
-    }
     tunnel.uniforms.uHole.value.set(0, 0, -100);
     tunnel.uniforms.uOpacity.value = 1;
-    tunnel.place(this.tunnelCamera, this.tunnelHome, still ? 0 : realDt, this.settings.tunnelSpeed);
-    renderer.render(tunnel.scene, this.tunnelCamera);
+    tunnel.drawStraight(renderer, camera, still ? 0 : realDt, this.settings.tunnelSpeed);
   }
 
   /** Puts the ball, keeper and crowd where they were `elapsed` replay seconds in. Returns the game time shown. */

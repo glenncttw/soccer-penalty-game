@@ -296,7 +296,7 @@ export class Crowd {
 
   /**
    * Back to how they were before the shot, easing out of whatever they're doing, or straight away with `atOnce`
-   * (while a wipe covers the screen, so nobody is seen still jumping when the field shows again).
+   * (while the purple covers the screen, so nobody is seen still jumping when the field shows again).
    */
   calm({ atOnce = false }: { atOnce?: boolean } = {}) {
     const u = this.motion;
