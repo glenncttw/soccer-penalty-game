@@ -2,8 +2,7 @@ import * as THREE from 'three';
 import { palette } from '../theme';
 
 const COLOR = palette.crokyPurple; // Croky purple
-const RIM_COLOR = '#ffcf3a'; // the gold of the Speel nu button
-const RIM_WIDTH = 6; // CSS pixels of gold around the hole
+const HOLE_EDGE = 2; // CSS pixels: how far past its edge a closed hole stays shut
 /** The ball (and the lights on it, and the intro chips) are drawn again on this layer, over the purple. */
 export const OVER_PURPLE_LAYER = 7;
 
@@ -27,11 +26,9 @@ const EDGE_TO = 2.5; // how far from the camera that lighter part reaches
  */
 export class PurpleTunnel {
   readonly scene = new THREE.Scene();
-  /** The hole's centre x, y and radius, in drawing pixels from the bottom left; its gold rim; how see-through. */
+  /** The hole's centre x, y and radius, in drawing pixels from the bottom left; how see-through. */
   readonly uniforms = {
-    uRim: { value: new THREE.Color(RIM_COLOR) },
     uHole: { value: new THREE.Vector3(0, 0, -100) }, // no hole
-    uRimWidth: { value: RIM_WIDTH },
     uOpacity: { value: 1 },
     uEdgeTo: { value: 1 }, // EDGE_TO, in world units
   };
@@ -54,9 +51,7 @@ export class PurpleTunnel {
       shader.fragmentShader = shader.fragmentShader
         .replace(
           'void main() {',
-          `uniform vec3 uRim;
-          uniform vec3 uHole;
-          uniform float uRimWidth;
+          `uniform vec3 uHole;
           uniform float uOpacity;
           uniform float uEdgeTo;
           void main() {`,
@@ -66,11 +61,10 @@ export class PurpleTunnel {
           `{
             float d = distance(gl_FragCoord.xy, uHole.xy);
             float hole = 1.0 - smoothstep(uHole.z - 1.0, uHole.z + 1.0, d);
-            float rim = 1.0 - smoothstep(uHole.z + uRimWidth - 1.0, uHole.z + uRimWidth + 1.0, d);
             float alpha = (1.0 - hole) * uOpacity;
             gl_FragColor.rgb *= 1.0 + ${EDGE_LIGHT.toFixed(2)} * (1.0 - smoothstep(0.0, uEdgeTo, vFogDepth));
             if (alpha <= 0.0) discard;
-            gl_FragColor = vec4(mix(gl_FragColor.rgb, linearToOutputTexel(vec4(uRim, 1.0)).rgb, rim), alpha);
+            gl_FragColor.a = alpha;
           }
           #include <premultiplied_alpha_fragment>`,
         );
@@ -111,7 +105,7 @@ export class PurpleTunnel {
 
 /**
  * The purple behind the intro: the tunnel (see PurpleTunnel), running from the camera past the ball.
- * It's drawn in WebGL so the real ball can sit in it. On Speel nu a round hole with a gold rim opens up
+ * It's drawn in WebGL so the real ball can sit in it. On Speel nu a round hole opens up
  * from the ball and grows past the corners, showing the pitch; Menu closes it again. Each frame it draws
  * the stadium (skipped while it is all purple), then the tunnel with its hole, then the ball once more
  * over it.
@@ -167,10 +161,9 @@ export class IntroBackdrop {
     this.centre.copy(this.ball.position).project(camera);
     const x = ((this.centre.x + 1) / 2) * this.size.x;
     const y = ((this.centre.y + 1) / 2) * this.size.y;
-    const radius = holeRadius(fade ? 0 : reveal, x, y, this.size.x, this.size.y, RIM_WIDTH * pixels);
+    const radius = holeRadius(fade ? 0 : reveal, x, y, this.size.x, this.size.y, HOLE_EDGE * pixels);
     const { uniforms } = this.tunnel;
     uniforms.uHole.value.set(x, y, radius);
-    uniforms.uRimWidth.value = RIM_WIDTH * pixels;
     uniforms.uOpacity.value = fade ? 1 - reveal : 1;
     this.tunnel.place(camera, home, fade ? 0 : dt);
 
@@ -229,10 +222,10 @@ function tunnelGeometry() {
 
 /**
  * How big the hole is when the purple has gone `reveal` (0..1) of the way, centred on (x, y) on a view
- * `width` by `height`: nothing at 0 (not even the rim), and past the furthest corner, rim and all, at 1.
+ * `width` by `height`: nothing at 0 (not even its soft `edge`), and past the furthest corner, edge and all, at 1.
  */
-export function holeRadius(reveal: number, x: number, y: number, width: number, height: number, rim: number) {
-  if (reveal <= 0) return -2 * rim;
+export function holeRadius(reveal: number, x: number, y: number, width: number, height: number, edge: number) {
+  if (reveal <= 0) return -2 * edge;
   const corner = Math.hypot(Math.max(x, width - x), Math.max(y, height - y));
-  return reveal * (corner + rim + 2);
+  return reveal * (corner + edge + 2);
 }

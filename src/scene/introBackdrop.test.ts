@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { holeRadius } from './introBackdrop';
 
 describe('holeRadius', () => {
-  it('shows no hole and no rim before the purple starts to go', () => {
+  it('shows no hole, not even its soft edge, before the purple starts to go', () => {
     expect(holeRadius(0, 640, 400, 1280, 720, 6) + 6).toBeLessThan(0);
   });
 
-  it('grows past the furthest corner, rim and all, on wide and upright screens', () => {
+  it('grows past the furthest corner, edge and all, on wide and upright screens', () => {
     for (const [x, y, w, h] of [
       [640, 400, 1280, 720],
       [195, 300, 390, 844],

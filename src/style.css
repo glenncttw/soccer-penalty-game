@@ -105,13 +105,14 @@ body {
   right: 12px;
   top: 50%;
   opacity: 0;
-  color: #ffcf3a;
-  font-weight: 900;
-  font-size: 30px;
-  letter-spacing: 0.02em;
-  text-shadow:
-    0 3px 0 #6c398b,
-    0 6px 12px rgba(0, 0, 0, 0.2);
+  color: #ffffff;
+  font:
+    700 30px Bazinga,
+    system-ui,
+    sans-serif; /* styled like the intro's title, smaller */
+  letter-spacing: -0.033em;
+  text-shadow: 0.055em 0.063em 0 #2a1a57;
+  rotate: -4deg;
 }
 
 .pop.show {
@@ -137,37 +138,43 @@ body {
   }
 }
 
+/*
+ * GOAL!, SAVED!... styled exactly like the intro's title (.intro-title): the same size (one --u is one pixel of
+ * the 1440 x 800 design), white, tight letters, a solid dark purple shadow and the same tilt.
+ */
 .banner {
+  --u: min(100vw / 1440, 100vh / 800);
   position: absolute;
   left: 50%;
   top: 21%;
-  transform: translate(-50%, -50%) scale(0.4);
+  transform: translate(-50%, -50%) rotate(-4deg) scale(0.4);
   opacity: 0;
   color: #ffffff;
   font:
-    700 clamp(44px, 12vw, 96px) Bazinga,
+    700 calc(135 * var(--u)) / 1 Bazinga,
     system-ui,
-    sans-serif; /* the landing's typeface */
-  letter-spacing: 0.02em;
+    sans-serif;
+  letter-spacing: calc(-4.4 * var(--u));
+  word-spacing: calc(-5 * var(--u));
   text-align: center;
+  text-transform: uppercase;
   white-space: nowrap;
-  text-shadow:
-    0 5px 0 #e5186f,
-    0 10px 18px rgba(0, 0, 0, 0.25);
+  text-shadow: calc(7.4 * var(--u)) calc(8.5 * var(--u)) 0 #2a1a57;
+}
+
+@media (max-aspect-ratio: 1/1) {
+  .banner {
+    --u: calc(100vw / 840); /* as the intro's title on screens taller than wide */
+  }
 }
 
 .banner small {
   display: block;
-  font-size: 0.28em;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.banner.gold {
-  color: #ffcf3a;
-  text-shadow:
-    0 5px 0 #6c398b,
-    0 10px 18px rgba(0, 0, 0, 0.25);
+  margin-top: 0.15em;
+  font-size: 0.3em;
+  letter-spacing: 0.04em;
+  word-spacing: normal;
+  text-shadow: 0.055em 0.063em 0 #2a1a57;
 }
 
 .banner.show {
@@ -177,7 +184,7 @@ body {
 @keyframes pop {
   to {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    transform: translate(-50%, -50%) rotate(-4deg) scale(1);
   }
 }
 
@@ -801,8 +808,8 @@ body {
 }
 
 /*
- * Ready: the ring shrinks away and the red opens as a circle from the middle (with the tunnel's gold rim) onto the
- * landing, while the logo stays where it is. Then the loading screen goes.
+ * Ready: the ring shrinks away and the red opens as a circle from the middle onto the landing, while the logo
+ * stays where it is. Then the loading screen goes.
  */
 #loading.opening {
   background: none;
@@ -816,9 +823,7 @@ body {
   width: 0;
   height: 0;
   border-radius: 50%;
-  box-shadow:
-    0 0 0 calc(6 * var(--u)) #ffcf3a,
-    0 0 0 300vmax #fc4846;
+  box-shadow: 0 0 0 300vmax #fc4846;
   transform: translate(-50%, -50%);
   animation: loading-open 0.6s cubic-bezier(0.55, 0, 0.75, 0.3) forwards;
 }
