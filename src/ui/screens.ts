@@ -41,16 +41,16 @@ export class Screens {
              <h1 class="intro-title"></h1>
            </div>
            <div class="intro-bottom">
-             <button class="btn btn-primary intro-play" data-act="play" data-text="play"></button>
+             <button class="btn btn-croky intro-play" data-act="play" data-text="play"></button>
            </div>
          </div>
        </section>
        <section class="screen end" hidden>
          <div class="screen-body">
-           <h1 class="screen-title end-title"></h1>
+           <h1 class="end-title"></h1>
            <div class="end-balls"></div>
-           <p class="screen-tagline end-score"></p>
-           <button class="btn btn-primary" data-act="play" data-text="again"></button>
+           <p class="end-score"></p>
+           <button class="btn btn-croky" data-act="play" data-text="again"></button>
          </div>
        </section>`,
     );
@@ -204,7 +204,7 @@ export class Screens {
   }
 
   private focus(screen: HTMLElement) {
-    screen.querySelector<HTMLElement>('.btn-primary')!.focus({ preventScroll: true });
+    screen.querySelector<HTMLElement>('.btn-croky')!.focus({ preventScroll: true });
   }
 }
 

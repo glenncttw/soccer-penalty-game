@@ -119,9 +119,9 @@ the screen, so the keeper never has to get up and walk back to the middle. The p
 screen's sharpness, and the normal game view isn't drawn during a replay, so a replay costs less than normal
 play.
 
-The circle closes onto where the ball ended up and opens from the ball back on its spot (`src/scene/iris.ts`); it is
-the same purple tunnel as the replay's background, so nothing jumps when the panel pops in. With reduced motion the
-purple fades in and out instead.
+The circle always closes onto the middle of the screen and opens from there, like the landing's (`src/scene/iris.ts`).
+It is the same purple tunnel as the replay's background, so nothing jumps when the panel pops in. With reduced
+motion the purple fades in and out instead.
 
 Settings are in `REPLAY_SETTINGS` in `src/scene/replaySettings.ts`:
 

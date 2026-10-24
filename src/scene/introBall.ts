@@ -112,7 +112,7 @@ export class IntroBall {
 
   /**
    * How far the purple intro background has gone (see introBackdrop.ts): 0 all purple while the ball
-   * floats, opening up from the ball as it flies down, 1 once it's gone; closing again on the way up.
+   * floats, opening up from the middle of the screen as it flies down, 1 once it's gone; closing again on the way up.
    */
   get reveal() {
     if (this.state === 'off') return 1;
