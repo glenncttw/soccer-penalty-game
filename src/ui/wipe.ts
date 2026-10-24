@@ -31,8 +31,10 @@ export class Wipe {
     );
     this.band = root.querySelector('.wipe')!;
     this.tag = root.querySelector('.replay-tag')!;
-    // Parked just off the left edge, always ready, so it never has to be set up mid-game.
+    // Parked just off the left edge, always ready, so it never has to be set up mid-game. Hidden while parked:
+    // the window can grow after this (wider or taller, so the slant reaches further), and then its edge would show.
     const { from, width } = this.path();
+    this.band.style.visibility = 'hidden';
     this.band.style.width = `${width}px`;
     this.band.style.transform = place(from);
   }
@@ -47,6 +49,7 @@ export class Wipe {
     this.busy = true;
     const { from, to, middle, width } = this.path();
     this.band.style.width = `${width}px`;
+    this.band.style.visibility = 'visible';
     const keyframes = Array.from({ length: STEPS + 1 }, (_, i) => ({
       offset: i / STEPS,
       transform: place(from + (to - from) * easeInOut(i / STEPS)),
@@ -57,6 +60,7 @@ export class Wipe {
     setTimeout(onCovered, ms * easeInOutTime((middle - from) / (to - from)));
     sweep.finished.then(() => {
       this.band.style.transform = place(from);
+      this.band.style.visibility = 'hidden';
       sweep.cancel();
       this.busy = false;
       onDone();
