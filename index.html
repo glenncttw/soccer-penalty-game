@@ -8,7 +8,14 @@
   </head>
   <body>
     <canvas id="game"></canvas>
-    <div id="loading"><div class="bar"><div></div></div></div>
+    <div id="loading">
+      <img class="loading-logo" src="/assets/crowd/flag_logo.svg" alt="Croky" />
+      <div class="loading-ring" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="loading-half right"><i></i></div>
+        <div class="loading-half left"><i></i></div>
+        <span class="loading-percent">0%</span>
+      </div>
+    </div>
     <div id="hud"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
