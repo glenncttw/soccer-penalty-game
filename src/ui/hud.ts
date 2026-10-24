@@ -53,9 +53,11 @@ export class Hud {
     restartAnimation(this.pop, 'show');
   }
 
-  showBanner(text: string, sub = '', gold = false) {
-    this.banner.innerHTML = `${text}${sub ? `<small>${sub}</small>` : ''}`;
-    this.banner.classList.toggle('gold', gold);
+  /** The big words in the middle after a shot, made smaller if they'd be wider than the screen (a phone held upright). */
+  showBanner(text: string) {
+    this.banner.textContent = text;
+    const room = 0.92 * window.innerWidth;
+    this.banner.style.setProperty('--fit', String(Math.min(1, room / Math.max(1, this.banner.offsetWidth))));
     this.banner.classList.remove('out');
     this.pop.classList.remove('show'); // the banner takes the middle of the screen
     restartAnimation(this.banner, 'show');

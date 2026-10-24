@@ -115,15 +115,16 @@ body {
 }
 
 /*
- * GOAL!, SAVED!... styled exactly like the intro's title (.intro-title): the same size (one --u is one pixel of
- * the 1440 x 800 design), white, tight letters, a solid dark purple shadow and the same tilt.
+ * GOAL!, GEHOUDEN!... styled exactly like the intro's title (.intro-title): the same size (one --u is one pixel of
+ * the 1440 x 800 design), white, tight letters, a solid dark purple shadow and the same tilt. --fit (src/ui/hud.ts)
+ * shrinks long words to fit a narrow screen.
  */
 .banner {
   --u: min(100vw / 1440, 100vh / 800);
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%) rotate(-4deg) scale(0.4);
+  transform: translate(-50%, -50%) rotate(-4deg) scale(calc(0.4 * var(--fit, 1)));
   opacity: 0;
   color: #ffffff;
   font:
@@ -144,15 +145,6 @@ body {
   }
 }
 
-.banner small {
-  display: block;
-  margin-top: 0.15em;
-  font-size: 0.3em;
-  letter-spacing: 0.04em;
-  word-spacing: normal;
-  text-shadow: 0.055em 0.063em 0 #2a1a57;
-}
-
 .banner.show {
   animation: pop 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) forwards;
 }
@@ -160,7 +152,7 @@ body {
 @keyframes pop {
   to {
     opacity: 1;
-    transform: translate(-50%, -50%) rotate(-4deg) scale(1);
+    transform: translate(-50%, -50%) rotate(-4deg) scale(var(--fit, 1));
   }
 }
 
@@ -171,11 +163,11 @@ body {
 @keyframes banner-out {
   from {
     opacity: 1;
-    transform: translate(-50%, -50%) rotate(-4deg) scale(1);
+    transform: translate(-50%, -50%) rotate(-4deg) scale(var(--fit, 1));
   }
   to {
     opacity: 0;
-    transform: translate(-50%, -50%) rotate(-4deg) scale(0.6);
+    transform: translate(-50%, -50%) rotate(-4deg) scale(calc(0.6 * var(--fit, 1)));
   }
 }
 
