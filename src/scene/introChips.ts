@@ -29,6 +29,7 @@ const CLOSEST = 0.2; // a chip never comes closer than this (only a safety net: 
 // They come out from behind the ball between about 1.8 and 2.6 (the narrow circles first).
 const DARK_FROM = 0.9; // closer than this they are fully lit (the ball floats at 1)
 const DARK_TO = 2.6; // and further away they are all dark
+const LIGHT_UP = 0.4; // Speel nu & Win: seconds the dark takes to go, so no dark chip shows over the sunny pitch
 
 interface Chip {
   age: number;
@@ -75,7 +76,8 @@ export class IntroChips {
   private readonly matrix = new THREE.Matrix4();
   private readonly ndc = new THREE.Vector3();
   private readonly bound: number; // how far a chip reaches from its middle, at size 1
-  private readonly shadow = { uDark: { value: new THREE.Vector2() } }; // DARK_FROM and DARK_TO in world units
+  /** DARK_FROM and DARK_TO in world units, and how dark it gets there (1 in the tunnel, 0 once it opens). */
+  private readonly shadow = { uDark: { value: new THREE.Vector2() }, uDarkness: { value: 1 } };
 
   constructor(model: THREE.Mesh, count: number) {
     // One chip, centred and as long as 1 (the instances give it its size).
@@ -124,6 +126,7 @@ export class IntroChips {
     this.shadow.uDark.value.set(DARK_FROM * away, DARK_TO * away);
     this.burst = mode === 'burst' ? this.burst + dt : 0;
     const out = smoothstep(0, BURST_TIME, this.burst); // 0 while swirling, 1 once they've all rushed off
+    this.shadow.uDarkness.value = 1 - smoothstep(0, LIGHT_UP, this.burst);
     this.entered += dt;
     const grow = smoothstep(0, ENTER_TIME, this.entered); // 1 once they're in
     const rush = 1 + ENTER_SPEED * (1 - grow);
@@ -213,9 +216,10 @@ function smoothstep(a: number, b: number, x: number) {
 
 /**
  * The chips' own material, darkened toward the tunnel's deep purple the further away they are (from `dark.x`
- * to all dark at `dark.y`, as seen from the camera), the way the tunnel's walls fade into its dark end.
+ * to all dark at `dark.y`, as seen from the camera), the way the tunnel's walls fade into its dark end; `darkness`
+ * takes that away again as the tunnel opens onto the pitch.
  */
-function inShadow(source: THREE.Material, uniforms: { uDark: { value: THREE.Vector2 } }) {
+function inShadow(source: THREE.Material, uniforms: { uDark: { value: THREE.Vector2 }; uDarkness: { value: number } }) {
   const material = source.clone();
   // Mixed in after the colours are made ready for the screen, like three's fog: so in the screen's colours too.
   const deep = { value: new THREE.Color(DEEP).getRGB(new THREE.Color(), THREE.SRGBColorSpace) };
@@ -225,10 +229,13 @@ function inShadow(source: THREE.Material, uniforms: { uDark: { value: THREE.Vect
       .replace('void main() {', 'varying float vChipDepth;\nvoid main() {')
       .replace('#include <project_vertex>', '#include <project_vertex>\n  vChipDepth = -mvPosition.z;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('void main() {', 'uniform vec2 uDark;\nuniform vec3 uDeep;\nvarying float vChipDepth;\nvoid main() {')
+      .replace(
+        'void main() {',
+        'uniform vec2 uDark;\nuniform float uDarkness;\nuniform vec3 uDeep;\nvarying float vChipDepth;\nvoid main() {',
+      )
       .replace(
         '#include <fog_fragment>',
-        '#include <fog_fragment>\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, uDeep, smoothstep(uDark.x, uDark.y, vChipDepth));',
+        '#include <fog_fragment>\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, uDeep, uDarkness * smoothstep(uDark.x, uDark.y, vChipDepth));',
       );
   };
   material.customProgramCacheKey = () => 'intro-chip-shadow';

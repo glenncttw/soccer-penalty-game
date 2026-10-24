@@ -162,6 +162,7 @@ const introBackdrop = new IntroBackdrop(ballMesh); // the purple tunnel behind i
 const introChips = new IntroChips(await chipAsset, touchScreen ? 24 : 40);
 lightMovingObject(introChips.mesh, envMap);
 introChips.mesh.castShadow = false;
+introChips.mesh.receiveShadow = false; // floating by the camera: the stadium's shadows on them would be dark blotches
 scene.add(introChips.mesh);
 let introSeen = false; // after the first time, the ball rises back up from the spot into the intro
 screens.onIntro = () => {
