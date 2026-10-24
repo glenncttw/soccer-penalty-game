@@ -123,15 +123,14 @@ export class PurpleTunnel {
 
 /**
  * The purple behind the intro: the tunnel (see PurpleTunnel), running from the camera past the ball.
- * It's drawn in WebGL so the real ball can sit in it. On Speel nu a round hole opens up
- * from the ball and grows past the corners, showing the pitch; Menu closes it again. Each frame it draws
+ * It's drawn in WebGL so the real ball can sit in it. On Speel nu a round hole opens up from the middle
+ * of the screen and grows past the corners, showing the pitch; Menu closes it again. Each frame it draws
  * the stadium (skipped while it is all purple), then the tunnel with its hole, then the ball once more
  * over it.
  */
 export class IntroBackdrop {
   readonly tunnel = new PurpleTunnel();
   private readonly size = new THREE.Vector2();
-  private readonly centre = new THREE.Vector3();
   private lightsOnLayer = false;
   private stadiumDrawn = false;
 
@@ -143,7 +142,8 @@ export class IntroBackdrop {
    * Draws one frame. `reveal` is how far the purple has gone: 0 all purple, 1 gone (then only the
    * stadium is drawn). With `fade` the purple fades out instead of opening up, and the tunnel stands
    * still (reduced motion). `dt` moves the tunnel's rings on. The tunnel runs toward `home` (where the ball
-   * floats without its drift and following the mouse; the ball itself by default), the hole opens from the ball.
+   * floats without its drift and following the mouse; the ball itself by default), the hole opens from the middle of
+   * the screen.
    */
   render(
     renderer: THREE.WebGLRenderer,
@@ -176,9 +176,8 @@ export class IntroBackdrop {
 
     renderer.getDrawingBufferSize(this.size);
     const pixels = this.size.y / renderer.domElement.clientHeight || 1;
-    this.centre.copy(this.ball.position).project(camera);
-    const x = ((this.centre.x + 1) / 2) * this.size.x;
-    const y = ((this.centre.y + 1) / 2) * this.size.y;
+    const x = this.size.x / 2;
+    const y = this.size.y / 2;
     const radius = holeRadius(fade ? 0 : reveal, x, y, this.size.x, this.size.y, HOLE_EDGE * pixels);
     const { uniforms } = this.tunnel;
     uniforms.uHole.value.set(x, y, radius);

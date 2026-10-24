@@ -156,7 +156,7 @@ window.addEventListener('pointerdown', (e) => {
   if (onIntroBall(e.clientX, e.clientY)) introBall.bounce();
 });
 document.documentElement.addEventListener('pointerleave', () => introBall.pointAt(0, 0));
-const introBackdrop = new IntroBackdrop(ballMesh); // the purple tunnel behind it, opening up from the ball
+const introBackdrop = new IntroBackdrop(ballMesh); // the purple tunnel behind it, opening up from the middle
 // Croky chips swirling out from behind the ball on the intro (fewer on phones; none with reduced motion).
 const introChips = new IntroChips(await chipAsset, touchScreen ? 24 : 40);
 lightMovingObject(introChips.mesh, envMap);
@@ -395,8 +395,7 @@ function endShot() {
   const withReplay = replay.wanted(outcome.result ?? 'miss', outcome.hitFrame);
   setPhase('circle');
   hud.dropBanner();
-  const ball = onScreen(physics.ball.translation(), 0.15);
-  iris.close(ball.x, ball.y, REPLAY_SETTINGS.closeTime, () => {
+  iris.close(drawn.w / 2, drawn.h / 2, REPLAY_SETTINGS.closeTime, () => {
     if (withReplay) replay.start(outcome.result === 'goal');
     resetShot();
     if (replay.active) setPhase('replay');
@@ -418,17 +417,9 @@ function endReplay() {
   openOnField();
 }
 
-/** The purple circle opens up from the ball on its spot, then the next shot. */
+/** The purple circle opens up from the middle of the screen, then the next shot. */
 function openOnField() {
-  const spot = onScreen(BALL_START, 0);
-  iris.open(spot.x, spot.y, REPLAY_SETTINGS.openTime, nextShot);
-}
-
-/** Where `p` is on screen, in CSS pixels from the top left, kept `margin` (a share of the screen) inside its edges. */
-function onScreen(p: { x: number; y: number; z: number }, margin: number) {
-  const v = new THREE.Vector3(p.x, p.y, p.z).project(camera);
-  const clamp = (n: number) => Math.min(1 - margin, Math.max(margin, n));
-  return { x: clamp((v.x + 1) / 2) * drawn.w, y: clamp((1 - v.y) / 2) * drawn.h };
+  iris.open(drawn.w / 2, drawn.h / 2, REPLAY_SETTINGS.openTime, nextShot);
 }
 
 /** Ball back on the spot and the keeper back in the middle, at once: the screen is covered. */

@@ -305,29 +305,6 @@ body {
   }
 }
 
-.screen-title {
-  margin: -6px 0 0;
-  color: #ffffff;
-  font-weight: 900;
-  font-size: clamp(48px, 13vmin, 104px);
-  line-height: 1;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  text-shadow:
-    0 6px 0 #e5186f,
-    0 12px 20px rgba(0, 0, 0, 0.3);
-}
-
-.screen-tagline {
-  margin: 0 0 14px;
-  color: #ffcf3a;
-  font-weight: 900;
-  font-size: clamp(16px, 3.4vmin, 22px);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  text-shadow: 0 3px 0 #3b1f4f;
-}
-
 /*
  * The intro: Glenn's landing design, made at 1440 x 800 and scaled as one piece, so it fits that screen to the
  * pixel. One --u is one pixel there. Everything sits round the 3D ball in the middle of the screen (the solid
@@ -433,35 +410,11 @@ body {
   position: absolute;
   left: 50%;
   top: calc(50% + var(--ball) / 2 + 103.5 * var(--bu));
-  width: calc(234 * var(--bu));
-  min-width: 0;
-  height: calc(62 * var(--bu));
-  min-height: 0;
-  padding: 0 0 calc(5 * var(--bu)); /* the font sits low in its line: this centres the capitals */
-  background: #fc4846;
-  color: #ffffff;
-  font:
-    700 calc(23 * var(--bu)) / 1 Bazinga,
-    system-ui,
-    sans-serif;
-  letter-spacing: 0;
-  box-shadow: calc(3 * var(--bu)) calc(4.5 * var(--bu)) 0 #1d0f42;
   pointer-events: auto;
   transform: translate(-50%, -50%) rotate(4deg);
 }
 
-/* The button has the focus (Enter plays), but its ring only shows once the keyboard is used (src/ui/screens.ts). */
-.intro-play.btn:focus-visible {
-  outline: none;
-}
-
-.keys .intro-play.btn:focus-visible {
-  outline: calc(4 * var(--bu)) solid #ffffff;
-  outline-offset: calc(4 * var(--bu));
-}
-
-/* Hovering the button gives it the same little wiggle it comes in with (and keeps it in place and turned, not
-   moved like the other buttons on hover). */
+/* Hovering the button gives it the same little wiggle it comes in with (see .btn-croky), kept in place. */
 .intro-play.btn:hover {
   transform: translate(-50%, -50%) rotate(4deg);
   animation: intro-wiggle 0.5s ease-in-out;
@@ -599,22 +552,52 @@ body {
   outline-offset: 4px;
 }
 
-.btn-primary {
-  min-width: 240px;
-  padding: 16px 44px;
-  background: #ffcf3a;
-  color: #6c398b;
-  font-size: 24px;
-  box-shadow: 0 6px 0 #3b1f4f;
+/*
+ * The red Croky button of Glenn's landing design (Speel nu & Win, Speel opnieuw): 234 x 62 of the design's pixels
+ * (--bu, set by its screen), white Bazinga, a solid shadow and turned 4 degrees. Hovering gives it the little
+ * wiggle the landing's button comes in with; pressing pushes it into its shadow.
+ */
+.btn-croky {
+  width: calc(234 * var(--bu));
+  min-width: 0;
+  height: calc(62 * var(--bu));
+  min-height: 0;
+  padding: 0 0 calc(5 * var(--bu)); /* the font sits low in its line: this centres the capitals */
+  background: #fc4846;
+  color: #ffffff;
+  font:
+    700 calc(23 * var(--bu)) / 1 Bazinga,
+    system-ui,
+    sans-serif;
+  letter-spacing: 0;
+  box-shadow: calc(3 * var(--bu)) calc(4.5 * var(--bu)) 0 #1d0f42;
+  transform: rotate(4deg);
 }
 
-.btn-primary:hover {
-  transform: translateY(-2px) scale(1.03);
+.btn-croky:hover {
+  transform: rotate(4deg);
+  animation: intro-wiggle 0.5s ease-in-out;
 }
 
-.btn-primary:active {
-  transform: translateY(4px);
-  box-shadow: 0 2px 0 #3b1f4f;
+.btn-croky:active {
+  transform: rotate(4deg) translate(calc(3 * var(--bu)), calc(3 * var(--bu)));
+  box-shadow: calc(1 * var(--bu)) calc(1 * var(--bu)) 0 #1d0f42;
+}
+
+/* The button has the focus (Enter plays), but its ring only shows once the keyboard is used (src/ui/screens.ts). */
+.btn-croky:focus-visible {
+  outline: none;
+}
+
+.keys .btn-croky:focus-visible {
+  outline: calc(4 * var(--bu)) solid #ffffff;
+  outline-offset: calc(4 * var(--bu));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-croky:hover {
+    animation: none;
+  }
 }
 
 /*
@@ -622,6 +605,8 @@ body {
  * and the score sits beside it: on the right, or under it on screens taller than wide.
  */
 .screen.end {
+  --u: min(100vw / 1440, 100vh / 800); /* one pixel of the landing's design, as on the intro */
+  --bu: max(var(--u), 0.72px);
   background: none;
   grid-template-columns: 1fr 1fr;
 }
@@ -632,6 +617,7 @@ body {
 
 @media (max-aspect-ratio: 1/1) {
   .screen.end {
+    --u: calc(100vw / 840);
     grid-template-columns: 1fr;
     grid-template-rows: 1fr auto;
   }
@@ -672,8 +658,33 @@ body {
   font-size: 22px;
 }
 
+/* The end's words in the landing title's style: white Bazinga, tight letters, a solid dark purple shadow, tilted. */
+.end-title {
+  max-width: calc(560 * var(--u));
+  margin: 0;
+  color: #ffffff;
+  font:
+    700 max(40px, calc(96 * var(--u))) / 0.95 Bazinga,
+    system-ui,
+    sans-serif;
+  letter-spacing: -0.033em;
+  word-spacing: -0.037em;
+  text-transform: uppercase;
+  text-shadow: 0.055em 0.063em 0 #2a1a57; /* the title's 7.4 x 8.5 at 135 */
+  rotate: -4deg;
+}
+
 .end-score {
-  margin: 4px 0 14px;
+  margin: 4px 0 18px;
+  color: #ffffff;
+  font:
+    700 max(18px, calc(34 * var(--u))) / 1 Bazinga,
+    system-ui,
+    sans-serif;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  text-shadow: 0.055em 0.063em 0 #2a1a57;
+  rotate: -4deg;
 }
 
 /*
