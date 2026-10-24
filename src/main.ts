@@ -613,7 +613,10 @@ renderer.setAnimationLoop((time) => {
   } else if (phase === 'result') {
     trail.push(p, gameTime);
     const replayNext = replay.wanted(outcome.result ?? 'miss', outcome.hitFrame);
-    if (phaseTime > (replayNext ? REPLAY_SETTINGS.holdWithReplay : REPLAY_SETTINGS.holdWithout)) endShot();
+    // Long words, whose letters take longer to pop up, stay up that much longer.
+    const hold =
+      (replayNext ? REPLAY_SETTINGS.holdWithReplay : REPLAY_SETTINGS.holdWithout) + Math.max(0, hud.bannerIn - 0.45);
+    if (phaseTime > hold) endShot();
   }
   if (phase === 'flight' || phase === 'result') replay.record(gameTime, p, q);
 

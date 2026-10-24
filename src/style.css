@@ -124,7 +124,7 @@ body {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%) rotate(-4deg) scale(calc(0.4 * var(--fit, 1)));
+  transform: translate(-50%, -50%) rotate(-4deg) scale(var(--fit, 1));
   opacity: 0;
   color: #ffffff;
   font:
@@ -146,28 +146,29 @@ body {
 }
 
 .banner.show {
-  animation: pop 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) forwards;
+  opacity: 1;
 }
 
-@keyframes pop {
-  to {
-    opacity: 1;
-    transform: translate(-50%, -50%) rotate(-4deg) scale(var(--fit, 1));
+/* Its letters pop up one by one, and away again the last one first: the landing title's own animations. */
+.banner span {
+  display: inline-block;
+}
+
+.banner.show span {
+  animation: intro-letter 0.35s calc(var(--n, 0) * 0.045s) cubic-bezier(0.3, 1.8, 0.5, 1) backwards;
+}
+
+.banner.show.out span {
+  animation: intro-letter-out 0.25s calc(var(--m, 0) * 0.025s) cubic-bezier(0.5, -0.9, 0.8, 0.5) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner.show span {
+    animation: none;
   }
-}
 
-.banner.show.out {
-  animation: banner-out 0.3s ease-in forwards;
-}
-
-@keyframes banner-out {
-  from {
-    opacity: 1;
-    transform: translate(-50%, -50%) rotate(-4deg) scale(var(--fit, 1));
-  }
-  to {
-    opacity: 0;
-    transform: translate(-50%, -50%) rotate(-4deg) scale(calc(0.6 * var(--fit, 1)));
+  .banner.show.out span {
+    animation: intro-fade 0.3s ease-out forwards;
   }
 }
 

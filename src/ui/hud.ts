@@ -3,6 +3,10 @@ import type { ShotOutcome } from '../gameplay/round';
 import { scoreBalls } from './screens';
 import { TEXTS } from './texts';
 
+// The banner's letters pop up like the landing title's (intro-letter in style.css): each this long, this far apart.
+const LETTER_POP = 0.35;
+const LETTER_STEP = 0.045;
+
 /** HTML overlay: the round's score, power meter with its gold zone, banners and the replay's label. */
 export class Hud {
   private readonly meter: HTMLElement;
@@ -11,6 +15,8 @@ export class Hud {
   private readonly pop: HTMLElement;
   private readonly score: HTMLElement;
   private readonly replayTag: HTMLElement;
+  /** Seconds the banner's letters take to pop up, all of them. */
+  bannerIn = 0;
 
   constructor(root: HTMLElement) {
     root.insertAdjacentHTML(
@@ -53,9 +59,25 @@ export class Hud {
     restartAnimation(this.pop, 'show');
   }
 
-  /** The big words in the middle after a shot, made smaller if they'd be wider than the screen (a phone held upright). */
+  /**
+   * The big words in the middle after a shot, popping up letter by letter like the landing's title, made smaller if
+   * they'd be wider than the screen (a phone held upright).
+   */
   showBanner(text: string) {
-    this.banner.textContent = text;
+    // One span per letter, so they pop up one by one like the landing's title (spaces stay plain spaces).
+    const letters = [...text].filter((ch) => ch.trim()).length;
+    this.bannerIn = LETTER_POP + Math.max(0, letters - 1) * LETTER_STEP;
+    let n = 0;
+    this.banner.replaceChildren(
+      ...[...text].map((ch) => {
+        if (!ch.trim()) return ch;
+        const letter = document.createElement('span');
+        letter.textContent = ch;
+        letter.style.setProperty('--n', String(n)); // its turn coming in
+        letter.style.setProperty('--m', String(letters - 1 - n++)); // and going: the last one first
+        return letter;
+      }),
+    );
     const room = 0.92 * window.innerWidth;
     this.banner.style.setProperty('--fit', String(Math.min(1, room / Math.max(1, this.banner.offsetWidth))));
     this.banner.classList.remove('out');
@@ -67,7 +89,7 @@ export class Hud {
     this.banner.classList.remove('show', 'out');
   }
 
-  /** The banner shrinks away (as the purple circle closes). */
+  /** The banner's letters pop away, the last one first (as the purple circle closes). */
   dropBanner() {
     if (this.banner.classList.contains('show')) this.banner.classList.add('out');
   }
