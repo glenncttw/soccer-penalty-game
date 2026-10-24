@@ -1,7 +1,7 @@
 /**
  * The words on the Croky Cup screens (intro, end) in Dutch and French. The browser's language picks
- * one (`setLanguage` can switch and remember it on this device). The in-game banners (GOAL!, SAVED!) and tips are still in src/main.ts and
- * src/ui/coach.ts (English).
+ * one (`setLanguage` can switch and remember it on this device). The in-game banners (GOAL!, SAVED!) are still in src/main.ts
+ * (English).
  */
 const NL = {
   lang: 'nl',

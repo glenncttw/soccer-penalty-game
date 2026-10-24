@@ -32,31 +32,6 @@ body {
   font-family: system-ui, sans-serif;
 }
 
-.hint {
-  position: absolute;
-  left: 50%;
-  top: 16px;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: calc(100% - 32px);
-  box-sizing: border-box;
-  padding: 10px 18px;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #e5186f;
-  font-weight: 800;
-  font-size: 13px;
-  letter-spacing: 0.04em;
-  text-align: center;
-  text-transform: uppercase;
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.12);
-  transition: opacity 0.6s;
-}
-
-.hint.faded {
-  opacity: 0;
-}
-
 .meter {
   position: absolute;
   right: 24px;
@@ -102,10 +77,11 @@ body {
 
 .pop {
   position: absolute;
-  right: 12px;
+  left: 50%;
   top: 50%;
   opacity: 0;
   color: #ffffff;
+  white-space: nowrap;
   font:
     700 30px Bazinga,
     system-ui,
@@ -122,19 +98,19 @@ body {
 @keyframes pop-word {
   0% {
     opacity: 0;
-    transform: translateY(-50%) scale(0.5);
+    transform: translate(-50%, -50%) scale(0.5);
   }
   20% {
     opacity: 1;
-    transform: translateY(-60%) scale(1.15);
+    transform: translate(-50%, -60%) scale(1.15);
   }
   70% {
     opacity: 1;
-    transform: translateY(-90%) scale(1);
+    transform: translate(-50%, -90%) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translateY(-130%) scale(1);
+    transform: translate(-50%, -130%) scale(1);
   }
 }
 
@@ -146,7 +122,7 @@ body {
   --u: min(100vw / 1440, 100vh / 800);
   position: absolute;
   left: 50%;
-  top: 21%;
+  top: 50%;
   transform: translate(-50%, -50%) rotate(-4deg) scale(0.4);
   opacity: 0;
   color: #ffffff;
@@ -252,13 +228,6 @@ body {
 
 .score[hidden] {
   display: none;
-}
-
-/* On narrow screens the tips go under the score instead of beside it. */
-@media (max-width: 760px) {
-  .hint {
-    top: 58px;
-  }
 }
 
 .ball {
