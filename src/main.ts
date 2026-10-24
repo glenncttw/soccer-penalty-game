@@ -39,7 +39,6 @@ import { Sky } from './scene/sky';
 import { GradualWarmUp } from './scene/warmUp';
 import { SKY_SETTINGS } from './scene/skySettings';
 import { loadStadium } from './scene/stadiumAsset';
-import { COACH_AIM_EITHER, COACH_KEY_TEXT, COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
 import { PerfStats } from './ui/perfStats';
 import { Round } from './gameplay/round';
@@ -258,7 +257,6 @@ const power = createPowerMeter(touchScreen);
 const outcome = new OutcomeTracker(world.goal, world.ballRadius);
 const events = new GameEvents();
 const slowMotion = new SlowMotion();
-const coach = new Coach();
 // A round of the Croky Cup: 5 penalties, between the intro screen and the end screen.
 const round = new Round();
 let playing = false; // a round is on (no intro or end screen in front)
@@ -344,7 +342,6 @@ input.onRelease = () => {
   input.enabled = false;
   lastQuality = shot.quality;
   replay.begin(gameTime, { power: power.value, perfect: shot.quality === 'perfect' });
-  coach.shotTaken();
   setPhase('flight');
   events.emit('kick', { power: power.value, quality: shot.quality });
 };
@@ -561,11 +558,6 @@ renderer.setAnimationLoop((time) => {
     markers.showPreview(BALL_START, kick, preview.spin, perfect);
     if (power.sweeps >= 2) input.forceRelease(); // don't let a charge last forever
   }
-  const tip = coach.update(phase === 'wipe' || phase === 'replay' ? 'result' : phase, input.curl);
-  const tipText = input.usingKeys ? COACH_KEY_TEXT : COACH_TEXT;
-  hud.showHint(
-    !playing ? null : tip === 'aim' && finePointer && !input.usingKeys ? COACH_AIM_EITHER : tip ? tipText[tip] : null,
-  );
 
   // The keeper gets ready and steps across toward where you aim while you line up the shot.
   const aiming = playing && phase === 'aiming' && (input.hasPointer || input.usingKeys);
