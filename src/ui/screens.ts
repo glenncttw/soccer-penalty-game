@@ -2,7 +2,7 @@ import type { ShotOutcome } from '../gameplay/round';
 import { TEXTS, type Texts } from './texts';
 
 const LOGO_URL = `${import.meta.env.BASE_URL}assets/crowd/flag_logo.svg`;
-const LEAVE_TIME = 300; // milliseconds, as long as the intro-leave animations in style.css
+const LEAVE_TIME = 500; // milliseconds, as long as the intro's leaving animations in style.css (the last letter's)
 export const ENTER_TIME = 2100; // milliseconds of the intro's entrance after loading (the intro-enter animations in style.css)
 const ARCH = 22 / 135; // how much higher the middle of the title is than its ends, in its letters' height (22 px)
 
@@ -178,6 +178,10 @@ export class Screens {
       if (ch.trim()) letter.style.setProperty('--n', String(n++)); // its turn in the entrance
       return letter;
     });
+    for (const letter of letters) {
+      const turn = letter.style.getPropertyValue('--n');
+      if (turn) letter.style.setProperty('--m', String(n - 1 - Number(turn))); // its turn on the way out: last first
+    }
     arch.append(...letters);
     this.title.replaceChildren(line, arch);
     this.title.setAttribute('aria-label', text);

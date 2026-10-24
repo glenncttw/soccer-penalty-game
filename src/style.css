@@ -144,8 +144,10 @@ body {
   transform: translate(-50%, -50%) scale(0.4);
   opacity: 0;
   color: #ffffff;
-  font-weight: 900;
-  font-size: clamp(44px, 12vw, 96px);
+  font:
+    700 clamp(44px, 12vw, 96px) Bazinga,
+    system-ui,
+    sans-serif; /* the landing's typeface */
   letter-spacing: 0.02em;
   text-align: center;
   white-space: nowrap;
@@ -555,24 +557,31 @@ body {
   }
 }
 
-/* Speel nu & Win: the title moves up and the button down, out of the way of the ball (src/ui/screens.ts). */
+/*
+ * Speel nu & Win (src/ui/screens.ts): the logo fades away where it is, the title's letters pop away one by one
+ * (the entrance backwards: the last letter first), and the button goes down, out of the way of the ball.
+ */
 .screen.intro.leaving {
   pointer-events: none;
 }
 
-.screen.intro.leaving .intro-top {
-  animation: intro-leave-up 0.25s ease-in forwards;
+.screen.intro.leaving .intro-logo {
+  animation: intro-fade 0.3s ease-out forwards;
+}
+
+.screen.intro.leaving .intro-title-arch > span {
+  animation: intro-letter-out 0.25s calc(var(--m, 0) * 0.025s) cubic-bezier(0.5, -0.9, 0.8, 0.5) forwards;
+}
+
+@keyframes intro-letter-out {
+  to {
+    opacity: 0;
+    scale: 0.2;
+  }
 }
 
 .screen.intro.leaving .intro-bottom {
   animation: intro-leave-down 0.25s ease-in forwards;
-}
-
-@keyframes intro-leave-up {
-  to {
-    opacity: 0;
-    transform: translateY(-40px);
-  }
 }
 
 @keyframes intro-leave-down {
@@ -583,9 +592,9 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .screen.intro.leaving .intro-top,
+  .screen.intro.leaving .intro-title-arch > span,
   .screen.intro.leaving .intro-bottom {
-    animation-name: intro-fade;
+    animation: intro-fade 0.3s ease-out forwards;
   }
 }
 
