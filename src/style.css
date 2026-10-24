@@ -11,7 +11,7 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #9fdcf5;
+  background: #fc4846; /* the loading screen's red */
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -501,48 +501,14 @@ body {
 }
 
 /*
- * The intro's entrance after loading (src/ui/screens.ts; the ball flies in from src/scene/introBall.ts): a circle
- * opens on the tunnel, the logo drops in, the title's letters pop up one by one along the arch, and the button
- * comes up with a little wiggle.
+ * The intro's entrance after loading (src/ui/screens.ts; the ball flies in from src/scene/introBall.ts), while the
+ * loading screen opens on the tunnel (see #loading.opening): the title's letters pop up one by one along the
+ * arch, and the button comes up with a little wiggle. The logo is already there: the loading screen's logo sits
+ * on top of it.
  */
-.screen.intro.entering::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  z-index: 1;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  box-shadow:
-    0 0 0 calc(6 * var(--bu)) #ffcf3a,
-    0 0 0 300vmax #9fdcf5; /* the loading page's own colour */
-  transform: translate(-50%, -50%);
-  animation: intro-iris 0.6s cubic-bezier(0.55, 0, 0.75, 0.3) forwards;
-  pointer-events: none;
-}
-
-@keyframes intro-iris {
-  to {
-    width: calc(150vmax + 30px);
-    height: calc(150vmax + 30px);
-  }
-}
-
 .screen.intro.entering .screen-body,
 .screen.intro.entered .screen-body {
   animation: none; /* its own entrance instead of the screens' pop (and not once it's done either) */
-}
-
-.screen.intro.entering .intro-logo {
-  animation: intro-drop 0.45s 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) backwards;
-}
-
-@keyframes intro-drop {
-  from {
-    opacity: 0;
-    translate: 0 calc(-60 * var(--u));
-  }
 }
 
 .screen.intro.entering .intro-title-arch > span {
@@ -582,11 +548,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .screen.intro.entering::before {
-    animation: intro-fade 0.3s forwards;
-  }
-
-  .screen.intro.entering .intro-logo,
   .screen.intro.entering .intro-title-arch > span,
   .screen.intro.entering .intro-play.btn,
   .intro-play.btn:hover {
@@ -728,32 +689,158 @@ body {
   margin: 4px 0 14px;
 }
 
-/* The loading screen and its bar, over everything until the game is ready (src/ui/preloader.ts). */
+/*
+ * The loading screen, over everything until the game is ready (src/ui/preloader.ts): Glenn's design, made at
+ * 1440 x 800 and scaled like the intro (one --u is one pixel there). The red with the Croky logo, and a ring in
+ * the middle that fills clockwise from the top with the percentage in it. The logo sits exactly where the
+ * intro's logo is, so it stays put when the landing comes in.
+ */
 #loading {
+  --u: min(100vw / 1440, 100vh / 800);
+  --ball: calc(320 * var(--u)); /* the intro's ball, which the logo is placed from */
   position: fixed;
   inset: 0;
   z-index: 5; /* over the game while it gets ready behind it */
-  background: #9fdcf5;
+  overflow: hidden;
+  background: #fc4846;
+  pointer-events: none;
 }
 
-#loading .bar {
+@media (max-aspect-ratio: 1/1) {
+  #loading {
+    --u: calc(100vw / 840);
+    --ball: max(110px, min(64vw, 36vh));
+  }
+}
+
+.loading-logo {
+  position: absolute;
+  left: 50%;
+  top: calc(50% - var(--ball) / 2 - 184 * var(--u));
+  width: calc(118 * var(--u));
+  transform: translateX(-50%);
+}
+
+/*
+ * The ring: a light red track, filled in dark purple by two halves, each a half circle turned into view inside its
+ * own half of the ring (src/ui/preloader.ts turns them). Turning runs on its own, so the ring keeps moving even
+ * while the game is busy setting up.
+ */
+.loading-ring {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 240px;
-  max-width: 60vw;
-  height: 8px;
+  width: calc(166 * var(--u));
+  height: calc(166 * var(--u));
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 calc(6 * var(--u)) #fd7674;
   transform: translate(-50%, -50%);
-  background: rgba(0, 0, 0, 0.2);
 }
 
-#loading .bar > div {
-  width: 100%;
+.loading-half {
+  position: absolute;
+  top: 0;
+  width: calc(50% + 1px); /* a pixel past the middle, so no thin line shows where the halves meet */
   height: 100%;
-  background: #ffffff;
-  transform: scaleX(0.05);
-  transform-origin: left;
-  transition: transform 0.2s cubic-bezier(0.25, 0.6, 0.4, 1);
+  overflow: hidden;
+}
+
+.loading-half.right {
+  left: calc(50% - 1px);
+}
+
+.loading-half.left {
+  left: 0;
+}
+
+.loading-half > i {
+  position: absolute;
+  top: 0;
+  width: calc(166 * var(--u));
+  height: 100%;
+  box-sizing: border-box;
+  border: calc(6 * var(--u)) solid transparent;
+  border-radius: 50%;
+  transform: rotate(45deg);
+  transition-property: transform;
+  visibility: hidden; /* until it starts filling: its edge would show as a thin line */
+}
+
+.loading-half.right > i {
+  left: calc(1px - 83 * var(--u));
+  border-bottom-color: #2a1a57;
+  border-left-color: #2a1a57; /* the left half circle: turned into the right half from the top */
+}
+
+.loading-half.left > i {
+  left: 0;
+  border-top-color: #2a1a57;
+  border-right-color: #2a1a57; /* the right half circle: turned into the left half from the bottom */
+}
+
+.loading-percent {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  color: #ffffff;
+  font:
+    700 calc(39 * var(--u)) / 1 Bazinga,
+    system-ui,
+    sans-serif;
+  white-space: nowrap;
+  transform: translate(calc(-50% - 1.5 * var(--u)), calc(-50% - 4 * var(--u))) rotate(-4deg); /* tilted like the title */
+}
+
+/*
+ * Ready: the ring shrinks away and the red opens as a circle from the middle (with the tunnel's gold rim) onto the
+ * landing, while the logo stays where it is. Then the loading screen goes.
+ */
+#loading.opening {
+  background: none;
+}
+
+#loading.opening::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 calc(6 * var(--u)) #ffcf3a,
+    0 0 0 300vmax #fc4846;
+  transform: translate(-50%, -50%);
+  animation: loading-open 0.6s cubic-bezier(0.55, 0, 0.75, 0.3) forwards;
+}
+
+@keyframes loading-open {
+  to {
+    width: calc(150vmax + 30px);
+    height: calc(150vmax + 30px);
+  }
+}
+
+#loading.opening .loading-ring {
+  animation: loading-ring-out 0.25s ease-in forwards;
+}
+
+@keyframes loading-ring-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #loading.opening {
+    background: #fc4846;
+    animation: intro-fade 0.3s forwards;
+  }
+
+  #loading.opening::before {
+    content: none;
+  }
 }
 
 /* What the renderer drew last frame (src/ui/perfStats.ts), above the Stats panel. */
