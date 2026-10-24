@@ -18,7 +18,10 @@ export interface ReplaySettings {
   afterImpact: number;
   /** Extra seconds a goal's replay keeps going at the end (the ball slowly settling in the net), so you see the crowd celebrate. */
   goalCheer: number;
-  /** Seconds the result banner shows before the circle closes, after a shot with a replay and after one without. */
+  /**
+   * Seconds the result words show before the circle closes, after a shot with a replay and after one without (longer
+   * words, whose letters take longer than 0.45 s to pop up, stay up that much longer).
+   */
   holdWithReplay: number;
   holdWithout: number;
   /** Seconds the purple circle takes to close in over the field, and to open up again. */

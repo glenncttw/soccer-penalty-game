@@ -133,7 +133,7 @@ Settings are in `REPLAY_SETTINGS` in `src/scene/replaySettings.ts`:
 | `afterResult` | how long the replay keeps going after the ball went in or was saved, at most |
 | `afterImpact` | how long it keeps going after the ball hits the keeper, the frame or the net |
 | `panelSize` | the panel's size (1 = the biggest that fits) |
-| `holdWithReplay`, `holdWithout` | how long the GOAL!/MISS! banner shows before the circle closes |
+| `holdWithReplay`, `holdWithout` | how long the words after a shot (GOAL!, OEI!...) show before the circle closes |
 | `closeTime`, `openTime` | seconds the purple circle takes to close in, and to open up again |
 | `resolution` | how sharp the panel is drawn (1 = as sharp as the screen) |
 

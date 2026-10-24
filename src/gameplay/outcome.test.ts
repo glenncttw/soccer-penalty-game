@@ -50,12 +50,35 @@ describe('OutcomeTracker', () => {
     const t = tracker();
     t.update({ x: 0, y: 2.0, z: 0.1 }, 20, 0.01);
     expect(t.hitFrame).toBe(true);
+    expect(t.firstFrame).toBe('bar');
   });
 
   it('notices the ball touching a post', () => {
     const t = tracker();
     t.update({ x: 2.7, y: 1, z: 0.05 }, 20, 0.01);
     expect(t.hitFrame).toBe(true);
+    expect(t.firstFrame).toBe('post');
+  });
+
+  it('remembers which part of the frame the ball touched first', () => {
+    const t = tracker();
+    t.update({ x: 0, y: 2.0, z: 0.1 }, 20, 0.01);
+    t.update({ x: 2.7, y: 1, z: 0.05 }, 20, 0.01);
+    expect(t.firstFrame).toBe('bar');
+    t.reset();
+    expect(t.firstFrame).toBeNull();
+  });
+
+  it('tells a goal in a top corner from one in the middle', () => {
+    const corner = tracker();
+    expect(corner.update({ x: 2.82 - 0.4, y: 1.92 - 0.3, z: -0.4 }, 20, 0.1)).toBe('goal');
+    expect(corner.topCorner).toBe(true);
+    const middle = tracker();
+    expect(middle.update({ x: 0, y: 1, z: -0.4 }, 20, 0.1)).toBe('goal');
+    expect(middle.topCorner).toBe(false);
+    const low = tracker();
+    expect(low.update({ x: -2.5, y: 0.3, z: -0.4 }, 20, 0.1)).toBe('goal');
+    expect(low.topCorner).toBe(false);
   });
 
   it('ends the shot when the ball flies into the stands', () => {

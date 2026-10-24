@@ -46,6 +46,7 @@ import { Round } from './gameplay/round';
 import { Screens } from './ui/screens';
 import { Preloader } from './ui/preloader';
 import { gameFilesIn, rememberFiles } from './ui/rememberFiles';
+import { ResultWords, resultKind } from './ui/resultWords';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -305,6 +306,7 @@ let aimAtReset: number | null = null;
 const KEEPER_FOLLOW_AFTER = 0.1; // metres the aim must move before the keeper follows it again
 const aim = new THREE.Vector3(0, 1.2, world.goal.lineZ);
 let lastQuality: StrikeQuality = 'good';
+const resultWords = new ResultWords();
 
 // Pointer → point on the goal plane, kept inside the goal frame. The arrow keys move that point instead.
 const raycaster = new THREE.Raycaster();
@@ -359,29 +361,13 @@ input.onCancel = () => {
 };
 
 function showResult() {
-  if (outcome.result === 'goal') {
-    const perfect = lastQuality === 'perfect';
-    const ball = physics.ball.translation();
-    const dived = keeper.wentFor;
-    const wrongWay = dived !== null && Math.abs(dived.x) > 1 && Math.sign(dived.x) !== Math.sign(ball.x);
-    const how = outcome.hitFrame
-      ? 'in off the woodwork'
-      : outcome.hitKeeper
-        ? "past the keeper's fingertips"
-        : wrongWay
-          ? 'sent the keeper the wrong way'
-          : perfect
-            ? 'perfect strike'
-            : '';
-    hud.showBanner('GOAL!', how, perfect);
-  } else if (outcome.result === 'saved') {
-    const why = lastQuality === 'weak' ? 'not enough power' : keeper.guessed ? 'the keeper guessed right' : '';
-    hud.showBanner('SAVED!', why || 'great save');
-  } else if (outcome.hitFrame) {
-    hud.showBanner('WOODWORK!', 'so close');
-  } else {
-    hud.showBanner('MISS!', lastQuality === 'skied' ? 'too much power' : lastQuality === 'weak' ? 'not enough power' : '');
-  }
+  const kinds = resultKind({
+    result: outcome.result!,
+    perfect: lastQuality === 'perfect',
+    topCorner: outcome.topCorner,
+    firstFrame: outcome.firstFrame,
+  });
+  hud.showBanner(resultWords.pick(kinds));
   replay.recorder.markResult(gameTime);
   round.record(outcome.result!);
   hud.showScore(round.results, round.shots);
@@ -627,7 +613,10 @@ renderer.setAnimationLoop((time) => {
   } else if (phase === 'result') {
     trail.push(p, gameTime);
     const replayNext = replay.wanted(outcome.result ?? 'miss', outcome.hitFrame);
-    if (phaseTime > (replayNext ? REPLAY_SETTINGS.holdWithReplay : REPLAY_SETTINGS.holdWithout)) endShot();
+    // Long words, whose letters take longer to pop up, stay up that much longer.
+    const hold =
+      (replayNext ? REPLAY_SETTINGS.holdWithReplay : REPLAY_SETTINGS.holdWithout) + Math.max(0, hud.bannerIn - 0.45);
+    if (phaseTime > hold) endShot();
   }
   if (phase === 'flight' || phase === 'result') replay.record(gameTime, p, q);
 

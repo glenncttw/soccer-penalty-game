@@ -3,11 +3,19 @@ import type { GoalConfig } from '../worldConfig';
 
 export type ShotResult = 'goal' | 'miss' | 'saved';
 
+// A goal in a top corner: the ball's centre crosses the line this close (m) to a post and to the crossbar.
+const CORNER_FROM_POST = 0.8;
+const CORNER_FROM_BAR = 0.6;
+
 /** Watches the ball after a kick and decides if it went in, and whether it hit the frame or the keeper. */
 export class OutcomeTracker {
   result: ShotResult | null = null;
   hitFrame = false;
+  /** Which part of the frame the ball touched first, if any. */
+  firstFrame: 'post' | 'bar' | null = null;
   hitKeeper = false;
+  /** For a goal: true if it went in a top corner. */
+  topCorner = false;
   private elapsed = 0;
   private keeperZ = 0;
 
@@ -19,7 +27,9 @@ export class OutcomeTracker {
   reset() {
     this.result = null;
     this.hitFrame = false;
+    this.firstFrame = null;
     this.hitKeeper = false;
+    this.topCorner = false;
     this.elapsed = 0;
   }
 
@@ -57,12 +67,19 @@ export class OutcomeTracker {
       const nearBar =
         p.y > g.crossbarY - touch && p.y < g.outerHeight + touch && Math.abs(p.x) < g.outerHalfWidth + touch;
       if (nearPost || nearBar) this.hitFrame = true;
+      // A ball in the corner touches both at once: there it's the post if it's beside it, the bar if under it.
+      if (!this.firstFrame && (nearPost || nearBar)) {
+        const beside = Math.abs(p.x) > g.innerHalfWidth;
+        this.firstFrame = nearPost && (!nearBar || beside) ? 'post' : 'bar';
+      }
     }
 
     // The whole ball must be over the whole line, inside the posts and under the bar.
     const fullyOver = z < -(g.postDepth / 2 + this.ballRadius);
-    if (fullyOver && Math.abs(p.x) < g.innerHalfWidth && p.y < g.crossbarY) this.result = 'goal';
-    else if (this.hitKeeper && (p.z > this.keeperZ + 0.4 || Math.abs(p.x) > g.outerHalfWidth + 0.6)) {
+    if (fullyOver && Math.abs(p.x) < g.innerHalfWidth && p.y < g.crossbarY) {
+      this.result = 'goal';
+      this.topCorner = Math.abs(p.x) > g.innerHalfWidth - CORNER_FROM_POST && p.y > g.crossbarY - CORNER_FROM_BAR;
+    } else if (this.hitKeeper && (p.z > this.keeperZ + 0.4 || Math.abs(p.x) > g.outerHalfWidth + 0.6)) {
       this.result = 'saved'; // pushed back out or wide
     } else if (fullyOver || z < -3 || Math.abs(p.x) > 30 || this.elapsed > 4 || (this.elapsed > 0.5 && speed < 0.3)) {
       this.result = this.hitKeeper ? 'saved' : 'miss';
