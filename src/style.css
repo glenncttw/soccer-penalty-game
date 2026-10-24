@@ -771,7 +771,7 @@ body {
   border: calc(6 * var(--u)) solid transparent;
   border-radius: 50%;
   transform: rotate(45deg);
-  transition-property: transform;
+  transition-property: transform, visibility;
   visibility: hidden; /* until it starts filling: its edge would show as a thin line */
 }
 
