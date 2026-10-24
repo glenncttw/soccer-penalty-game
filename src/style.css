@@ -669,19 +669,6 @@ body {
   box-shadow: 0 2px 0 #3b1f4f;
 }
 
-.btn-secondary {
-  min-width: 160px;
-  padding: 10px 32px;
-  background: transparent;
-  border: 3px solid #ffffff;
-  color: #ffffff;
-  font-size: 17px;
-}
-
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
 /*
  * The end of a round: no tint over the game, the camera moves in close to the keeper dancing (src/scene/gameCamera.ts)
  * and the score sits beside it: on the right, or under it on screens taller than wide.
@@ -718,22 +705,10 @@ body {
   box-shadow: 6px 8px 0 #2a1a57;
 }
 
-.screen.end .end-best {
-  text-shadow: 0 3px 0 #2a1a57;
-}
-
 @media (max-width: 420px) {
   .screen.end .screen-body {
     padding: 22px 18px 26px;
   }
-}
-
-.screen.end .btn-secondary {
-  background: rgba(59, 31, 79, 0.45);
-}
-
-.screen.end .btn-secondary:hover {
-  background: rgba(59, 31, 79, 0.65);
 }
 
 .end-balls {
@@ -750,17 +725,7 @@ body {
 }
 
 .end-score {
-  margin: 4px 0 0;
-}
-
-.end-best {
-  margin: 0 0 14px;
-  min-height: 1.2em;
-  color: #ffffff;
-  font-weight: 800;
-  font-size: 15px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  margin: 4px 0 14px;
 }
 
 /* The loading screen and its bar, over everything until the game is ready (src/ui/preloader.ts). */

@@ -10,10 +10,7 @@ const NL = {
   score: (goals: number, shots: number) => `${goals} van de ${shots} gescoord`,
   endTitle: (goals: number, shots: number): string =>
     goals === shots ? 'Perfect!' : goals >= Math.ceil(shots / 2) ? 'Goed gedaan!' : 'Volgende keer beter!',
-  best: (goals: number) => `Je record: ${goals}`,
-  newBest: 'Nieuw record!',
   again: 'Speel opnieuw',
-  menu: 'Menu',
   scoreLabel: (goals: number, taken: number, shots: number) =>
     `${goals} goals, ${taken} van ${shots} penalty's genomen`,
 };
@@ -33,10 +30,7 @@ const FR: Texts = {
       : goals >= Math.ceil(shots / 2)
         ? `Bien joué${NBSP}!`
         : `La prochaine fois${NBSP}!`,
-  best: (goals) => `Ton record${NBSP}: ${goals}`,
-  newBest: `Nouveau record${NBSP}!`,
   again: 'Rejouer',
-  menu: 'Menu',
   scoreLabel: (goals, taken, shots) => `${goals} buts, ${taken} penalties tirés sur ${shots}`,
 };
 

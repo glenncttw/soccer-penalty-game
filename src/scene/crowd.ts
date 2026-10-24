@@ -2,7 +2,17 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CrowdParts } from './crowdAsset';
 import { CROWD_SETTINGS, type CrowdSettings } from './crowdSettings';
-import { addMotion, holdingPose, Limb, limbAt, Mood, motionOf, motionUniforms, reachablePoses } from './crowdMotion';
+import {
+  addMotion,
+  CALM_TIME,
+  holdingPose,
+  Limb,
+  limbAt,
+  Mood,
+  motionOf,
+  motionUniforms,
+  reachablePoses,
+} from './crowdMotion';
 import { placeCrowd, seeded, type Placement, type PlacementInput } from './crowdPlacement';
 import { concat, shapeOf, type CrowdSpot, type Moves, type PersonBox, type Triangles } from './crowdSpots';
 
@@ -284,10 +294,14 @@ export class Crowd {
     this.untilWave = Math.min(this.untilWave, this.waveGap());
   }
 
-  /** Back to how they were before the shot, easing out of whatever they're doing. */
-  calm() {
+  /**
+   * Back to how they were before the shot, easing out of whatever they're doing, or straight away with `atOnce`
+   * (while a wipe covers the screen, so nobody is seen still jumping when the field shows again).
+   */
+  calm({ atOnce = false }: { atOnce?: boolean } = {}) {
     const u = this.motion;
-    if (u.uReactEnd.value > this.time) u.uReactEnd.value = this.time;
+    const end = atOnce ? this.time - CALM_TIME : this.time;
+    if (u.uReactEnd.value > end) u.uReactEnd.value = end;
   }
 
   /** Their clock, in real seconds: what their reactions and the Mexican wave run on. */

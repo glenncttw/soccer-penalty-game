@@ -170,9 +170,12 @@ describe('game camera', () => {
         expect(middle.x).toBeCloseTo(0, 2);
         expect(middle.y).toBeCloseTo(0.38, 2);
       }
+      // The grass blades stand up as seen from close by too (the spot it drifts round, not the rest view).
+      expect(view.grassView.distanceTo(view.camera.position)).toBeLessThan(0.5);
       // And back to the rest view once the screen goes.
       settle(view);
       expect(view.camera.position.z).toBeCloseTo(16.03, 6);
+      expect(view.grassView.equals(view.restPosition)).toBe(true);
     }
   });
 });

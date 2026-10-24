@@ -42,7 +42,7 @@ import { loadStadium } from './scene/stadiumAsset';
 import { COACH_AIM_EITHER, COACH_KEY_TEXT, COACH_TEXT, Coach } from './ui/coach';
 import { Hud } from './ui/hud';
 import { PerfStats } from './ui/perfStats';
-import { readBest, Round, saveBest } from './gameplay/round';
+import { Round } from './gameplay/round';
 import { Screens } from './ui/screens';
 import { Preloader } from './ui/preloader';
 import { gameFilesIn, rememberFiles } from './ui/rememberFiles';
@@ -208,8 +208,8 @@ const floodlights = new FloodlightGlow(stadium.environment, view.restPosition);
 // The pitch's grass: stripes, texture, shading and painted lines; tweak it in src/scene/grassSettings.ts.
 await grassTextures;
 const grass = await applyGrass(stadium.environment, renderer);
-// The grass texture's blades stand up as seen from where the camera usually is.
-grass.lookFrom(view.restPosition);
+// The grass texture's blades stand up as seen from where the camera usually is (or the end of a round's close-up).
+grass.lookFrom(view.grassView);
 await preloader.step();
 // The light baked in Blender, plus the live sun. After the grass, so the grass gets the baked light too.
 const { sun } = await setUpLighting(renderer, stadium.model, { bakes, envMap: panorama });
@@ -399,7 +399,7 @@ function endShot() {
     if (replay.active) {
       setPhase('replay');
       wipe.showReplayTag(true);
-    }
+    } else crowd.calm({ atOnce: true });
   }, nextShot);
 }
 
@@ -411,6 +411,7 @@ function endReplay() {
     centreKeeper(); // the replay posed the keeper: put it back while the wipe covers the screen
     aura.begin(false);
     wipe.showReplayTag(false);
+    crowd.calm({ atOnce: true }); // they jumped all through the replay: stopped before the field shows again
     setPhase('wipe');
   }, nextShot);
 }
@@ -471,9 +472,7 @@ function endRound() {
   playing = false;
   input.enabled = false;
   hud.showScore(null, round.shots);
-  const before = readBest();
-  saveBest(round.goals);
-  screens.showEnd(round.results, round.shots, readBest(), before !== null && round.goals > before);
+  screens.showEnd(round.results, round.shots);
   keeper.celebrate();
 }
 

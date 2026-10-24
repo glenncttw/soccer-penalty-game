@@ -432,7 +432,7 @@ export async function applyGrass(stadium: THREE.Object3D, renderer: THREE.WebGLR
     for (const mesh of stripes.meshes) mesh.onBeforeRender = follow;
   }
 
-  /** Turns the grass texture's blades to stand up as seen from `position` (kept up to date: pass the camera's rest spot). */
+  /** Turns the grass texture's blades to stand up as seen from `position` (kept up to date: pass the camera's `grassView`). */
   function lookFrom(position: THREE.Vector3) {
     uniforms.uViewFrom.value = position;
   }
